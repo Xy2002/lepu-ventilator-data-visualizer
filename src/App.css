@@ -92,3 +92,165 @@ select {
   border: 1px solid #d7e0e3;
   background: #ffffff;
 }
+
+.workbench {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 16px;
+  padding: 16px 24px 24px;
+}
+
+.date-navigator,
+.main-panel {
+  border: 1px solid #d7e0e3;
+  background: #ffffff;
+}
+
+.date-navigator {
+  padding: 14px;
+}
+
+.date-navigator h2,
+.selected-day-header h2 {
+  margin: 0 0 10px;
+}
+
+.date-navigator label {
+  display: grid;
+  gap: 6px;
+}
+
+.date-navigator input {
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1px solid #afc0c7;
+}
+
+.nav-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.nav-row button,
+.result-row {
+  min-height: 34px;
+  border: 1px solid #afc0c7;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.nav-row button:disabled {
+  color: #8a989e;
+  cursor: not-allowed;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.checkbox-row input {
+  min-height: auto;
+}
+
+.heatmap {
+  display: grid;
+  grid-template-columns: repeat(15, 1fr);
+  gap: 4px;
+  margin-top: 14px;
+}
+
+.heat-cell {
+  aspect-ratio: 1;
+  border: 1px solid #c7d8dd;
+  background: #dbe9ed;
+  cursor: pointer;
+}
+
+.heat-cell.active {
+  background: #16697a;
+}
+
+.bounded-results {
+  margin-top: 16px;
+}
+
+.bounded-results h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.result-row {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px;
+  background: #f8fbfc;
+  text-align: left;
+}
+
+.main-panel {
+  padding: 16px;
+}
+
+.selected-day-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: baseline;
+}
+
+.selected-day-header p {
+  margin: 0;
+  color: #5c6b73;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.summary-grid article {
+  padding: 12px;
+  border: 1px solid #d7e0e3;
+  background: #f8fbfc;
+}
+
+.summary-grid span {
+  display: block;
+  color: #5c6b73;
+}
+
+.summary-grid strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 20px;
+}
+
+@media (max-width: 860px) {
+  .top-bar,
+  .selected-day-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .import-panel {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .workbench {
+    grid-template-columns: 1fr;
+    padding: 12px;
+  }
+
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

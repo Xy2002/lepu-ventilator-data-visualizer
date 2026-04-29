@@ -1,26 +1,37 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import './App.css';
+import { DateNavigator } from './components/DateNavigator';
 import { ImportPanel } from './components/ImportPanel';
+import { SummaryCards } from './components/SummaryCards';
 import { buildDatasetIndex } from './data/dataset';
 import type { DatasetIndex, ImportedFileRef } from './types';
 
 export function App() {
   const [dataset, setDataset] = useState<DatasetIndex | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isIndexing, setIsIndexing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (dataset && !selectedDate) setSelectedDate(dataset.days[dataset.days.length - 1] ?? null);
+  }, [dataset, selectedDate]);
 
   async function handleImport(files: ImportedFileRef[]) {
     setIsIndexing(true);
     setError(null);
 
     try {
-      setDataset(await buildDatasetIndex(files));
+      const nextDataset = await buildDatasetIndex(files);
+      setDataset(nextDataset);
+      setSelectedDate(nextDataset.days[nextDataset.days.length - 1] ?? null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '导入失败');
     } finally {
       setIsIndexing(false);
     }
   }
+
+  const summary = dataset && selectedDate ? dataset.summariesByDay[selectedDate] : null;
 
   return (
     <main className="app-shell">
@@ -35,13 +46,19 @@ export function App() {
       {error ? <div className="notice error">{error}</div> : null}
       {isIndexing ? <div className="notice">正在索引文件...</div> : null}
 
-      {dataset ? (
-        <section className="dataset-status">
-          <h2>数据集</h2>
-          <p>
-            {dataset.days.length} 天 · {dataset.dateRange.start ?? '-'} 至 {dataset.dateRange.end ?? '-'}
-          </p>
-        </section>
+      {dataset && selectedDate && summary ? (
+        <div className="workbench">
+          <DateNavigator dataset={dataset} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
+          <section className="main-panel">
+            <div className="selected-day-header">
+              <h2>{selectedDate}</h2>
+              <p>
+                {summary.startTime ?? '-'} 至 {summary.endTime ?? '-'}
+              </p>
+            </div>
+            <SummaryCards summary={summary} />
+          </section>
+        </div>
       ) : (
         <section className="empty-state">
           <h2>导入 DATAFILE 开始查看</h2>
