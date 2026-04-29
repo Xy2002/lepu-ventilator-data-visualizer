@@ -1,19 +1,43 @@
 import { useEffect, useState } from 'react';
 import './App.css';
+import { DayCharts } from './components/DayCharts';
 import { DateNavigator } from './components/DateNavigator';
 import { ImportPanel } from './components/ImportPanel';
 import { SummaryCards } from './components/SummaryCards';
-import { buildDatasetIndex } from './data/dataset';
-import type { DatasetIndex, ImportedFileRef } from './types';
+import { buildDatasetIndex, loadDayDetail } from './data/dataset';
+import type { DatasetIndex, DayDetail, ImportedFileRef } from './types';
 
 export function App() {
   const [dataset, setDataset] = useState<DatasetIndex | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [dayDetail, setDayDetail] = useState<DayDetail | null>(null);
   const [isIndexing, setIsIndexing] = useState(false);
+  const [isLoadingDay, setIsLoadingDay] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (dataset && !selectedDate) setSelectedDate(dataset.days[dataset.days.length - 1] ?? null);
+  }, [dataset, selectedDate]);
+
+  useEffect(() => {
+    if (!dataset || !selectedDate) {
+      setDayDetail(null);
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoadingDay(true);
+    loadDayDetail(dataset, selectedDate)
+      .then((detail) => {
+        if (!cancelled) setDayDetail(detail);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingDay(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [dataset, selectedDate]);
 
   async function handleImport(files: ImportedFileRef[]) {
@@ -57,6 +81,8 @@ export function App() {
               </p>
             </div>
             <SummaryCards summary={summary} />
+            {isLoadingDay ? <div className="notice">正在解析当前日期...</div> : null}
+            {dayDetail ? <DayCharts detail={dayDetail} /> : null}
           </section>
         </div>
       ) : (
