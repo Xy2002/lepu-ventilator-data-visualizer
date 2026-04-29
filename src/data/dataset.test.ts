@@ -53,6 +53,14 @@ describe('dataset indexing', () => {
     expect(filterDays(index, { requireEvent: 'ascp' })).toEqual([]);
   });
 
+  it('buildDatasetIndex falls back to the file name when a browser file has no relative path', async () => {
+    const file = imported('20260430_flow.edf', 'flow', new Uint8Array([1]));
+    const index = await buildDatasetIndex([{ ...file, path: '' }]);
+
+    expect(index.days).toEqual(['2026-04-30']);
+    expect(index.warnings).toEqual([]);
+  });
+
   it('loadDayDetail loads selected day, returns signal labels, event count, and rawFiles count', async () => {
     const index = await buildDatasetIndex(makeImportedFiles());
 

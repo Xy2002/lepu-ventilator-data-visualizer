@@ -154,9 +154,10 @@ export async function buildDatasetIndex(importedFiles: ImportedFileRef[]): Promi
   const warnings: string[] = [];
 
   for (const fileRef of importedFiles) {
-    const date = inferDateFromPath(fileRef.path);
+    const sourcePath = fileRef.path || fileRef.name;
+    const date = inferDateFromPath(sourcePath);
     if (!date) {
-      warnings.push(`Could not infer date from "${fileRef.path}"`);
+      warnings.push(`Could not infer date from "${sourcePath}"`);
       continue;
     }
 
