@@ -283,3 +283,76 @@ select {
   width: 100%;
   height: 180px;
 }
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.event-table,
+.raw-browser {
+  border: 1px solid #d7e0e3;
+  background: #ffffff;
+  padding: 12px;
+}
+
+.event-table h3,
+.raw-browser h3 {
+  margin: 0 0 10px;
+}
+
+.table-scroll {
+  max-height: 320px;
+  overflow: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #e5ecef;
+  text-align: left;
+}
+
+.raw-browser details {
+  padding: 8px 0;
+  border-bottom: 1px solid #e5ecef;
+}
+
+.raw-browser summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.raw-browser dl {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0;
+}
+
+.raw-browser dl div {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.raw-browser dt {
+  color: #5c6b73;
+}
+
+.raw-browser dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.warning {
+  color: #9d3f32;
+}

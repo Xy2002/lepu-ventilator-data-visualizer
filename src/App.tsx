@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import './App.css';
 import { DayCharts } from './components/DayCharts';
 import { DateNavigator } from './components/DateNavigator';
+import { EventTable } from './components/EventTable';
 import { ImportPanel } from './components/ImportPanel';
+import { RawFileBrowser } from './components/RawFileBrowser';
 import { SummaryCards } from './components/SummaryCards';
 import { buildDatasetIndex, loadDayDetail } from './data/dataset';
 import type { DatasetIndex, DayDetail, ImportedFileRef } from './types';
@@ -11,6 +13,7 @@ export function App() {
   const [dataset, setDataset] = useState<DatasetIndex | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [dayDetail, setDayDetail] = useState<DayDetail | null>(null);
+  const [focusedEventSecond, setFocusedEventSecond] = useState<number | null>(null);
   const [isIndexing, setIsIndexing] = useState(false);
   const [isLoadingDay, setIsLoadingDay] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +86,15 @@ export function App() {
             <SummaryCards summary={summary} />
             {isLoadingDay ? <div className="notice">正在解析当前日期...</div> : null}
             {dayDetail ? <DayCharts detail={dayDetail} /> : null}
+            {focusedEventSecond !== null ? (
+              <div className="notice">已定位事件：{focusedEventSecond.toFixed(2)} 秒</div>
+            ) : null}
+            {dayDetail ? (
+              <div className="detail-grid">
+                <EventTable events={dayDetail.events} onSelectEvent={setFocusedEventSecond} />
+                <RawFileBrowser files={dayDetail.rawFiles} />
+              </div>
+            ) : null}
           </section>
         </div>
       ) : (
