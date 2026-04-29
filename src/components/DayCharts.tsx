@@ -3,9 +3,10 @@ import type { DayDetail } from '../types';
 
 interface DayChartsProps {
   detail: DayDetail;
+  focusedEventSecond: number | null;
 }
 
-export function DayCharts({ detail }: DayChartsProps) {
+export function DayCharts({ detail, focusedEventSecond }: DayChartsProps) {
   const eventSeconds = detail.events
     .map((event) => event.secondsFromDayStart)
     .filter((value): value is number => typeof value === 'number');
@@ -20,6 +21,7 @@ export function DayCharts({ detail }: DayChartsProps) {
           values={signal.values}
           sampleRateHz={signal.header.sampleRateHz}
           eventSeconds={eventSeconds}
+          focusedSecond={focusedEventSecond}
         />
       ))}
     </section>

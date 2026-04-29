@@ -29,6 +29,7 @@ export function App() {
     }
 
     let cancelled = false;
+    setFocusedEventSecond(null);
     setIsLoadingDay(true);
     loadDayDetail(dataset, selectedDate)
       .then((detail) => {
@@ -85,7 +86,7 @@ export function App() {
             </div>
             <SummaryCards summary={summary} />
             {isLoadingDay ? <div className="notice">正在解析当前日期...</div> : null}
-            {dayDetail ? <DayCharts detail={dayDetail} /> : null}
+            {dayDetail ? <DayCharts detail={dayDetail} focusedEventSecond={focusedEventSecond} /> : null}
             {focusedEventSecond !== null ? (
               <div className="notice">已定位事件：{focusedEventSecond.toFixed(2)} 秒</div>
             ) : null}

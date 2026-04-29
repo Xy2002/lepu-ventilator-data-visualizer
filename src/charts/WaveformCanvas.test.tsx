@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WaveformCanvas } from './WaveformCanvas';
 
@@ -8,6 +8,7 @@ const context = {
   lineTo: vi.fn(),
   moveTo: vi.fn(),
   scale: vi.fn(),
+  setTransform: vi.fn(),
   stroke: vi.fn(),
   strokeStyle: '',
   lineWidth: 1,
@@ -33,6 +34,7 @@ describe('WaveformCanvas', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    cleanup();
   });
 
   it('renders an accessible canvas label and sample count', () => {
@@ -40,5 +42,28 @@ describe('WaveformCanvas', () => {
 
     expect(screen.getByLabelText('flow waveform')).toBeInTheDocument();
     expect(screen.getByText('3 samples · 80 Hz')).toBeInTheDocument();
+  });
+
+  it('shows hover readout and reset zoom control', () => {
+    render(<WaveformCanvas label="flow" values={new Uint8Array([10, 20, 30, 40])} sampleRateHz={80} />);
+
+    fireEvent.pointerMove(screen.getByLabelText('flow waveform'), { clientX: 200 });
+    fireEvent.wheel(screen.getByLabelText('flow waveform'), { deltaY: -100, clientX: 200 });
+    fireEvent.click(screen.getByRole('button', { name: '重置缩放' }));
+
+    expect(screen.getByText(/index/)).toBeInTheDocument();
+  });
+
+  it('centers the viewport around a focused event second', () => {
+    render(
+      <WaveformCanvas
+        label="flow"
+        values={new Uint8Array(Array.from({ length: 400 }, (_, index) => index % 255))}
+        sampleRateHz={80}
+        focusedSecond={2}
+      />,
+    );
+
+    expect(screen.getByText('事件焦点：2.00s')).toBeInTheDocument();
   });
 });

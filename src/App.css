@@ -356,3 +356,12 @@ td {
 .warning {
   color: #9d3f32;
 }
+
+.chart-readout {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-top: 1px solid #d7e0e3;
+  color: #5c6b73;
+}
