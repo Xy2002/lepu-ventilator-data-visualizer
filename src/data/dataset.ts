@@ -71,15 +71,9 @@ export function secondsBetween(start: string | null, end: string | null) {
   return seconds >= 0 ? seconds : null;
 }
 
-function bytesFromFileRef(fileRef: ImportedFileRef) {
-  if (fileRef.file instanceof Uint8Array) return fileRef.file;
-  if (fileRef.file instanceof ArrayBuffer) return new Uint8Array(fileRef.file);
-
-  throw new Error(`Cannot synchronously read "${fileRef.path}"`);
-}
-
-function parseImportedFile(fileRef: ImportedFileRef) {
-  return parseVentilatorFile(fileRef.name, bytesFromFileRef(fileRef));
+async function parseImportedFile(fileRef: ImportedFileRef) {
+  const buffer = await fileRef.file.arrayBuffer();
+  return parseVentilatorFile(fileRef.name, new Uint8Array(buffer));
 }
 
 function isEventRecord(record: ParsedVentilatorFile['records'][number]): record is EventRecord {
@@ -115,11 +109,11 @@ function addPressureValue(summary: DaySummary, value: number) {
   summary.pressureRange = { min: value, max: value };
 }
 
-function summarizeDay(date: string, fileRefs: ImportedFileRef[]) {
+async function summarizeDay(date: string, fileRefs: ImportedFileRef[]) {
   const summary = makeEmptySummary(date);
 
   for (const fileRef of fileRefs) {
-    const parsed = parseImportedFile(fileRef);
+    const parsed = await parseImportedFile(fileRef);
     const label = parsed.header.label;
 
     summary.warnings.push(...parsed.warnings);
@@ -155,7 +149,7 @@ function summarizeDay(date: string, fileRefs: ImportedFileRef[]) {
   return summary;
 }
 
-export function buildDatasetIndex(importedFiles: ImportedFileRef[]): DatasetIndex {
+export async function buildDatasetIndex(importedFiles: ImportedFileRef[]): Promise<DatasetIndex> {
   const filesByDay: Record<string, ImportedFileRef[]> = {};
   const warnings: string[] = [];
 
@@ -174,7 +168,7 @@ export function buildDatasetIndex(importedFiles: ImportedFileRef[]): DatasetInde
   const summariesByDay: Record<string, DaySummary> = {};
 
   for (const day of days) {
-    summariesByDay[day] = summarizeDay(day, filesByDay[day]);
+    summariesByDay[day] = await summarizeDay(day, filesByDay[day]);
   }
 
   return {
@@ -202,30 +196,29 @@ export function filterDays(index: DatasetIndex, filter: DateFilter) {
   });
 }
 
-function secondsFromDayStart(timestamp: string | null) {
-  if (!timestamp) return undefined;
-  return secondsBetween(`${timestamp.slice(0, 10)} 00:00:00.00`, timestamp) ?? undefined;
+function secondsFromDayStart(timestamp: string | null, startTime: string | null) {
+  return secondsBetween(startTime, timestamp) ?? undefined;
 }
 
-function withSecondsFromDayStart(record: EventRecord): EventRecord {
-  const seconds = secondsFromDayStart(record.timestamp);
+function withSecondsFromDayStart(record: EventRecord, startTime: string | null): EventRecord {
+  const seconds = secondsFromDayStart(record.timestamp, startTime);
   return seconds === undefined ? record : { ...record, secondsFromDayStart: seconds };
 }
 
-export function loadDayDetail(index: DatasetIndex, date: string): DayDetail {
+export async function loadDayDetail(index: DatasetIndex, date: string): Promise<DayDetail> {
   const fileRefs = index.filesByDay[date] ?? [];
-  const files = fileRefs.map(parseImportedFile);
+  const files = await Promise.all(fileRefs.map(parseImportedFile));
+  const summary = index.summariesByDay[date] ?? (await summarizeDay(date, fileRefs));
   const signals = files.filter(isSignal);
   const events = files.flatMap((file) =>
-    file.records.filter(isEventRecord).map((record) => withSecondsFromDayStart(record)),
+    file.records.filter(isEventRecord).map((record) => withSecondsFromDayStart(record, summary.startTime)),
   );
-  const rawFiles = files.filter((file) => file.kind === 'raw' || file.kind === 'raw_config' || file.kind === 'invalid');
 
   return {
-    summary: index.summariesByDay[date] ?? summarizeDay(date, fileRefs),
+    summary,
     files,
     signals,
     events,
-    rawFiles,
+    rawFiles: files,
   };
 }

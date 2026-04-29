@@ -5,10 +5,20 @@ import { buildDatasetIndex, filterDays, loadDayDetail } from './dataset';
 
 function imported(path: string, label: string, payload: Uint8Array): ImportedFileRef {
   const segments = path.split('/');
+  const name = segments[segments.length - 1] ?? path;
+  const bytes = makeEdfLikeFile(label, payload);
+  const file = new File([bytes], name);
+
+  if (typeof file.arrayBuffer !== 'function') {
+    Object.defineProperty(file, 'arrayBuffer', {
+      value: () => Promise.resolve(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)),
+    });
+  }
+
   return {
-    name: segments[segments.length - 1] ?? path,
+    name,
     path,
-    file: makeEdfLikeFile(label, payload) as unknown as File,
+    file,
   };
 }
 
@@ -23,8 +33,8 @@ function makeImportedFiles() {
 }
 
 describe('dataset indexing', () => {
-  it('buildDatasetIndex groups imported files by date and computes summaries', () => {
-    const index = buildDatasetIndex(makeImportedFiles());
+  it('buildDatasetIndex groups imported files by date and computes summaries', async () => {
+    const index = await buildDatasetIndex(makeImportedFiles());
 
     expect(index.days).toEqual(['2026-04-28', '2026-04-29']);
     expect(index.summariesByDay['2026-04-29'].eventCounts.hi).toBe(1);
@@ -32,8 +42,8 @@ describe('dataset indexing', () => {
     expect(index.summariesByDay['2026-04-29'].pressureRange).toEqual({ min: 1, max: 9 });
   });
 
-  it('filterDays filters by range, event presence, and missing files', () => {
-    const index = buildDatasetIndex(makeImportedFiles());
+  it('filterDays filters by range, event presence, and missing files', async () => {
+    const index = await buildDatasetIndex(makeImportedFiles());
 
     expect(filterDays(index, { startDate: '2026-04-29', endDate: '2026-04-29' })).toEqual([
       '2026-04-29',
@@ -43,14 +53,14 @@ describe('dataset indexing', () => {
     expect(filterDays(index, { requireEvent: 'ascp' })).toEqual([]);
   });
 
-  it('loadDayDetail loads selected day, returns signal labels, event count, and rawFiles count', () => {
-    const index = buildDatasetIndex(makeImportedFiles());
+  it('loadDayDetail loads selected day, returns signal labels, event count, and rawFiles count', async () => {
+    const index = await buildDatasetIndex(makeImportedFiles());
 
-    const detail = loadDayDetail(index, '2026-04-29');
+    const detail = await loadDayDetail(index, '2026-04-29');
 
     expect(detail.signals.map((file) => file.header.label)).toEqual(['flow', 'pressure']);
     expect(detail.events).toHaveLength(1);
-    expect(detail.events[0].secondsFromDayStart).toBeCloseTo(11081.22);
-    expect(detail.rawFiles).toHaveLength(1);
+    expect(detail.events[0].secondsFromDayStart).toBeCloseTo(88.65);
+    expect(detail.rawFiles.map((file) => file.header.label)).toEqual(['flow', 'pressure', 'hi', 'mystery']);
   });
 });
