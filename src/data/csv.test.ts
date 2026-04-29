@@ -8,6 +8,12 @@ describe('csv exports', () => {
     );
   });
 
+  it('keeps the seconds column empty when sample rate is unknown', () => {
+    expect(exportWaveformCsv(new Uint8Array([10, 20]), null)).toBe(
+      'index,seconds,value\n0,,10\n1,,20\n',
+    );
+  });
+
   it('exports event rows', () => {
     expect(
       exportEventsCsv([

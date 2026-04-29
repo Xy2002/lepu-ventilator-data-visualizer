@@ -5,12 +5,11 @@ function line(values: Array<string | number | null | undefined>) {
 }
 
 export function exportWaveformCsv(values: Uint8Array | Uint16Array | Int16Array, sampleRateHz: number | null) {
-  let csv = sampleRateHz ? 'index,seconds,value\n' : 'index,value\n';
+  const canComputeSeconds = typeof sampleRateHz === 'number' && sampleRateHz > 0;
+  let csv = 'index,seconds,value\n';
 
   for (let index = 0; index < values.length; index += 1) {
-    csv += sampleRateHz
-      ? line([index, (index / sampleRateHz).toFixed(6), values[index]])
-      : line([index, values[index]]);
+    csv += line([index, canComputeSeconds ? (index / sampleRateHz).toFixed(6) : '', values[index]]);
   }
 
   return csv;

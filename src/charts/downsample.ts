@@ -38,9 +38,14 @@ export function downsampleMinMax(
 
     const first = minIndex < maxIndex ? minIndex : maxIndex;
     const second = minIndex < maxIndex ? maxIndex : minIndex;
+    const bucketLast = bucketEnd - 1;
 
     points.push({ index: first, value: values[first] });
-    if (second !== first) points.push({ index: second, value: values[second] });
+    if (second !== first) {
+      points.push({ index: second, value: values[second] });
+    } else if (bucketLast !== first) {
+      points.push({ index: bucketLast, value: values[bucketLast] });
+    }
   }
 
   return points.sort((a, b) => a.index - b.index);

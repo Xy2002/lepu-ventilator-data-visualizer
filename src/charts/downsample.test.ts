@@ -18,4 +18,13 @@ describe('downsampleMinMax', () => {
       { index: 4, value: 3 },
     ]);
   });
+
+  it('preserves bucket edges for constant data', () => {
+    expect(downsampleMinMax(new Uint8Array([5, 5, 5, 5, 5, 5, 5, 5]), 0, 8, 2)).toEqual([
+      { index: 0, value: 5 },
+      { index: 3, value: 5 },
+      { index: 4, value: 5 },
+      { index: 7, value: 5 },
+    ]);
+  });
 });
