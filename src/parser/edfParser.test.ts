@@ -21,6 +21,14 @@ describe('parseVentilatorFile', () => {
     expect(Array.from(parsed.values)).toEqual([20, 19, 17, 15]);
   });
 
+  it('returns null sample rate for malformed flow sample rate fields', () => {
+    const file = makeEdfLikeFile('flow', new Uint8Array([20]), { field244: '80Hz' });
+
+    const parsed = parseVentilatorFile('20260429_flow.edf', file);
+
+    expect(parsed.header.sampleRateHz).toBeNull();
+  });
+
   it('parses pressure as little-endian unsigned 16-bit values', () => {
     const payload = new Uint8Array([1, 0, 151, 0]);
     const file = makeEdfLikeFile('pressure', payload);
@@ -58,6 +66,59 @@ describe('parseVentilatorFile', () => {
         timestamp: '2026-04-29 03:04:41.22',
       },
     ]);
+  });
+
+  it('returns invalid with a warning when the file is shorter than the header', () => {
+    const parsed = parseVentilatorFile('short.edf', new Uint8Array(511));
+
+    expect(parsed.kind).toBe('invalid');
+    expect(parsed.warnings).toEqual(['File is shorter than 512-byte header']);
+  });
+
+  it('maps config labels to raw_config', () => {
+    const file = makeEdfLikeFile('config', new Uint8Array([1, 2, 3]));
+
+    const parsed = parseVentilatorFile('20260429_config.edf', file);
+
+    expect(parsed.kind).toBe('raw_config');
+  });
+
+  it('maps unknown labels to raw', () => {
+    const file = makeEdfLikeFile('mystery', new Uint8Array([1, 2, 3]));
+
+    const parsed = parseVentilatorFile('20260429_mystery.edf', file);
+
+    expect(parsed.kind).toBe('raw');
+  });
+
+  it('maps real_pres labels to unsigned 16-bit waveforms', () => {
+    const file = makeEdfLikeFile('real_pres', new Uint8Array([1, 0, 2, 0]));
+
+    const parsed = parseVentilatorFile('20260429_real_pres.edf', file);
+
+    expect(parsed.kind).toBe('waveform_u16le');
+    expect(Array.from(parsed.values)).toEqual([1, 2]);
+  });
+
+  it('maps difleak labels to unsigned 8-bit waveforms', () => {
+    const file = makeEdfLikeFile('difleak', new Uint8Array([1, 2, 3]));
+
+    const parsed = parseVentilatorFile('20260429_difleak.edf', file);
+
+    expect(parsed.kind).toBe('waveform_u8');
+    expect(Array.from(parsed.values)).toEqual([1, 2, 3]);
+  });
+
+  it('warns when event payloads have trailing bytes', () => {
+    const payload = new Uint8Array(17);
+    payload.set(makeEventPayload(1, 15), 0);
+    payload[16] = 9;
+    const file = makeEdfLikeFile('hi', payload, { field244: '0' });
+
+    const parsed = parseVentilatorFile('20260429_hi.edf', file);
+
+    expect(parsed.kind).toBe('events16');
+    expect(parsed.warnings).toContain('Ignored 1 trailing payload byte');
   });
 
   it('parses mvtvbr three-value records and warns about trailing bytes', () => {

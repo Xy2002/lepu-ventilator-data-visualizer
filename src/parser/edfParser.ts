@@ -16,9 +16,9 @@ function ascii(raw: Uint8Array, start: number, end: number) {
 }
 
 function parseInteger(text: string) {
-  if (!text) return null;
-  const parsed = Number.parseInt(text, 10);
-  return Number.isNaN(parsed) ? null : parsed;
+  const trimmed = text.trim();
+  if (!trimmed || !/^[+-]?\d+$/.test(trimmed)) return null;
+  return Number.parseInt(trimmed, 10);
 }
 
 function parseTimestamp(raw: Uint8Array) {
