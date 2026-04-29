@@ -29,6 +29,30 @@ describe('parseVentilatorFile', () => {
     expect(parsed.header.sampleRateHz).toBeNull();
   });
 
+  it('falls back to 512 and warns when the header byte field is malformed', () => {
+    const file = makeEdfLikeFile('flow', new Uint8Array([20, 19, 17, 15]), {
+      headerBytes: '512abc',
+    });
+
+    const parsed = parseVentilatorFile('20260429_flow.edf', file);
+
+    expect(parsed.header.headerBytes).toBe(512);
+    expect(Array.from(parsed.values)).toEqual([20, 19, 17, 15]);
+    expect(parsed.warnings).toContain('Invalid header byte count "512abc"; using 512');
+  });
+
+  it('falls back to 512 and warns when the header byte field is numeric but invalid', () => {
+    const file = makeEdfLikeFile('flow', new Uint8Array([20, 19, 17, 15]), {
+      headerBytes: '0',
+    });
+
+    const parsed = parseVentilatorFile('20260429_flow.edf', file);
+
+    expect(parsed.header.headerBytes).toBe(512);
+    expect(Array.from(parsed.values)).toEqual([20, 19, 17, 15]);
+    expect(parsed.warnings).toContain('Invalid header byte count "0"; using 512');
+  });
+
   it('parses pressure as little-endian unsigned 16-bit values', () => {
     const payload = new Uint8Array([1, 0, 151, 0]);
     const file = makeEdfLikeFile('pressure', payload);

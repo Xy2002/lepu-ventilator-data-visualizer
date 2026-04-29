@@ -20,7 +20,7 @@ function writeTimestamp(bytes: Uint8Array, offset: number, date: Date) {
 export function makeEdfLikeFile(
   label: string,
   payload: Uint8Array,
-  options: { field244?: string } = {},
+  options: { field244?: string; headerBytes?: string } = {},
 ) {
   const header = new Uint8Array(HEADER_BYTES);
   header.fill(0x20);
@@ -28,7 +28,7 @@ export function makeEdfLikeFile(
   writeAscii(header, 8, 80, '20393753523050090042004d');
   writeTimestamp(header, 168, new Date(Date.UTC(2026, 3, 29, 3, 3, 12, 570)));
   writeTimestamp(header, 176, new Date(Date.UTC(2026, 3, 29, 3, 13, 47, 480)));
-  writeAscii(header, 184, 8, '512');
+  writeAscii(header, 184, 8, options.headerBytes ?? '512');
   writeAscii(header, 192, 44, 'V2.12-00001');
   writeAscii(header, 236, 8, '0');
   writeAscii(header, 244, 8, options.field244 ?? '80');

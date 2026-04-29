@@ -21,6 +21,11 @@ function parseInteger(text: string) {
   return Number.parseInt(trimmed, 10);
 }
 
+function parseHeaderBytes(text: string) {
+  const headerBytes = parseInteger(text);
+  return headerBytes === HEADER_BYTES ? headerBytes : HEADER_BYTES;
+}
+
 function parseTimestamp(raw: Uint8Array) {
   if (raw.length !== 8) return null;
 
@@ -62,7 +67,7 @@ export function parseHeader(raw: Uint8Array): VentilatorHeader {
     recordingId: ascii(raw, 88, 168),
     startTime: parseTimestamp(raw.slice(168, 176)),
     endTime: parseTimestamp(raw.slice(176, 184)),
-    headerBytes: parseInteger(ascii(raw, 184, 192)) ?? HEADER_BYTES,
+    headerBytes: parseHeaderBytes(ascii(raw, 184, 192)),
     firmware: ascii(raw, 192, 236),
     field236: ascii(raw, 236, 244),
     field244,
@@ -153,6 +158,12 @@ function makeBlankHeader() {
   return parseHeader(raw);
 }
 
+function warnAboutInvalidHeaderBytes(rawHeaderBytes: string, warnings: string[]) {
+  if (parseInteger(rawHeaderBytes) !== HEADER_BYTES) {
+    warnings.push(`Invalid header byte count "${rawHeaderBytes}"; using ${HEADER_BYTES}`);
+  }
+}
+
 export function parseVentilatorFile(fileName: string, raw: Uint8Array): ParsedVentilatorFile {
   if (raw.length < HEADER_BYTES) {
     return {
@@ -168,8 +179,9 @@ export function parseVentilatorFile(fileName: string, raw: Uint8Array): ParsedVe
   }
 
   const header = parseHeader(raw.slice(0, HEADER_BYTES));
-  const payload = raw.slice(header.headerBytes);
   const warnings: string[] = [];
+  warnAboutInvalidHeaderBytes(ascii(raw, 184, 192), warnings);
+  const payload = raw.slice(header.headerBytes);
   let kind: ParsedKind = 'raw';
   let values: ParsedVentilatorFile['values'] = new Uint8Array();
   let records: ParsedVentilatorFile['records'] = [];
