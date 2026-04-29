@@ -87,7 +87,7 @@ export function WaveformCanvas({
     const valueRange = minMax.max - minMax.min || 1;
     const points = downsampleMinMax(values, viewport.start, viewport.end, Math.max(1, Math.floor(rect.width)));
 
-    context.strokeStyle = '#16697a';
+    context.strokeStyle = '#0a72ef';
     context.lineWidth = 1.5;
     context.beginPath();
     points.forEach((point, index) => {
@@ -98,7 +98,7 @@ export function WaveformCanvas({
     });
     context.stroke();
 
-    context.strokeStyle = '#d1495b';
+    context.strokeStyle = '#ff5b4f';
     context.lineWidth = 1;
     for (const second of eventSeconds) {
       if (!sampleRateHz) continue;
