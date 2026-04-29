@@ -365,3 +365,45 @@ td {
   border-top: 1px solid #d7e0e3;
   color: #5c6b73;
 }
+
+@media (max-width: 980px) {
+  .top-bar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .workbench,
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .import-panel,
+  .nav-row,
+  .selected-day-header,
+  .chart-header,
+  .chart-readout {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .import-button,
+  .secondary-button {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .heatmap {
+    grid-template-columns: repeat(10, 1fr);
+  }
+}
