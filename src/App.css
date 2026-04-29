@@ -45,3 +45,50 @@ select {
   border: 1px solid #d7e0e3;
   background: #ffffff;
 }
+
+.import-panel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.import-button,
+.secondary-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid #afc0c7;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.import-button {
+  background: #16697a;
+  color: #ffffff;
+  border-color: #16697a;
+}
+
+.import-button input,
+.secondary-button input {
+  display: none;
+}
+
+.notice {
+  margin: 16px 24px 0;
+  padding: 10px 12px;
+  border: 1px solid #c7d8dd;
+  background: #eef6f8;
+}
+
+.notice.error {
+  border-color: #e2a9a2;
+  background: #fff0ed;
+}
+
+.dataset-status {
+  margin: 24px;
+  padding: 16px;
+  border: 1px solid #d7e0e3;
+  background: #ffffff;
+}
