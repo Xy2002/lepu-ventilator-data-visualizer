@@ -58,3 +58,39 @@ export interface ImportedFileRef {
   path: string;
   file: File;
 }
+
+export interface DaySummary {
+  date: string;
+  startTime: string | null;
+  endTime: string | null;
+  useDurationSeconds: number | null;
+  eventCounts: Record<string, number>;
+  signalPresence: Record<string, boolean>;
+  sampleCounts: Record<string, number>;
+  pressureRange: { min: number; max: number } | null;
+  missingFiles: string[];
+  warnings: string[];
+}
+
+export interface DatasetIndex {
+  days: string[];
+  dateRange: { start: string | null; end: string | null };
+  filesByDay: Record<string, ImportedFileRef[]>;
+  summariesByDay: Record<string, DaySummary>;
+  warnings: string[];
+}
+
+export interface DayDetail {
+  summary: DaySummary;
+  files: ParsedVentilatorFile[];
+  signals: ParsedVentilatorFile[];
+  events: EventRecord[];
+  rawFiles: ParsedVentilatorFile[];
+}
+
+export interface DateFilter {
+  startDate?: string;
+  endDate?: string;
+  requireEvent?: 'ai' | 'hi' | 'ascp';
+  missingFilesOnly?: boolean;
+}
