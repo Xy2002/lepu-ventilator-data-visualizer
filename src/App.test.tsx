@@ -14,6 +14,11 @@ const echartsCoreMock = vi.hoisted(() => ({
   use: vi.fn(),
 }));
 
+const importCacheMock = vi.hoisted(() => ({
+  loadImportedFiles: vi.fn(),
+  saveImportedFiles: vi.fn(),
+}));
+
 vi.mock('echarts/core', () => echartsCoreMock);
 vi.mock('echarts/charts', () => ({ LineChart: {} }));
 vi.mock('echarts/components', () => ({
@@ -24,9 +29,11 @@ vi.mock('echarts/components', () => ({
   TooltipComponent: {},
 }));
 vi.mock('echarts/renderers', () => ({ CanvasRenderer: {} }));
+vi.mock('./data/importCache', () => importCacheMock);
 
 import { App } from './App';
 import { makeEdfLikeFile, makeEventPayload, makeEventPayloadAt } from './parser/fixtures';
+import type { ImportedFileRef } from './types';
 
 class ResizeObserverMock {
   observe = vi.fn();
@@ -47,6 +54,14 @@ function edfFile(name: string, label: string, payload: Uint8Array) {
   return file;
 }
 
+function importedFile(name: string, label: string, payload: Uint8Array): ImportedFileRef {
+  return {
+    name,
+    path: name,
+    file: edfFile(name, label, payload),
+  };
+}
+
 function concatPayloads(...payloads: Uint8Array[]) {
   const bytes = new Uint8Array(payloads.reduce((total, payload) => total + payload.length, 0));
   let offset = 0;
@@ -59,6 +74,8 @@ function concatPayloads(...payloads: Uint8Array[]) {
 
 describe('App', () => {
   beforeEach(() => {
+    importCacheMock.loadImportedFiles.mockResolvedValue([]);
+    importCacheMock.saveImportedFiles.mockResolvedValue(undefined);
     vi.stubGlobal('ResizeObserver', ResizeObserverMock);
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
       x: 0,
@@ -76,6 +93,7 @@ describe('App', () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   it('renders import-first empty state', () => {
@@ -118,5 +136,22 @@ describe('App', () => {
       true,
     );
     expect(await screen.findByRole('button', { name: 'hi' })).toBeInTheDocument();
+    expect(importCacheMock.saveImportedFiles).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ name: '20260429_flow.edf' })]),
+    );
+  });
+
+  it('restores the last imported files from browser cache on startup', async () => {
+    importCacheMock.loadImportedFiles.mockResolvedValueOnce([
+      importedFile('20260429_flow.edf', 'flow', new Uint8Array([20, 19, 17])),
+      importedFile('20260429_pressure.edf', 'pressure', new Uint8Array([1, 0, 9, 0])),
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByText('日期导航')).toBeInTheDocument();
+    expect(screen.getByText('已恢复上次导入的文件。')).toBeInTheDocument();
+    expect(screen.getAllByText('2026-04-29').length).toBeGreaterThan(0);
+    expect(screen.queryByText('导入 DATAFILE 开始查看')).not.toBeInTheDocument();
   });
 });

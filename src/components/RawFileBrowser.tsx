@@ -32,50 +32,52 @@ export function RawFileBrowser({ files }: RawFileBrowserProps) {
   return (
     <section className="raw-browser">
       <h3>原始文件</h3>
-      {files.map((file) => (
-        <details key={file.fileName}>
-          <summary>
-            <strong>{file.fileName}</strong>
-            <span>{file.kind}</span>
-          </summary>
-          <dl>
-            <div>
-              <dt>Label</dt>
-              <dd>{file.header.label}</dd>
-            </div>
-            <div>
-              <dt>Header</dt>
-              <dd>{file.header.headerBytes} bytes</dd>
-            </div>
-            <div>
-              <dt>Payload</dt>
-              <dd>{file.payloadBytes} bytes</dd>
-            </div>
-            <div>
-              <dt>Start</dt>
-              <dd>{file.header.startTime ?? '-'}</dd>
-            </div>
-            <div>
-              <dt>End</dt>
-              <dd>{file.header.endTime ?? '-'}</dd>
-            </div>
-            <div>
-              <dt>Preview</dt>
-              <dd>{preview(file)}</dd>
-            </div>
-          </dl>
-          {file.warnings.map((warning) => (
-            <p className="warning" key={warning}>
-              {warning}
-            </p>
-          ))}
-          {file.values.length > 0 || file.kind === 'events16' ? (
-            <button type="button" onClick={() => exportFile(file)}>
-              导出 CSV
-            </button>
-          ) : null}
-        </details>
-      ))}
+      <div className="raw-file-list">
+        {files.map((file) => (
+          <details key={file.fileName}>
+            <summary>
+              <strong>{file.fileName}</strong>
+              <span>{file.kind}</span>
+            </summary>
+            <dl>
+              <div>
+                <dt>Label</dt>
+                <dd>{file.header.label}</dd>
+              </div>
+              <div>
+                <dt>Header</dt>
+                <dd>{file.header.headerBytes} bytes</dd>
+              </div>
+              <div>
+                <dt>Payload</dt>
+                <dd>{file.payloadBytes} bytes</dd>
+              </div>
+              <div>
+                <dt>Start</dt>
+                <dd>{file.header.startTime ?? '-'}</dd>
+              </div>
+              <div>
+                <dt>End</dt>
+                <dd>{file.header.endTime ?? '-'}</dd>
+              </div>
+              <div>
+                <dt>Preview</dt>
+                <dd>{preview(file)}</dd>
+              </div>
+            </dl>
+            {file.warnings.map((warning) => (
+              <p className="warning" key={warning}>
+                {warning}
+              </p>
+            ))}
+            {file.values.length > 0 || file.kind === 'events16' ? (
+              <button type="button" onClick={() => exportFile(file)}>
+                导出 CSV
+              </button>
+            ) : null}
+          </details>
+        ))}
+      </div>
     </section>
   );
 }

@@ -367,14 +367,18 @@ label:focus-within {
   transform: none;
 }
 
-.checkbox-row {
+.date-navigator .checkbox-row {
   display: flex;
   align-items: center;
+  gap: 8px;
   margin-top: 14px;
 }
 
-.checkbox-row input {
+.date-navigator .checkbox-row input {
+  width: 16px;
+  height: 16px;
   min-height: auto;
+  padding: 0;
   accent-color: var(--text);
 }
 
@@ -521,6 +525,99 @@ label:focus-within {
   margin-top: 16px;
 }
 
+.chart-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.chart-tabs button {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--muted);
+  background: var(--surface);
+  box-shadow: var(--line-light);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.chart-tabs button:hover {
+  color: var(--text);
+  background: var(--surface-subtle);
+}
+
+.chart-tabs button[aria-selected="true"] {
+  color: #ffffff;
+  background: var(--text);
+  box-shadow: var(--line), rgba(0, 0, 0, 0.12) 0 2px 6px -4px;
+}
+
+.chart-panel-stage {
+  position: relative;
+}
+
+.chart-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(2px);
+  pointer-events: none;
+}
+
+.chart-loading-card {
+  display: grid;
+  width: min(320px, 72%);
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--line), rgba(0, 0, 0, 0.12) 0 10px 28px -18px;
+  font-size: 13px;
+}
+
+.chart-loading-track {
+  position: relative;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: #ebebeb;
+}
+
+.chart-loading-track::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 42%;
+  border-radius: inherit;
+  background: var(--blue);
+  content: "";
+  animation: chart-loading-slide 760ms ease-in-out infinite;
+}
+
+@keyframes chart-loading-slide {
+  0% {
+    transform: translateX(-110%);
+  }
+
+  100% {
+    transform: translateX(260%);
+  }
+}
+
 .chart-header {
   display: flex;
   align-items: center;
@@ -581,13 +678,18 @@ label:focus-within {
 .detail-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: stretch;
   gap: 12px;
   margin-top: 16px;
 }
 
 .event-table,
 .raw-browser {
+  display: flex;
+  flex-direction: column;
+  height: clamp(380px, 46vh, 520px);
   padding: 14px;
+  min-height: 0;
 }
 
 .event-table h3,
@@ -596,9 +698,12 @@ label:focus-within {
   font-size: 16px;
 }
 
-.table-scroll {
-  max-height: 360px;
+.table-scroll,
+.raw-file-list {
+  flex: 1;
+  min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
 }
 
 table {

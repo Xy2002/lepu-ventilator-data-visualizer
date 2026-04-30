@@ -6,6 +6,7 @@ import { ImportPanel } from './components/ImportPanel';
 import { RawFileBrowser } from './components/RawFileBrowser';
 import { SummaryCards } from './components/SummaryCards';
 import { buildDatasetIndex, loadDayDetail } from './data/dataset';
+import { loadImportedFiles, saveImportedFiles } from './data/importCache';
 import type { DatasetIndex, DayDetail, DaySummary, ImportedFileRef } from './types';
 
 const DayCharts = lazy(() => import('./components/DayCharts').then((module) => ({ default: module.DayCharts })));
@@ -45,7 +46,39 @@ export function App() {
   const [focusedEvent, setFocusedEvent] = useState<FocusedEvent | null>(null);
   const [isIndexing, setIsIndexing] = useState(false);
   const [isLoadingDay, setIsLoadingDay] = useState(false);
+  const [isRestoringImport, setIsRestoringImport] = useState(false);
+  const [cacheNotice, setCacheNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function restoreImport() {
+      setIsRestoringImport(true);
+
+      try {
+        const cachedFiles = await loadImportedFiles();
+        if (cancelled || cachedFiles.length === 0) return;
+
+        const nextDataset = await buildDatasetIndex(cachedFiles);
+        if (cancelled) return;
+
+        setDataset(nextDataset);
+        setSelectedDate(nextDataset.days[nextDataset.days.length - 1] ?? null);
+        setCacheNotice('已恢复上次导入的文件。');
+      } catch {
+        if (!cancelled) setCacheNotice('无法恢复上次导入的文件，请重新选择 DATAFILE 文件夹。');
+      } finally {
+        if (!cancelled) setIsRestoringImport(false);
+      }
+    }
+
+    restoreImport();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (dataset && !selectedDate) setSelectedDate(dataset.days[dataset.days.length - 1] ?? null);
@@ -76,9 +109,15 @@ export function App() {
   async function handleImport(files: ImportedFileRef[]) {
     setIsIndexing(true);
     setError(null);
+    setCacheNotice(null);
 
     try {
       const nextDataset = await buildDatasetIndex(files);
+      try {
+        await saveImportedFiles(files);
+      } catch {
+        setCacheNotice('已导入，但浏览器无法缓存这些文件；刷新后需要重新选择。');
+      }
       setDataset(nextDataset);
       setSelectedDate(nextDataset.days[nextDataset.days.length - 1] ?? null);
     } catch (caught) {
@@ -101,6 +140,8 @@ export function App() {
       </header>
 
       {error ? <div className="notice error">{error}</div> : null}
+      {cacheNotice ? <div className="notice">{cacheNotice}</div> : null}
+      {isRestoringImport ? <div className="notice">正在恢复上次导入...</div> : null}
       {isIndexing ? <div className="notice">正在索引文件...</div> : null}
 
       {dataset && selectedDate && summary ? (
