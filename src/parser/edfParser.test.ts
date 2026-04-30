@@ -12,11 +12,12 @@ describe('parseVentilatorFile', () => {
 
     expect(parsed.header.version).toBe('V2.12');
     expect(parsed.header.patientId).toBe('20393753523050090042004d');
-    expect(parsed.header.startTime).toBe('2026-04-29 03:03:12.57');
-    expect(parsed.header.endTime).toBe('2026-04-29 03:13:47.48');
+    expect(parsed.header.startTime).toBe('2026-04-29 03:12:57');
+    expect(parsed.header.endTime).toBe('2026-04-29 13:47:48');
     expect(parsed.header.label).toBe('flow');
     expect(parsed.header.headerBytes).toBe(512);
-    expect(parsed.header.sampleRateHz).toBe(80);
+    expect(parsed.header.sampleIntervalMs).toBe(80);
+    expect(parsed.header.sampleRateHz).toBe(12.5);
     expect(parsed.kind).toBe('waveform_u8');
     expect(Array.from(parsed.values)).toEqual([20, 19, 17, 15]);
   });
@@ -60,7 +61,7 @@ describe('parseVentilatorFile', () => {
     const parsed = parseVentilatorFile('20260429_pressure.edf', file);
 
     expect(parsed.kind).toBe('waveform_u16le');
-    expect(parsed.header.sampleRateHz).toBe(80);
+    expect(parsed.header.sampleRateHz).toBe(12.5);
     expect(Array.from(parsed.values)).toEqual([1, 151]);
   });
 
@@ -71,7 +72,7 @@ describe('parseVentilatorFile', () => {
     const parsed = parseVentilatorFile('20260429_real_flow.edf', file);
 
     expect(parsed.kind).toBe('waveform_i16le');
-    expect(parsed.header.sampleRateHz).toBe(80);
+    expect(parsed.header.sampleRateHz).toBe(12.5);
     expect(Array.from(parsed.values)).toEqual([-1, -69, 79]);
   });
 
@@ -87,7 +88,7 @@ describe('parseVentilatorFile', () => {
         sourceLabel: 'hi',
         value1: 1,
         value2: 15,
-        timestamp: '2026-04-29 03:04:41.22',
+        timestamp: '2026-04-29 04:41:22',
       },
     ]);
   });

@@ -24,6 +24,6 @@ describe('EventTable', () => {
     await userEvent.click(screen.getByRole('button', { name: /hi/ }));
 
     expect(screen.getByText('2026-04-29 03:04:41.22')).toBeInTheDocument();
-    expect(onSelect).toHaveBeenCalledWith(89.65);
+    expect(onSelect).toHaveBeenCalledWith(89.65, '2026-04-29 03:04:41.22');
   });
 });

@@ -25,6 +25,7 @@ export interface VentilatorHeader {
   physicalMax: string;
   digitalMin: string;
   digitalMax: string;
+  sampleIntervalMs: number | null;
   sampleRateHz: number | null;
 }
 
@@ -34,6 +35,12 @@ export interface EventRecord {
   value2: number;
   timestamp: string | null;
   secondsFromDayStart?: number;
+}
+
+export interface UseSession {
+  startTime: string;
+  endTime: string;
+  durationSeconds: number;
 }
 
 export interface TripleRecord {
@@ -64,6 +71,7 @@ export interface DaySummary {
   startTime: string | null;
   endTime: string | null;
   useDurationSeconds: number | null;
+  useSessions: UseSession[];
   eventCounts: Record<string, number>;
   signalPresence: Record<string, boolean>;
   sampleCounts: Record<string, number>;
@@ -85,6 +93,7 @@ export interface DayDetail {
   files: ParsedVentilatorFile[];
   signals: ParsedVentilatorFile[];
   events: EventRecord[];
+  useSessions: UseSession[];
   rawFiles: ParsedVentilatorFile[];
 }
 

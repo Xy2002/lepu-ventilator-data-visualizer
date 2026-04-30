@@ -2,7 +2,7 @@ import type { EventRecord } from '../types';
 
 interface EventTableProps {
   events: EventRecord[];
-  onSelectEvent: (seconds: number) => void;
+  onSelectEvent: (seconds: number, timestamp: string | null) => void;
 }
 
 export function EventTable({ events, onSelectEvent }: EventTableProps) {
@@ -28,7 +28,7 @@ export function EventTable({ events, onSelectEvent }: EventTableProps) {
                     type="button"
                     onClick={() => {
                       if (typeof event.secondsFromDayStart === 'number') {
-                        onSelectEvent(event.secondsFromDayStart);
+                        onSelectEvent(event.secondsFromDayStart, event.timestamp);
                       }
                     }}
                   >

@@ -1,19 +1,48 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import './App.css';
-import { DayCharts } from './components/DayCharts';
 import { DateNavigator } from './components/DateNavigator';
 import { EventTable } from './components/EventTable';
 import { ImportPanel } from './components/ImportPanel';
 import { RawFileBrowser } from './components/RawFileBrowser';
 import { SummaryCards } from './components/SummaryCards';
 import { buildDatasetIndex, loadDayDetail } from './data/dataset';
-import type { DatasetIndex, DayDetail, ImportedFileRef } from './types';
+import type { DatasetIndex, DayDetail, DaySummary, ImportedFileRef } from './types';
+
+const DayCharts = lazy(() => import('./components/DayCharts').then((module) => ({ default: module.DayCharts })));
+
+interface FocusedEvent {
+  secondsFromDayStart: number;
+  timestamp: string | null;
+}
+
+function usageWindow(summary: DaySummary) {
+  if (summary.useSessions.length === 0) {
+    return (
+      <p>
+        {summary.startTime ?? '-'} 至 {summary.endTime ?? '-'}
+      </p>
+    );
+  }
+
+  return (
+    <div className="session-summary" aria-label="使用会话">
+      <p>{summary.useSessions.length} 个使用会话</p>
+      <ul>
+        {summary.useSessions.map((session) => (
+          <li key={`${session.startTime}-${session.endTime}`}>
+            {session.startTime} 至 {session.endTime}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 export function App() {
   const [dataset, setDataset] = useState<DatasetIndex | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [dayDetail, setDayDetail] = useState<DayDetail | null>(null);
-  const [focusedEventSecond, setFocusedEventSecond] = useState<number | null>(null);
+  const [focusedEvent, setFocusedEvent] = useState<FocusedEvent | null>(null);
   const [isIndexing, setIsIndexing] = useState(false);
   const [isLoadingDay, setIsLoadingDay] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +58,7 @@ export function App() {
     }
 
     let cancelled = false;
-    setFocusedEventSecond(null);
+    setFocusedEvent(null);
     setIsLoadingDay(true);
     loadDayDetail(dataset, selectedDate)
       .then((detail) => {
@@ -80,19 +109,32 @@ export function App() {
           <section className="main-panel">
             <div className="selected-day-header">
               <h2>{selectedDate}</h2>
-              <p>
-                {summary.startTime ?? '-'} 至 {summary.endTime ?? '-'}
-              </p>
+              {usageWindow(summary)}
             </div>
             <SummaryCards summary={summary} />
             {isLoadingDay ? <div className="notice">正在解析当前日期...</div> : null}
-            {dayDetail ? <DayCharts detail={dayDetail} focusedEventSecond={focusedEventSecond} /> : null}
-            {focusedEventSecond !== null ? (
-              <div className="notice">已定位事件：{focusedEventSecond.toFixed(2)} 秒</div>
+            {dayDetail ? (
+              <Suspense fallback={<div className="notice">正在加载专业图表...</div>}>
+                <DayCharts
+                  detail={dayDetail}
+                  focusedEventSecond={focusedEvent?.secondsFromDayStart ?? null}
+                  focusedEventTimestamp={focusedEvent?.timestamp ?? null}
+                />
+              </Suspense>
+            ) : null}
+            {focusedEvent ? (
+              <div className="notice">
+                已定位事件：{focusedEvent.timestamp ?? `${focusedEvent.secondsFromDayStart.toFixed(2)} 秒`}
+              </div>
             ) : null}
             {dayDetail ? (
               <div className="detail-grid">
-                <EventTable events={dayDetail.events} onSelectEvent={setFocusedEventSecond} />
+                <EventTable
+                  events={dayDetail.events}
+                  onSelectEvent={(secondsFromDayStart, timestamp) =>
+                    setFocusedEvent({ secondsFromDayStart, timestamp })
+                  }
+                />
                 <RawFileBrowser files={dayDetail.rawFiles} />
               </div>
             ) : null}

@@ -8,9 +8,10 @@ describe('SummaryCards', () => {
       <SummaryCards
         summary={{
           date: '2026-04-29',
-          startTime: '2026-04-29 03:03:12.57',
-          endTime: '2026-04-29 03:13:47.48',
-          useDurationSeconds: 634.91,
+          startTime: '2026-04-29 03:12:57',
+          endTime: '2026-04-29 09:30:35',
+          useDurationSeconds: 22658,
+          useSessions: [],
           eventCounts: { ai: 28, hi: 8, ascp: 301 },
           signalPresence: {},
           sampleCounts: { flow: 283224 },
@@ -21,7 +22,7 @@ describe('SummaryCards', () => {
       />,
     );
 
-    expect(screen.getByText('10:34')).toBeInTheDocument();
+    expect(screen.getByText('6h 17m')).toBeInTheDocument();
     expect(screen.getByText('28 / 8')).toBeInTheDocument();
     expect(screen.getByText('0 - 151')).toBeInTheDocument();
   });

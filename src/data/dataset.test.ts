@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { makeEdfLikeFile, makeEventPayload } from '../parser/fixtures';
+import { makeEdfLikeFile, makeEventPayload, makeEventPayloadAt } from '../parser/fixtures';
 import type { ImportedFileRef } from '../types';
 import { buildDatasetIndex, filterDays, loadDayDetail } from './dataset';
 
@@ -27,6 +27,11 @@ function makeImportedFiles() {
     imported('DATAFILE/20260429/20260429_flow.edf', 'flow', new Uint8Array([20, 19, 17])),
     imported('DATAFILE/20260429/20260429_pressure.edf', 'pressure', new Uint8Array([1, 0, 9, 0])),
     imported('DATAFILE/20260429/20260429_hi.edf', 'hi', makeEventPayload(1, 15)),
+    imported(
+      'DATAFILE/20260429/20260429_usetime.edf',
+      'usetime',
+      makeEventPayloadAt(120, 677025283, new Date(Date.UTC(2026, 3, 29, 8, 30, 0))),
+    ),
     imported('DATAFILE/20260429/20260429_mystery.edf', 'mystery', new Uint8Array([7, 8])),
     imported('DATAFILE/20260428/20260428_pressure.edf', 'pressure', new Uint8Array([2, 0, 6, 0])),
   ];
@@ -39,6 +44,9 @@ describe('dataset indexing', () => {
     expect(index.days).toEqual(['2026-04-28', '2026-04-29']);
     expect(index.summariesByDay['2026-04-29'].eventCounts.hi).toBe(1);
     expect(index.summariesByDay['2026-04-29'].sampleCounts.flow).toBe(3);
+    expect(index.summariesByDay['2026-04-29'].startTime).toBe('2026-04-29 08:28:00');
+    expect(index.summariesByDay['2026-04-29'].endTime).toBe('2026-04-29 08:30:00');
+    expect(index.summariesByDay['2026-04-29'].useDurationSeconds).toBe(120);
     expect(index.summariesByDay['2026-04-29'].pressureRange).toEqual({ min: 1, max: 9 });
   });
 
@@ -67,8 +75,21 @@ describe('dataset indexing', () => {
     const detail = await loadDayDetail(index, '2026-04-29');
 
     expect(detail.signals.map((file) => file.header.label)).toEqual(['flow', 'pressure']);
-    expect(detail.events).toHaveLength(1);
-    expect(detail.events[0].secondsFromDayStart).toBeCloseTo(88.65);
-    expect(detail.rawFiles.map((file) => file.header.label)).toEqual(['flow', 'pressure', 'hi', 'mystery']);
+    expect(detail.useSessions).toEqual([
+      {
+        startTime: '2026-04-29 08:28:00',
+        endTime: '2026-04-29 08:30:00',
+        durationSeconds: 120,
+      },
+    ]);
+    expect(detail.events.filter((event) => event.sourceLabel === 'hi')).toHaveLength(1);
+    expect(detail.events.find((event) => event.sourceLabel === 'hi')?.secondsFromDayStart).toBeUndefined();
+    expect(detail.rawFiles.map((file) => file.header.label)).toEqual([
+      'flow',
+      'pressure',
+      'hi',
+      'usetime',
+      'mystery',
+    ]);
   });
 });

@@ -8,8 +8,11 @@ function duration(seconds: number | null) {
   if (seconds === null) return '-';
 
   const totalSeconds = Math.floor(seconds);
-  const minutes = Math.floor(totalSeconds / 60);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
   const restSeconds = totalSeconds % 60;
+
+  if (hours > 0) return `${hours}h ${minutes.toString().padStart(2, '0')}m`;
 
   return `${minutes}:${restSeconds.toString().padStart(2, '0')}`;
 }

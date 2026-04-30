@@ -7,7 +7,8 @@ import type {
 } from '../types';
 
 const HEADER_BYTES = 512;
-const waveformSampleRateLabels = new Set(['flow', 'pressure', 'real_pres', 'real_flow']);
+const sampledPayloadLabels = new Set(['flow', 'pressure', 'real_pres', 'real_flow', 'difleak', 'mvtvbr']);
+const waveformSampleRateLabels = new Set(['flow', 'pressure', 'real_pres', 'real_flow', 'difleak']);
 const event16Labels = new Set(['ai', 'hi', 'ascp', 'usetime']);
 const decoder = new TextDecoder('ascii');
 
@@ -33,12 +34,21 @@ function parseTimestamp(raw: Uint8Array) {
   const year = view.getUint16(0, true);
   const month = raw[2];
   const day = raw[3];
-  const hour = raw[4];
-  const minute = raw[5];
-  const second = raw[6];
-  const centisecond = raw[7];
+  const hour = raw[5];
+  const minute = raw[6];
+  const second = raw[7];
 
-  if (year < 1900 || year > 2200 || month < 1 || month > 12 || day < 1 || day > 31) {
+  if (
+    year < 1900 ||
+    year > 2200 ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31 ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 59
+  ) {
     return null;
   }
 
@@ -48,8 +58,7 @@ function parseTimestamp(raw: Uint8Array) {
   const hh = hour.toString().padStart(2, '0');
   const min = minute.toString().padStart(2, '0');
   const ss = second.toString().padStart(2, '0');
-  const cc = centisecond.toString().padStart(2, '0');
-  return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}.${cc}`;
+  return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
 }
 
 export function parseHeader(raw: Uint8Array): VentilatorHeader {
@@ -60,6 +69,7 @@ export function parseHeader(raw: Uint8Array): VentilatorHeader {
   const label = ascii(raw, 256, 272);
   const field244 = ascii(raw, 244, 252);
   const field244Value = parseInteger(field244);
+  const sampleIntervalMs = sampledPayloadLabels.has(label) && field244Value && field244Value > 0 ? field244Value : null;
 
   return {
     version: ascii(raw, 0, 8),
@@ -78,7 +88,9 @@ export function parseHeader(raw: Uint8Array): VentilatorHeader {
     physicalMax: ascii(raw, 368, 376),
     digitalMin: ascii(raw, 376, 384),
     digitalMax: ascii(raw, 384, 392),
-    sampleRateHz: waveformSampleRateLabels.has(label) ? field244Value : null,
+    sampleIntervalMs,
+    sampleRateHz:
+      waveformSampleRateLabels.has(label) && sampleIntervalMs ? 1000 / sampleIntervalMs : null,
   };
 }
 

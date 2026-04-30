@@ -7,6 +7,7 @@ import type {
   EventRecord,
   ImportedFileRef,
   ParsedVentilatorFile,
+  UseSession,
 } from '../types';
 
 const expectedSignalLabels = ['flow', 'pressure', 'real_pres', 'real_flow'];
@@ -62,6 +63,13 @@ function parseTimestamp(timestamp: string | null) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function formatTimestamp(date: Date) {
+  const pad = (value: number, length = 2) => value.toString().padStart(length, '0');
+  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())} ${pad(
+    date.getUTCHours(),
+  )}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}`;
+}
+
 export function secondsBetween(start: string | null, end: string | null) {
   const startDate = parseTimestamp(start);
   const endDate = parseTimestamp(end);
@@ -84,12 +92,35 @@ function isSignal(file: ParsedVentilatorFile) {
   return file.kind === 'waveform_u8' || file.kind === 'waveform_u16le' || file.kind === 'waveform_i16le';
 }
 
+function buildUseSession(record: EventRecord): UseSession | null {
+  if (record.sourceLabel !== 'usetime' || record.value1 <= 0 || !record.timestamp) return null;
+
+  const endDate = parseTimestamp(record.timestamp);
+  if (!endDate) return null;
+
+  const startDate = new Date(endDate.getTime() - record.value1 * 1000);
+  return {
+    startTime: formatTimestamp(startDate),
+    endTime: record.timestamp,
+    durationSeconds: record.value1,
+  };
+}
+
+function buildUseSessions(files: ParsedVentilatorFile[]) {
+  const sessions = files
+    .flatMap((file) => file.records.filter(isEventRecord).map(buildUseSession))
+    .filter((session): session is UseSession => session !== null);
+
+  return sessions.sort((a, b) => a.startTime.localeCompare(b.startTime));
+}
+
 function makeEmptySummary(date: string): DaySummary {
   return {
     date,
     startTime: null,
     endTime: null,
     useDurationSeconds: null,
+    useSessions: [],
     eventCounts: {},
     signalPresence: Object.fromEntries(expectedSignalLabels.map((label) => [label, false])),
     sampleCounts: {},
@@ -111,9 +142,11 @@ function addPressureValue(summary: DaySummary, value: number) {
 
 async function summarizeDay(date: string, fileRefs: ImportedFileRef[]) {
   const summary = makeEmptySummary(date);
+  const files: ParsedVentilatorFile[] = [];
 
   for (const fileRef of fileRefs) {
     const parsed = await parseImportedFile(fileRef);
+    files.push(parsed);
     const label = parsed.header.label;
 
     summary.warnings.push(...parsed.warnings);
@@ -143,7 +176,14 @@ async function summarizeDay(date: string, fileRefs: ImportedFileRef[]) {
     }
   }
 
-  summary.useDurationSeconds = secondsBetween(summary.startTime, summary.endTime);
+  summary.useSessions = buildUseSessions(files);
+  if (summary.useSessions.length > 0) {
+    summary.startTime = summary.useSessions[0].startTime;
+    summary.endTime = summary.useSessions[summary.useSessions.length - 1].endTime;
+    summary.useDurationSeconds = summary.useSessions.reduce((total, session) => total + session.durationSeconds, 0);
+  } else {
+    summary.useDurationSeconds = secondsBetween(summary.startTime, summary.endTime);
+  }
   summary.missingFiles = expectedSignalLabels.filter((label) => !summary.signalPresence[label]);
 
   return summary;
@@ -211,6 +251,7 @@ export async function loadDayDetail(index: DatasetIndex, date: string): Promise<
   const files = await Promise.all(fileRefs.map(parseImportedFile));
   const summary = index.summariesByDay[date] ?? (await summarizeDay(date, fileRefs));
   const signals = files.filter(isSignal);
+  const useSessions = buildUseSessions(files);
   const events = files.flatMap((file) =>
     file.records.filter(isEventRecord).map((record) => withSecondsFromDayStart(record, summary.startTime)),
   );
@@ -220,6 +261,7 @@ export async function loadDayDetail(index: DatasetIndex, date: string): Promise<
     files,
     signals,
     events,
+    useSessions,
     rawFiles: files,
   };
 }

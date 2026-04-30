@@ -11,10 +11,10 @@ function writeTimestamp(bytes: Uint8Array, offset: number, date: Date) {
   view.setUint16(offset, date.getUTCFullYear(), true);
   bytes[offset + 2] = date.getUTCMonth() + 1;
   bytes[offset + 3] = date.getUTCDate();
-  bytes[offset + 4] = date.getUTCHours();
-  bytes[offset + 5] = date.getUTCMinutes();
-  bytes[offset + 6] = date.getUTCSeconds();
-  bytes[offset + 7] = Math.floor(date.getUTCMilliseconds() / 10);
+  bytes[offset + 4] = date.getUTCDay();
+  bytes[offset + 5] = date.getUTCHours();
+  bytes[offset + 6] = date.getUTCMinutes();
+  bytes[offset + 7] = date.getUTCSeconds();
 }
 
 export function makeEdfLikeFile(
@@ -26,8 +26,8 @@ export function makeEdfLikeFile(
   header.fill(0x20);
   writeAscii(header, 0, 8, 'V2.12');
   writeAscii(header, 8, 80, '20393753523050090042004d');
-  writeTimestamp(header, 168, new Date(Date.UTC(2026, 3, 29, 3, 3, 12, 570)));
-  writeTimestamp(header, 176, new Date(Date.UTC(2026, 3, 29, 3, 13, 47, 480)));
+  writeTimestamp(header, 168, new Date(Date.UTC(2026, 3, 29, 3, 12, 57)));
+  writeTimestamp(header, 176, new Date(Date.UTC(2026, 3, 29, 13, 47, 48)));
   writeAscii(header, 184, 8, options.headerBytes ?? '512');
   writeAscii(header, 192, 44, 'V2.12-00001');
   writeAscii(header, 236, 8, '0');
@@ -57,5 +57,14 @@ export function makeEventPayload(value1: number, value2: number) {
   payload[13] = 4;
   payload[14] = 41;
   payload[15] = 22;
+  return payload;
+}
+
+export function makeEventPayloadAt(value1: number, value2: number, date: Date) {
+  const payload = new Uint8Array(16);
+  const view = new DataView(payload.buffer);
+  view.setUint32(0, value1, true);
+  view.setUint32(4, value2, true);
+  writeTimestamp(payload, 8, date);
   return payload;
 }
