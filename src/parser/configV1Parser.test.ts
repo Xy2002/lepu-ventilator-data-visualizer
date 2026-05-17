@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CONFIG_V1_FIELDS } from './configV1Parser';
+import { CONFIG_V1_FIELDS, parseConfigV1 } from './configV1Parser';
 
 describe('CONFIG_V1_FIELDS', () => {
   it('contains the 5 v1-confirmed fields with the expected offsets and types', () => {
@@ -29,5 +29,27 @@ describe('CONFIG_V1_FIELDS', () => {
   it('field names are unique', () => {
     const names = CONFIG_V1_FIELDS.map((f) => f.name);
     expect(new Set(names).size).toBe(names.length);
+  });
+});
+
+describe('parseConfigV1 input handling', () => {
+  it('throws when the buffer is shorter than 192 bytes', () => {
+    expect(() => parseConfigV1(new Uint8Array(191))).toThrow(/192 bytes/);
+  });
+
+  it('accepts an ArrayBuffer', () => {
+    const buf = new ArrayBuffer(192);
+    const result = parseConfigV1(buf);
+    expect(result.raw).toBeInstanceOf(Uint8Array);
+    expect(result.raw.byteLength).toBe(192);
+  });
+
+  it('returns the original bytes as raw', () => {
+    const bytes = new Uint8Array(192);
+    bytes[16] = 0xfa;
+    bytes[17] = 0x00;
+    const result = parseConfigV1(bytes);
+    expect(result.raw[16]).toBe(0xfa);
+    expect(result.raw[17]).toBe(0x00);
   });
 });

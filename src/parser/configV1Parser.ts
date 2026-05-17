@@ -85,3 +85,34 @@ export const CONFIG_V1_FIELDS: ReadonlyArray<FieldSpec> = [
   { offset: 186, size: 1, type: 'uint8', name: 'unknown_186',       status: 'unknown' },
   { offset: 191, size: 1, type: 'uint8', name: 'unknown_191',       status: 'unknown' },
 ];
+
+export interface ParsedField {
+  spec: FieldSpec;
+  raw: number | Uint8Array;
+  value: number | Uint8Array;
+}
+
+export interface ConfigV1 {
+  raw: Uint8Array;
+  fields: ParsedField[];
+  byName: Record<string, ParsedField>;
+}
+
+const PAYLOAD_BYTES = 192;
+
+function toUint8Array(input: ArrayBuffer | Uint8Array): Uint8Array {
+  if (input instanceof Uint8Array) return input;
+  return new Uint8Array(input);
+}
+
+export function parseConfigV1(input: ArrayBuffer | Uint8Array): ConfigV1 {
+  const raw = toUint8Array(input);
+  if (raw.byteLength < PAYLOAD_BYTES) {
+    throw new Error(`config_v1 payload must be at least ${PAYLOAD_BYTES} bytes (got ${raw.byteLength})`);
+  }
+  return {
+    raw,
+    fields: [],
+    byName: {},
+  };
+}
