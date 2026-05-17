@@ -69,7 +69,7 @@
 | 1  | 1 | uint8    | **language**           | — | enum | 🔬 | 0=简体中文, 2=English（v1-v3=0, v4-v5=2；Round 5 排除法）|
 | 2  | 1 | uint8    | **indicator_light**    | — | bool | 🔬 | v1-v9=0 (关), v10=1 (开)；Round 10 锁定（同 reserved_7 教训）|
 | 3  | 1 | uint8    | reserved_3             | — | —   | 🟨 | v1-v10 = 0x02；原 uint16LE header_ref 假设错了 |
-| 4  | 1 | uint8    | reserved_4             | — | —   | 🟨 | v1-v5 = 0 |
+| 4  | 1 | uint8    | **screen_saver**       | — | bool | 🔬 | v1-v10=0 (关), v11=1 (开)；Round 11 锁定。原 reserved_4 又一次踩到 constant ≠ reserved |
 | 5  | 1 | uint8    | **tube_size**          | — | enum | 🔬 | 0=22mm, 1=15mm（v1-v3=0, v4-v5=1；Round 5 排除法）|
 | 6  | 1 | uint8    | **face_mask**          | — | enum | 🔬 | 0=鼻罩, 2=鼻枕（v1-v3=0, v4=2, v5-v8=0；Round 5 单变量改回）|
 | 7  | 1 | uint8    | **smart_start**        | — | bool | 🔬 | v1-v7=1 (开), v8=0 (关)；Round 8 锁定。Round 4 误标 reserved 是错的——只是用户没改过 |
@@ -77,7 +77,8 @@
 | 9  | 1 | uint8    | reserved_9             | — | —   | 🟨 | v1-v9=0；原假设是 enable_flag 的高字节 |
 | 10 | 1 | uint8    | **temperature_unit**   | — | enum | 🔬 | 0=°C, 1=°F（v1-v3=0, v4=1, v5=0；Round 5 单变量改回）|
 | 16 | 2 | uint16LE | **high_pressure_alarm** | /10 | cmH₂O | ✅ | config_v1 + 记录（25.0） |
-| 18 | 2 | uint16LE | _unknown_18            | — | —   | ❓ | v1-v4 = 1 |
+| 18 | 1 | uint8    | **low_pressure_alarm** | — | bool | 🔬 | v1-v10=1 (开), v11=0 (关)；Round 11 锁定。原 uint16LE 假设错 |
+| 19 | 1 | uint8    | reserved_19            | — | —   | 🟨 | v1-v11 = 0 |
 | 20 | 2 | uint16LE | _unknown_20            | — | —   | ❓ | v1-v4 = 256 |
 | 28 | 2 | uint16LE | **timezone**           | — | enum | 🔬 | v1=19 (UTC+8), v4=20 (UTC+9)；编码 value = UTC_offset + 11 |
 | 32 | 2 | uint16LE | therapy_mode_primary   | — | enum | ⚠️ | v1-v4 = 2（Auto-S?） |
@@ -161,14 +162,16 @@
 
 ---
 
-## 5. 已锁定字段汇总（Round 1–10）
+## 5. 已锁定字段汇总（Round 1–11）
 
-**✅ Confirmed / 🔬 Diff-verified（共 22 个）**
+**✅ Confirmed / 🔬 Diff-verified（共 24 个）**
 
 | offset | name | v1→v2→v3→v4→v5→v6 | 来源 |
 |---|---|---|---|
 | 1   | language             | 0→0→0→2→2→2→2→2→2→0  | 🔬 Round 5 |
-| 2   | indicator_light      | 0→0→0→0→0→0→0→0→0→1  | 🔬 Round 10 |
+| 2   | indicator_light      | 0→0→0→0→0→0→0→0→0→1→0 | 🔬 Round 10 |
+| 4   | screen_saver         | 0→0→0→0→0→0→0→0→0→0→1 | 🔬 Round 11 |
+| 18  | low_pressure_alarm   | 1→1→1→1→1→1→1→1→1→1→0 | 🔬 Round 11 |
 | 5   | tube_size            | 0→0→0→1→1→1          | 🔬 Round 5 |
 | 6   | face_mask            | 0→0→0→2→0→0→0→0      | 🔬 Round 5 |
 | 7   | smart_start          | 1→1→1→1→1→1→1→0→0    | 🔬 Round 8 |
@@ -358,6 +361,21 @@
 - ✅ 自验：language 反向变化 2→0 完美匹配 Round 5 锁定（English→简体中文）
 
 锁定字段累计：21（R1-R9）+ 1（R10）= **22 个**。
+
+### Round 11 — `config_v11.bin` (2026-05-18)
+
+**改动**（在 v10 基础上）：屏保 关→开、低气道压力报警 开→关、指示灯 开→关。
+
+> 第一次导出与 v10 字节完全一致；用户怀疑文件复制错误，重新导出后才出现实际差异。流程提醒：UI 改完要完整退出菜单确认保存后再导出。
+
+**diff 结果**：4 字节变化 = 3 个 UI 改动 + 1 个校验和。
+
+- 🔬 锁定字段 (2)：
+  - **offset 4 = screen_saver**（v1-v10=0, v11=1；又一次 constant ≠ reserved 教训）
+  - **offset 18 = low_pressure_alarm**（v1-v10=1, v11=0；再次 uint16LE 拆分纠正）
+- ✅ 自验：indicator_light 反向变化 1→0 完美匹配 Round 10 锁定
+
+锁定字段累计：22（R1-R10）+ 2（R11）= **24 个**。
 
 ---
 

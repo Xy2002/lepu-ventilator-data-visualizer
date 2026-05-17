@@ -11,6 +11,7 @@ import {
   CONFIG_V8_FIXTURE_BYTES,
   CONFIG_V9_FIXTURE_BYTES,
   CONFIG_V10_FIXTURE_BYTES,
+  CONFIG_V11_FIXTURE_BYTES,
 } from './configV1Fixtures';
 
 describe('CONFIG_V1_FIELDS', () => {
@@ -143,12 +144,14 @@ describe('summarizeLocked', () => {
     expect(summary.map((s) => s.name)).toEqual([
       'language',
       'indicator_light',
+      'screen_saver',
       'tube_size',
       'face_mask',
       'smart_start',
       'smart_stop',
       'temperature_unit',
       'high_pressure_alarm',
+      'low_pressure_alarm',
       'timezone',
       'delay_time_minutes',
       'humidifier_level',
@@ -212,8 +215,8 @@ describe('Round 2: v1 vs v2 diff verification', () => {
 });
 
 describe('Round 3: v2 vs v3 disambiguation', () => {
-  it('all ten fixtures (v1..v10) pass the XOR checksum at offset 191', () => {
-    for (const fixture of [CONFIG_V1_FIXTURE_BYTES, CONFIG_V2_FIXTURE_BYTES, CONFIG_V3_FIXTURE_BYTES, CONFIG_V4_FIXTURE_BYTES, CONFIG_V5_FIXTURE_BYTES, CONFIG_V6_FIXTURE_BYTES, CONFIG_V7_FIXTURE_BYTES, CONFIG_V8_FIXTURE_BYTES, CONFIG_V9_FIXTURE_BYTES, CONFIG_V10_FIXTURE_BYTES]) {
+  it('all eleven fixtures (v1..v11) pass the XOR checksum at offset 191', () => {
+    for (const fixture of [CONFIG_V1_FIXTURE_BYTES, CONFIG_V2_FIXTURE_BYTES, CONFIG_V3_FIXTURE_BYTES, CONFIG_V4_FIXTURE_BYTES, CONFIG_V5_FIXTURE_BYTES, CONFIG_V6_FIXTURE_BYTES, CONFIG_V7_FIXTURE_BYTES, CONFIG_V8_FIXTURE_BYTES, CONFIG_V9_FIXTURE_BYTES, CONFIG_V10_FIXTURE_BYTES, CONFIG_V11_FIXTURE_BYTES]) {
       let xor = 0;
       for (let i = 0; i < 191; i++) xor ^= fixture[i];
       expect(xor).toBe(fixture[191]);
@@ -410,5 +413,30 @@ describe('Round 10: v9 vs v10 indicator_light + language self-verify', () => {
   it('indicator_light at offset 2 flips 0 -> 1 (matches UI 关闭 -> 开启)', () => {
     expect(parseConfigV1(CONFIG_V9_FIXTURE_BYTES).byName.indicator_light.value).toBe(0);
     expect(parseConfigV1(CONFIG_V10_FIXTURE_BYTES).byName.indicator_light.value).toBe(1);
+  });
+});
+
+describe('Round 11: v10 vs v11 screen_saver + low_pressure_alarm + indicator self-verify', () => {
+  it('exactly 4 bytes differ (indicator + screen_saver + low_pressure_alarm + checksum)', () => {
+    const diffOffsets: number[] = [];
+    for (let i = 0; i < 192; i++) {
+      if (CONFIG_V10_FIXTURE_BYTES[i] !== CONFIG_V11_FIXTURE_BYTES[i]) diffOffsets.push(i);
+    }
+    expect(diffOffsets).toEqual([2, 4, 18, 191]);
+  });
+
+  it('indicator_light reverts 1 -> 0 (self-verifies Round 10)', () => {
+    expect(parseConfigV1(CONFIG_V10_FIXTURE_BYTES).byName.indicator_light.value).toBe(1);
+    expect(parseConfigV1(CONFIG_V11_FIXTURE_BYTES).byName.indicator_light.value).toBe(0);
+  });
+
+  it('screen_saver at offset 4 flips 0 -> 1 (matches UI 关闭 -> 开启)', () => {
+    expect(parseConfigV1(CONFIG_V10_FIXTURE_BYTES).byName.screen_saver.value).toBe(0);
+    expect(parseConfigV1(CONFIG_V11_FIXTURE_BYTES).byName.screen_saver.value).toBe(1);
+  });
+
+  it('low_pressure_alarm at offset 18 flips 1 -> 0 (matches UI 开启 -> 关闭)', () => {
+    expect(parseConfigV1(CONFIG_V10_FIXTURE_BYTES).byName.low_pressure_alarm.value).toBe(1);
+    expect(parseConfigV1(CONFIG_V11_FIXTURE_BYTES).byName.low_pressure_alarm.value).toBe(0);
   });
 });
