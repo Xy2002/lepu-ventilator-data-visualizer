@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CONFIG_V1_FIELDS, parseConfigV1 } from './configV1Parser';
+import { CONFIG_V1_FIXTURE_BYTES } from './configV1Fixtures';
 
 describe('CONFIG_V1_FIELDS', () => {
   it('contains the 5 v1-confirmed fields with the expected offsets and types', () => {
@@ -102,5 +103,24 @@ describe('parseConfigV1 primitive reading', () => {
       expect(r.byName[f.name]).toBeDefined();
       expect(r.byName[f.name].spec).toBe(f);
     }
+  });
+});
+
+describe('parseConfigV1 on the v1 fixture', () => {
+  it('fixture is exactly 192 bytes', () => {
+    expect(CONFIG_V1_FIXTURE_BYTES.byteLength).toBe(192);
+  });
+
+  it('decodes the 5 confirmed fields to their recorded UI values', () => {
+    const r = parseConfigV1(CONFIG_V1_FIXTURE_BYTES);
+
+    expect(r.byName.high_pressure_alarm.raw).toBe(250);
+    expect(r.byName.high_pressure_alarm.value).toBeCloseTo(25.0, 5);
+
+    expect(r.byName.epap_max.value).toBeCloseTo(14.0, 5);
+    expect(r.byName.epap_min.value).toBeCloseTo(7.0, 5);
+    expect(r.byName.pressure_support.value).toBeCloseTo(3.0, 5);
+
+    expect(r.byName.backlight_seconds.value).toBe(60);
   });
 });
