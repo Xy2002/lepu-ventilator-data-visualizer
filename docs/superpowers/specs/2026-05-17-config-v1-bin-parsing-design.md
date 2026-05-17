@@ -72,7 +72,8 @@
 | 5  | 1 | uint8    | **tube_size**          | — | enum | 🔬 | 0=22mm, 1=15mm（v1-v3=0, v4-v5=1；Round 5 排除法）|
 | 6  | 1 | uint8    | **face_mask**          | — | enum | 🔬 | 0=鼻罩, 2=鼻枕（v1-v3=0, v4=2, v5-v8=0；Round 5 单变量改回）|
 | 7  | 1 | uint8    | **smart_start**        | — | bool | 🔬 | v1-v7=1 (开), v8=0 (关)；Round 8 锁定。Round 4 误标 reserved 是错的——只是用户没改过 |
-| 8  | 2 | uint16LE | enable_flag            | — | —   | ⚠️ | v1-v5 = 1 |
+| 8  | 1 | uint8    | **smart_stop**         | — | bool | 🔬 | v1-v8=1 (开), v9=0 (关)；Round 9 锁定。原 enable_flag uint16LE 假设错了（同 reserved_7 教训）|
+| 9  | 1 | uint8    | reserved_9             | — | —   | 🟨 | v1-v9=0；原假设是 enable_flag 的高字节 |
 | 10 | 1 | uint8    | **temperature_unit**   | — | enum | 🔬 | 0=°C, 1=°F（v1-v3=0, v4=1, v5=0；Round 5 单变量改回）|
 | 16 | 2 | uint16LE | **high_pressure_alarm** | /10 | cmH₂O | ✅ | config_v1 + 记录（25.0） |
 | 18 | 2 | uint16LE | _unknown_18            | — | —   | ❓ | v1-v4 = 1 |
@@ -159,17 +160,18 @@
 
 ---
 
-## 5. 已锁定字段汇总（Round 1–8）
+## 5. 已锁定字段汇总（Round 1–9）
 
-**✅ Confirmed / 🔬 Diff-verified（共 20 个）**
+**✅ Confirmed / 🔬 Diff-verified（共 21 个）**
 
 | offset | name | v1→v2→v3→v4→v5→v6 | 来源 |
 |---|---|---|---|
 | 1   | language             | 0→0→0→2→2→2          | 🔬 Round 5 |
 | 5   | tube_size            | 0→0→0→1→1→1          | 🔬 Round 5 |
 | 6   | face_mask            | 0→0→0→2→0→0→0→0      | 🔬 Round 5 |
-| 7   | smart_start          | 1→1→1→1→1→1→1→0      | 🔬 Round 8 |
-| 10  | temperature_unit     | 0→0→0→1→0→0→0→0      | 🔬 Round 5 |
+| 7   | smart_start          | 1→1→1→1→1→1→1→0→0    | 🔬 Round 8 |
+| 8   | smart_stop           | 1→1→1→1→1→1→1→1→0    | 🔬 Round 9 |
+| 10  | temperature_unit     | 0→0→0→1→0→0→0→0→0    | 🔬 Round 5 |
 | 16  | high_pressure_alarm  | 250（25.0 cmH₂O，unchanged） | ✅ Round 1 |
 | 28  | timezone             | 19→19→19→20→20→20    | 🔬 Round 4 |
 | 97  | delay_time_minutes   | 0→0→0→0→0→10         | 🔬 Round 6 |
@@ -330,6 +332,18 @@
 - 💡 教训：跨样本恒定的字节 **不等于** reserved，可能只是"用户没动过"。后续标 reserved 时要慎重
 
 锁定字段累计：19（R1-R7）+ 1（R8）= **20 个**。
+
+### Round 9 — `config_v9.bin` (2026-05-18)
+
+**改动**（在 v8 基础上）：智能停止 开启→关闭。
+
+**diff 结果**：仅 2 字节变化 = 1 个 UI 改动 + 1 个校验和。
+
+- 🔬 锁定字段 (1)：
+  - **offset 8 = smart_stop**（v1-v8=1, v9=0；同 Round 8 模式，原 uint16LE `enable_flag` 假设错了，byte 9 才是 padding）
+- 💡 与 Round 8 同样的教训再次成立：跨样本恒定 ≠ reserved
+
+锁定字段累计：20（R1-R8）+ 1（R9）= **21 个**。
 
 ---
 

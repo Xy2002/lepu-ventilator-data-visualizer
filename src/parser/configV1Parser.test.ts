@@ -9,6 +9,7 @@ import {
   CONFIG_V6_FIXTURE_BYTES,
   CONFIG_V7_FIXTURE_BYTES,
   CONFIG_V8_FIXTURE_BYTES,
+  CONFIG_V9_FIXTURE_BYTES,
 } from './configV1Fixtures';
 
 describe('CONFIG_V1_FIELDS', () => {
@@ -143,6 +144,7 @@ describe('summarizeLocked', () => {
       'tube_size',
       'face_mask',
       'smart_start',
+      'smart_stop',
       'temperature_unit',
       'high_pressure_alarm',
       'timezone',
@@ -208,8 +210,8 @@ describe('Round 2: v1 vs v2 diff verification', () => {
 });
 
 describe('Round 3: v2 vs v3 disambiguation', () => {
-  it('all eight fixtures (v1..v8) pass the XOR checksum at offset 191', () => {
-    for (const fixture of [CONFIG_V1_FIXTURE_BYTES, CONFIG_V2_FIXTURE_BYTES, CONFIG_V3_FIXTURE_BYTES, CONFIG_V4_FIXTURE_BYTES, CONFIG_V5_FIXTURE_BYTES, CONFIG_V6_FIXTURE_BYTES, CONFIG_V7_FIXTURE_BYTES, CONFIG_V8_FIXTURE_BYTES]) {
+  it('all nine fixtures (v1..v9) pass the XOR checksum at offset 191', () => {
+    for (const fixture of [CONFIG_V1_FIXTURE_BYTES, CONFIG_V2_FIXTURE_BYTES, CONFIG_V3_FIXTURE_BYTES, CONFIG_V4_FIXTURE_BYTES, CONFIG_V5_FIXTURE_BYTES, CONFIG_V6_FIXTURE_BYTES, CONFIG_V7_FIXTURE_BYTES, CONFIG_V8_FIXTURE_BYTES, CONFIG_V9_FIXTURE_BYTES]) {
       let xor = 0;
       for (let i = 0; i < 191; i++) xor ^= fixture[i];
       expect(xor).toBe(fixture[191]);
@@ -371,5 +373,20 @@ describe('Round 8: v7 vs v8 single-variable smart_start', () => {
   it('smart_start at offset 7 flips 1 -> 0 (matches UI 开启 -> 关闭)', () => {
     expect(parseConfigV1(CONFIG_V7_FIXTURE_BYTES).byName.smart_start.value).toBe(1);
     expect(parseConfigV1(CONFIG_V8_FIXTURE_BYTES).byName.smart_start.value).toBe(0);
+  });
+});
+
+describe('Round 9: v8 vs v9 single-variable smart_stop', () => {
+  it('only 2 bytes differ between v8 and v9 (smart_stop + checksum)', () => {
+    const diffOffsets: number[] = [];
+    for (let i = 0; i < 192; i++) {
+      if (CONFIG_V8_FIXTURE_BYTES[i] !== CONFIG_V9_FIXTURE_BYTES[i]) diffOffsets.push(i);
+    }
+    expect(diffOffsets).toEqual([8, 191]);
+  });
+
+  it('smart_stop at offset 8 flips 1 -> 0 (matches UI 开启 -> 关闭)', () => {
+    expect(parseConfigV1(CONFIG_V8_FIXTURE_BYTES).byName.smart_stop.value).toBe(1);
+    expect(parseConfigV1(CONFIG_V9_FIXTURE_BYTES).byName.smart_stop.value).toBe(0);
   });
 });
