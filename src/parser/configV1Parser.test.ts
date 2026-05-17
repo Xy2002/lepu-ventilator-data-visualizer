@@ -53,3 +53,54 @@ describe('parseConfigV1 input handling', () => {
     expect(result.raw[17]).toBe(0x00);
   });
 });
+
+describe('parseConfigV1 primitive reading', () => {
+  function makeBuffer(): Uint8Array {
+    const b = new Uint8Array(192);
+    // high_pressure_alarm @ offset 16 uint16LE = 250 (0x00FA) -> value 25.0 after scale 0.1
+    b[16] = 0xfa;
+    b[17] = 0x00;
+    // backlight_seconds @ offset 169 uint8 = 60
+    b[169] = 60;
+    // epap_max @ offset 132 float32LE = 14.0 -> 0x41600000 LE = 00 00 60 41
+    b[132] = 0x00; b[133] = 0x00; b[134] = 0x60; b[135] = 0x41;
+    return b;
+  }
+
+  it('reads uint8 fields', () => {
+    const r = parseConfigV1(makeBuffer());
+    const bl = r.byName.backlight_seconds;
+    expect(bl.raw).toBe(60);
+    expect(bl.value).toBe(60);
+  });
+
+  it('reads uint16LE fields and applies scale', () => {
+    const r = parseConfigV1(makeBuffer());
+    const hp = r.byName.high_pressure_alarm;
+    expect(hp.raw).toBe(250);
+    expect(hp.value).toBeCloseTo(25.0, 5);
+  });
+
+  it('reads float32LE fields', () => {
+    const r = parseConfigV1(makeBuffer());
+    const epap = r.byName.epap_max;
+    expect(epap.raw).toBeCloseTo(14.0, 5);
+    expect(epap.value).toBeCloseTo(14.0, 5);
+  });
+
+  it('produces fields in the same order as CONFIG_V1_FIELDS', () => {
+    const r = parseConfigV1(new Uint8Array(192));
+    expect(r.fields.length).toBe(CONFIG_V1_FIELDS.length);
+    for (let i = 0; i < CONFIG_V1_FIELDS.length; i++) {
+      expect(r.fields[i].spec.name).toBe(CONFIG_V1_FIELDS[i].name);
+    }
+  });
+
+  it('byName indexes all field names', () => {
+    const r = parseConfigV1(new Uint8Array(192));
+    for (const f of CONFIG_V1_FIELDS) {
+      expect(r.byName[f.name]).toBeDefined();
+      expect(r.byName[f.name].spec).toBe(f);
+    }
+  });
+});

@@ -105,14 +105,37 @@ function toUint8Array(input: ArrayBuffer | Uint8Array): Uint8Array {
   return new Uint8Array(input);
 }
 
+function readField(view: DataView, spec: FieldSpec): number | Uint8Array {
+  switch (spec.type) {
+    case 'uint8':
+      return view.getUint8(spec.offset);
+    case 'uint16LE':
+      return view.getUint16(spec.offset, true);
+    case 'uint32LE':
+      return view.getUint32(spec.offset, true);
+    case 'float32LE':
+      return view.getFloat32(spec.offset, true);
+    case 'bytes':
+      return new Uint8Array(view.buffer, view.byteOffset + spec.offset, spec.size);
+  }
+}
+
+function applyScale(raw: number | Uint8Array, scale: number | undefined): number | Uint8Array {
+  if (typeof raw !== 'number' || scale === undefined) return raw;
+  return raw * scale;
+}
+
 export function parseConfigV1(input: ArrayBuffer | Uint8Array): ConfigV1 {
   const raw = toUint8Array(input);
   if (raw.byteLength < PAYLOAD_BYTES) {
     throw new Error(`config_v1 payload must be at least ${PAYLOAD_BYTES} bytes (got ${raw.byteLength})`);
   }
-  return {
-    raw,
-    fields: [],
-    byName: {},
-  };
+  const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
+  const fields: ParsedField[] = CONFIG_V1_FIELDS.map((spec) => {
+    const rawValue = readField(view, spec);
+    return { spec, raw: rawValue, value: applyScale(rawValue, spec.scale) };
+  });
+  const byName: Record<string, ParsedField> = {};
+  for (const f of fields) byName[f.spec.name] = f;
+  return { raw, fields, byName };
 }
