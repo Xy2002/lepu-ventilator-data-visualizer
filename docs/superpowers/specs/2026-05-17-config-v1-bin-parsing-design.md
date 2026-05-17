@@ -104,22 +104,22 @@
 
 | offset | size | type | name | scale | unit | status | source |
 |---|---|---|---|---|---|---|---|
-| 96  | 1 | uint8 | therapy_mode_sub        | — | enum    | ⚠️ | v1 = 3 |
-| 97  | 1 | uint8 | _unknown_97             | — | —       | ❓ | v1 = 0 |
-| 98  | 1 | uint8 | epr_or_expiratory_relief| — | enum    | ⚠️ | v1 = 1（旧分析=开，但记录"呼气舒适度=关闭"矛盾）|
-| 99  | 1 | uint8 | ramp_time_minutes       | — | minute  | ⚠️ | v1 = 20；记录"延迟时间=关闭"矛盾——开关字节可能在别处 |
-| 100 | 1 | uint8 | _unknown_100            | — | enum    | ❓ | v1 = 2 |
-| 101 | 1 | uint8 | _unknown_101            | — | enum    | ❓ | v1 = 2；旧分析猜湿化水平=2，但记录湿化=1 矛盾 |
-| 102 | 1 | uint8 | mask_type               | — | enum    | ⚠️ | v1 = 0（记录"面罩=鼻罩"）|
-| 103 | 1 | uint8 | _unknown_103            | — | enum    | ❓ | v1 = 3 |
-| 104 | 1 | uint8 | auto_start              | — | bool    | ⚠️ | v1 = 1（记录"智能启动=开"）|
-| 105 | 1 | uint8 | _unknown_105            | — | enum    | ❓ | v1 = 2 |
-| 106 | 1 | uint8 | _unknown_106            | — | enum    | ❓ | v1 = 3 |
-| 107 | 1 | uint8 | _unknown_107            | — | enum    | ❓ | v1 = 1 |
-| 108 | 1 | uint8 | apnea_threshold_seconds | — | second  | ⚠️ | v1 = 10（旧 EDF 分析） |
-| 109 | 1 | uint8 | _unknown_109            | — | enum    | ❓ | v1 = 3 |
-| 110 | 1 | uint8 | _unknown_110            | — | —       | ❓ | v1 = 20 |
-| 111 | 1 | uint8 | _unknown_111            | — | enum    | ❓ | v1 = 3 |
+| 96  | 1 | uint8 | therapy_mode_sub        | — | enum    | ⚠️ | v1=v2=3（Auto-S?） |
+| 97  | 1 | uint8 | _unknown_97             | — | —       | ❓ | v1=v2=0 |
+| 98  | 1 | uint8 | **humidifier_level**    | — | level   | 🔬 | v1=1, v2=3（Round 2 diff 锁定，匹配 UI 湿化 1→3）|
+| 99  | 1 | uint8 | ramp_time_minutes       | — | minute  | ⚠️ | v1=v2=20；UI 延迟时间=关闭，所以这是时长备份，开关在别处 |
+| 100 | 1 | uint8 | _unknown_100            | — | enum    | ❓ | v1=v2=2 |
+| 101 | 1 | uint8 | _unknown_101            | — | enum    | ❓ | v1=v2=2 |
+| 102 | 1 | uint8 | mask_type               | — | enum    | ⚠️ | v1=v2=0（鼻罩）|
+| 103 | 1 | uint8 | sensitivity_or_fallrate_103 | — | enum | ⚠️ | v1=3, v2=1；属于 {吸气灵敏度, 呼气灵敏度, 降压速度} 之一，Round 3 区分 |
+| 104 | 1 | uint8 | auto_start              | — | bool    | ⚠️ | v1=v2=1（智能启动开）|
+| 105 | 1 | uint8 | **rise_rate**           | — | level   | 🔬 | v1=2, v2=3（Round 2 diff 锁定，匹配 UI 升压 2→3）|
+| 106 | 1 | uint8 | sensitivity_or_fallrate_106 | — | enum | ⚠️ | v1=3, v2=1；同 103 |
+| 107 | 1 | uint8 | _unknown_107            | — | enum    | ❓ | v1=v2=1 |
+| 108 | 1 | uint8 | apnea_threshold_seconds | — | second  | ⚠️ | v1=v2=10 |
+| 109 | 1 | uint8 | sensitivity_or_fallrate_109 | — | enum | ⚠️ | v1=3, v2=1；同 103 |
+| 110 | 1 | uint8 | _unknown_110            | — | —       | ❓ | v1=v2=20 |
+| 111 | 1 | uint8 | _unknown_111            | — | enum    | ❓ | v1=v2=3 |
 
 ### 区域 5 — 治疗压力参数（offset 112–167, 14 × float32LE）
 
@@ -153,19 +153,32 @@
 | 185 | 1  | uint8 | _unknown_185           | — | —      | ❓ | v1 = 12 |
 | 186 | 1  | uint8 | _unknown_186           | — | —      | ❓ | v1 = 77 (0x4D) |
 | 187 | 4  | bytes | _reserved_187          | — | —      | 🟨 | v1 全 0 |
-| 191 | 1  | uint8 | _unknown_191           | — | —      | ❓ | v1 = 0xB7 (183) |
+| 191 | 1  | uint8 | **payload_xor_checksum** | — | —    | ✅ | XOR(bytes[0..190])；v1 和 v2 均验证通过 |
 
 ---
 
-## 5. 已 ✅ 字段汇总（v1 锁定）
+## 5. 已锁定字段汇总（Round 1 + 2）
 
-| offset | name | v1 value | UI 记录 |
+**✅ Confirmed / 🔬 Diff-verified（共 8 个）**
+
+| offset | name | v1 → v2 | 来源 |
 |---|---|---|---|
-| 16  | high_pressure_alarm | 250 → 25.0 cmH₂O | 高吸气压力报警 25.0 |
-| 132 | epap_max            | 14.0 cmH₂O       | 最大呼气压力 14.0 |
-| 136 | epap_min            | 7.0 cmH₂O        | 最低呼气压力 7.0 |
-| 140 | pressure_support    | 3.0 cmH₂O        | 压力支持 3.0 |
-| 169 | backlight_seconds   | 60 秒            | 背光 60 秒 |
+| 16  | high_pressure_alarm  | 250 → 250（25.0 cmH₂O）  | ✅ Round 1（UI 记录） |
+| 98  | humidifier_level     | 1 → 3                   | 🔬 Round 2（diff + UI 记录两轮匹配） |
+| 105 | rise_rate            | 2 → 3                   | 🔬 Round 2（diff + UI 记录两轮匹配） |
+| 132 | epap_max             | 14.0 → 14.0 cmH₂O       | ✅ Round 1 |
+| 136 | epap_min             | 7.0 → 7.0 cmH₂O         | ✅ Round 1 |
+| 140 | pressure_support     | 3.0 → 3.0 cmH₂O         | ✅ Round 1 |
+| 169 | backlight_seconds    | 60 → 60 秒              | ✅ Round 1 |
+| 191 | payload_xor_checksum | 0xB7 → 0xB6             | ✅ Round 2（数学验证 XOR(bytes[0..190]) == byte[191]） |
+
+**⚠️ 收窄到 3 候选（Round 3 待区分）**
+
+| offset | v1 → v2 | 候选含义 |
+|---|---|---|
+| 103 | 3 → 1 | 吸气灵敏度 / 呼气灵敏度 / 降压速度 之一 |
+| 106 | 3 → 1 | 同上 |
+| 109 | 3 → 1 | 同上 |
 
 ---
 
@@ -177,13 +190,9 @@
    - 假设：UI 上"延迟时间"是开关，"20 分钟"是配置值；开关字节在别处（可能是 offset 97/100/105/106 等中的某个）。
    - 验证方案：第三轮单变量——把"延迟时间"切到 10 分钟，再切回关闭，观察哪个字节随开关变化、哪个字节随时长变化。
 
-2. **湿化水平字段位置**：记录"湿化=1"，旧分析说 offset 101 = humidifier=2，与 v1 字节 (101=2) 不匹配。
-   - 假设：旧分析定位错误，真正的湿化水平在区域 4 的其他字节。
-   - 验证方案：第一轮把湿化从 1 改到 3，看哪个字节变成 3。
+2. ~~**湿化水平字段位置**~~：✅ Round 2 解决 — 湿化水平在 offset 98（不在 offset 101），diff 验证通过（1→3）。
 
-3. **呼气舒适度（EPR）开关**：记录"呼气舒适度=关闭"，但 offset 98 = 1（旧分析=EPR 开）。
-   - 假设：旧分析定位错误，或字段含义不同。
-   - 验证方案：单变量——把呼气舒适度切到开/关，观察变化字节。
+3. ~~**呼气舒适度（EPR）开关**~~：⚠️ Round 1 推测的 offset 98 是错的（98 实为湿化水平）。EPR 真实位置仍未知，需后续单变量轮次定位。
 
 4. **起始压力定位**：记录"起始压力=4.0"，但旧分析定位的 offset 164 = 3.0。
    - 假设：旧分析定位错误。
@@ -209,6 +218,23 @@
 - 推翻字段 (4)：旧 EDF 分析中 `humidifier_level (101)`、`ramp_time (99)`、`epr_enabled (98)`、`ramp_start_pressure (164)` 全部降级为 ⚠️/❓，因为与用户 UI 记录矛盾
 - 新增 ⚠️：`therapy_mode_primary (32)`, `mask_type (102)`, `auto_start (104)`, `apnea_threshold_seconds (108)` —— 这些 v1 值与记录在数值上无直接冲突，但需 diff 验证
 
+### Round 2 — `config_v2.bin` (2026-05-17)
+
+**改动**：吸气灵敏度 3→1、呼气灵敏度 3→1、升压速度 2→3、降压速度 3→1、湿化水平 1→3。
+
+**diff 结果**：完全可解释，6 字节变化 = 5 个 UI 改动 + 1 个校验和。
+
+- 🔬 锁定字段 (2)：
+  - **offset 98 = humidifier_level**（湿化水平，diff 1→3 匹配 UI）—— 同时纠正了 Round 1 旧分析的 `epr_or_expiratory_relief` 错位
+  - **offset 105 = rise_rate**（升压速度，diff 2→3 匹配 UI）
+- ✅ 新发现 (1)：
+  - **offset 191 = payload_xor_checksum**（数学验证：v1/v2 上都满足 XOR(bytes[0..190]) == byte[191]）
+- ⚠️ 收窄字段 (3)：
+  - offsets {103, 106, 109} 全部 3→1，候选集 {吸气灵敏度, 呼气灵敏度, 降压速度}，但单轮 diff 无法区分。Round 3 用单变量法区分。
+- ⚠️ 副发现：
+  - "用户设定区"和"治疗设置区"同名灵敏度/速度字段**确实共享底层字节**（变化数 = UI 改动数，不是 2 倍）
+  - 旧推测 offset 101 = 湿化水平 **彻底否定**（湿化在 98，101 在 v1/v2 都是 2，未参与本轮 UI 改动）
+
 ---
 
 ## 8. 后续轮次计划
@@ -229,9 +255,28 @@
 
 **预期 diff 字节数**：5 个独立字段 → 至少 5 个字节变化；如果某些参数在 v1 中同时显示于"用户设定"和"治疗设置"两区且共享底层字段，diff 字节数应仍为 5；若是独立字段，可能有更多变化。
 
-### Round 3 (v3) — B 法推理枚举组
+### Round 3 (v3) — 单变量法区分 {103, 106, 109}
 
-| 参数 | v1 | v3 |
+**改动清单**（在 v2 状态基础上）：
+
+| 参数 | v2 | v3 | 预期变化 |
+|---|---|---|---|
+| 吸气灵敏度 | 1 | **2** | 某个候选字节 1→2 |
+| 呼气灵敏度 | 1 | **3** | 某个候选字节 1→3 |
+| 降压速度   | 1 | **1**（不动） | 对应候选字节保持 1 |
+
+其他参数全部保持 v2 状态。
+
+**判定规则**：
+- 唯一 1→2 的字节 = 吸气灵敏度
+- 唯一 1→3 的字节 = 呼气灵敏度
+- 保持 1 不变的字节 = 降压速度
+
+预期会同时变化 offset 191（XOR 校验和重算）。
+
+### Round 4 (v4) — B 法推理枚举组
+
+| 参数 | v3 | v4 |
 |---|---|---|
 | 温度单位 | °C | **°F** |
 | 时区     | UTC+8 | **UTC+9** |
@@ -239,9 +284,9 @@
 | 管道     | 22mm | **15mm** |
 | 语言     | 简体中文 | **English** |
 
-### Round 4 (v4) — A 法精确定位"延迟时间"开关
+### Round 5 (v5) — A 法精确定位"延迟时间"开关
 
-只改延迟时间：关闭 → 10 分钟。其他全部保持 v3 状态。预期只有 1-2 个字节变化，能精确锁定"延迟时间开关字节"和（如需）"延迟时长字节"。
+只改延迟时间：关闭 → 10 分钟。其他全部保持 v4 状态。预期 1-2 字节变化 + offset 191 重算，能精确锁定"延迟时间开关字节"和"延迟时长字节"。
 
 ---
 

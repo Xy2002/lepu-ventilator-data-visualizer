@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CONFIG_V1_FIELDS, parseConfigV1, summarizeConfirmed } from './configV1Parser';
-import { CONFIG_V1_FIXTURE_BYTES } from './configV1Fixtures';
+import { CONFIG_V1_FIXTURE_BYTES, CONFIG_V2_FIXTURE_BYTES } from './configV1Fixtures';
 
 describe('CONFIG_V1_FIELDS', () => {
   it('contains the 5 v1-confirmed fields with the expected offsets and types', () => {
@@ -126,7 +126,7 @@ describe('parseConfigV1 on the v1 fixture', () => {
 });
 
 describe('summarizeConfirmed', () => {
-  it('returns only confirmed fields, in spec order, with display-ready values', () => {
+  it('returns confirmed fields in spec order with display-ready values', () => {
     const r = parseConfigV1(CONFIG_V1_FIXTURE_BYTES);
     const summary = summarizeConfirmed(r);
     expect(summary.map((s) => s.name)).toEqual([
@@ -135,6 +135,7 @@ describe('summarizeConfirmed', () => {
       'epap_min',
       'pressure_support',
       'backlight_seconds',
+      'payload_xor_checksum',
     ]);
     expect(summary[0]).toMatchObject({
       label: '高吸气压力报警',
@@ -146,5 +147,47 @@ describe('summarizeConfirmed', () => {
       value: 60,
       unit: 's',
     });
+  });
+});
+
+describe('Round 2: v1 vs v2 diff verification', () => {
+  it('v1 and v2 both pass the XOR checksum at offset 191', () => {
+    for (const fixture of [CONFIG_V1_FIXTURE_BYTES, CONFIG_V2_FIXTURE_BYTES]) {
+      let xor = 0;
+      for (let i = 0; i < 191; i++) xor ^= fixture[i];
+      expect(xor).toBe(fixture[191]);
+    }
+  });
+
+  it('humidifier_level changes from 1 to 3 (matches UI)', () => {
+    expect(parseConfigV1(CONFIG_V1_FIXTURE_BYTES).byName.humidifier_level.value).toBe(1);
+    expect(parseConfigV1(CONFIG_V2_FIXTURE_BYTES).byName.humidifier_level.value).toBe(3);
+  });
+
+  it('rise_rate changes from 2 to 3 (matches UI)', () => {
+    expect(parseConfigV1(CONFIG_V1_FIXTURE_BYTES).byName.rise_rate.value).toBe(2);
+    expect(parseConfigV1(CONFIG_V2_FIXTURE_BYTES).byName.rise_rate.value).toBe(3);
+  });
+
+  it('payload_xor_checksum updates from 0xB7 to 0xB6 across v1->v2', () => {
+    expect(parseConfigV1(CONFIG_V1_FIXTURE_BYTES).byName.payload_xor_checksum.value).toBe(0xb7);
+    expect(parseConfigV1(CONFIG_V2_FIXTURE_BYTES).byName.payload_xor_checksum.value).toBe(0xb6);
+  });
+
+  it('the three ambiguous sensitivity_or_fallrate bytes all changed 3 -> 1', () => {
+    const v1 = parseConfigV1(CONFIG_V1_FIXTURE_BYTES);
+    const v2 = parseConfigV1(CONFIG_V2_FIXTURE_BYTES);
+    for (const name of ['sensitivity_or_fallrate_103', 'sensitivity_or_fallrate_106', 'sensitivity_or_fallrate_109']) {
+      expect(v1.byName[name].value).toBe(3);
+      expect(v2.byName[name].value).toBe(1);
+    }
+  });
+
+  it('only the 6 expected bytes differ between v1 and v2 fixtures', () => {
+    const diffOffsets: number[] = [];
+    for (let i = 0; i < 192; i++) {
+      if (CONFIG_V1_FIXTURE_BYTES[i] !== CONFIG_V2_FIXTURE_BYTES[i]) diffOffsets.push(i);
+    }
+    expect(diffOffsets).toEqual([98, 103, 105, 106, 109, 191]);
   });
 });
