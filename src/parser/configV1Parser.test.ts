@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CONFIG_V1_FIELDS, parseConfigV1 } from './configV1Parser';
+import { CONFIG_V1_FIELDS, parseConfigV1, summarizeConfirmed } from './configV1Parser';
 import { CONFIG_V1_FIXTURE_BYTES } from './configV1Fixtures';
 
 describe('CONFIG_V1_FIELDS', () => {
@@ -122,5 +122,29 @@ describe('parseConfigV1 on the v1 fixture', () => {
     expect(r.byName.pressure_support.value).toBeCloseTo(3.0, 5);
 
     expect(r.byName.backlight_seconds.value).toBe(60);
+  });
+});
+
+describe('summarizeConfirmed', () => {
+  it('returns only confirmed fields, in spec order, with display-ready values', () => {
+    const r = parseConfigV1(CONFIG_V1_FIXTURE_BYTES);
+    const summary = summarizeConfirmed(r);
+    expect(summary.map((s) => s.name)).toEqual([
+      'high_pressure_alarm',
+      'epap_max',
+      'epap_min',
+      'pressure_support',
+      'backlight_seconds',
+    ]);
+    expect(summary[0]).toMatchObject({
+      label: '高吸气压力报警',
+      value: 25.0,
+      unit: 'cmH2O',
+    });
+    expect(summary[4]).toMatchObject({
+      label: '背光秒数',
+      value: 60,
+      unit: 's',
+    });
   });
 });

@@ -139,3 +139,21 @@ export function parseConfigV1(input: ArrayBuffer | Uint8Array): ConfigV1 {
   for (const f of fields) byName[f.spec.name] = f;
   return { raw, fields, byName };
 }
+
+export interface ConfirmedSummaryEntry {
+  name: string;
+  label: string;
+  value: number | Uint8Array;
+  unit: string;
+}
+
+export function summarizeConfirmed(parsed: ConfigV1): ConfirmedSummaryEntry[] {
+  return parsed.fields
+    .filter((f) => f.spec.status === 'confirmed')
+    .map((f) => ({
+      name: f.spec.name,
+      label: f.spec.label ?? f.spec.name,
+      value: f.value,
+      unit: f.spec.unit ?? '',
+    }));
+}
