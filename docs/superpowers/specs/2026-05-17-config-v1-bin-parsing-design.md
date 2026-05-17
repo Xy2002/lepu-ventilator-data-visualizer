@@ -67,7 +67,8 @@
 |---|---|---|---|---|---|---|---|
 | 0  | 1 | uint8    | record_size_marker     | — | —   | 🟨 | v1-v5 = 0xCC（marker） |
 | 1  | 1 | uint8    | **language**           | — | enum | 🔬 | 0=简体中文, 2=English（v1-v3=0, v4-v5=2；Round 5 排除法）|
-| 2  | 2 | uint16LE | header_ref             | — | —   | 🟨 | v1-v5 = 512 |
+| 2  | 1 | uint8    | **indicator_light**    | — | bool | 🔬 | v1-v9=0 (关), v10=1 (开)；Round 10 锁定（同 reserved_7 教训）|
+| 3  | 1 | uint8    | reserved_3             | — | —   | 🟨 | v1-v10 = 0x02；原 uint16LE header_ref 假设错了 |
 | 4  | 1 | uint8    | reserved_4             | — | —   | 🟨 | v1-v5 = 0 |
 | 5  | 1 | uint8    | **tube_size**          | — | enum | 🔬 | 0=22mm, 1=15mm（v1-v3=0, v4-v5=1；Round 5 排除法）|
 | 6  | 1 | uint8    | **face_mask**          | — | enum | 🔬 | 0=鼻罩, 2=鼻枕（v1-v3=0, v4=2, v5-v8=0；Round 5 单变量改回）|
@@ -160,13 +161,14 @@
 
 ---
 
-## 5. 已锁定字段汇总（Round 1–9）
+## 5. 已锁定字段汇总（Round 1–10）
 
-**✅ Confirmed / 🔬 Diff-verified（共 21 个）**
+**✅ Confirmed / 🔬 Diff-verified（共 22 个）**
 
 | offset | name | v1→v2→v3→v4→v5→v6 | 来源 |
 |---|---|---|---|
-| 1   | language             | 0→0→0→2→2→2          | 🔬 Round 5 |
+| 1   | language             | 0→0→0→2→2→2→2→2→2→0  | 🔬 Round 5 |
+| 2   | indicator_light      | 0→0→0→0→0→0→0→0→0→1  | 🔬 Round 10 |
 | 5   | tube_size            | 0→0→0→1→1→1          | 🔬 Round 5 |
 | 6   | face_mask            | 0→0→0→2→0→0→0→0      | 🔬 Round 5 |
 | 7   | smart_start          | 1→1→1→1→1→1→1→0→0    | 🔬 Round 8 |
@@ -344,6 +346,18 @@
 - 💡 与 Round 8 同样的教训再次成立：跨样本恒定 ≠ reserved
 
 锁定字段累计：20（R1-R8）+ 1（R9）= **21 个**。
+
+### Round 10 — `config_v10.bin` (2026-05-18)
+
+**改动**（在 v9 基础上）：语言 English→简体中文、指示灯 关闭→开启。
+
+**diff 结果**：3 字节变化 = 2 个 UI 改动 + 1 个校验和。
+
+- 🔬 锁定字段 (1)：
+  - **offset 2 = indicator_light**（v1-v9=0, v10=1；又一次 uint16LE 拆分纠正——Round 1 的 `header_ref` 假设错了）
+- ✅ 自验：language 反向变化 2→0 完美匹配 Round 5 锁定（English→简体中文）
+
+锁定字段累计：21（R1-R9）+ 1（R10）= **22 个**。
 
 ---
 

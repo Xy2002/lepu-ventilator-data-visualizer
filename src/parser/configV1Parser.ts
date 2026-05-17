@@ -25,7 +25,8 @@ export const CONFIG_V1_FIELDS: ReadonlyArray<FieldSpec> = [
   // that bytes 1, 5, 6, 10 vary with UI changes while bytes 0, 4, 7 stay constant.
   { offset: 0,  size: 1, type: 'uint8',     name: 'record_size_marker', status: 'reserved', notes: 'constant 0xCC across v1-v5' },
   { offset: 1,  size: 1, type: 'uint8',     name: 'language',          label: '语言',   status: 'diff-verified', notes: 'v1-v3=0 (简体中文), v4=v5=2 (English); Round 5 kept v4 value while face_mask reverted' },
-  { offset: 2,  size: 2, type: 'uint16LE',  name: 'header_ref',         status: 'reserved', notes: 'constant 512 across v1-v5' },
+  { offset: 2,  size: 1, type: 'uint8',     name: 'indicator_light',   label: '指示灯', status: 'diff-verified', notes: 'v1-v9=0 (off), v10=1 (on); Round 10. Round 1 had assumed bytes 2-3 were uint16LE header_ref=512 — wrong, this is yet another byte that varies with UI' },
+  { offset: 3,  size: 1, type: 'uint8',     name: 'reserved_3',         status: 'reserved', notes: 'v1-v10=0x02 (high byte of what Round 1 thought was uint16LE header_ref)' },
   { offset: 4,  size: 1, type: 'uint8',     name: 'reserved_4',         status: 'reserved', notes: 'constant 0' },
   { offset: 5,  size: 1, type: 'uint8',     name: 'tube_size',         label: '管道',   status: 'diff-verified', notes: 'v1-v3=0 (22mm), v4=v5=1 (15mm); Round 5 kept v4 value while temp_unit reverted' },
   { offset: 6,  size: 1, type: 'uint8',     name: 'face_mask',         label: '面罩',   status: 'diff-verified', notes: 'v1-v3=0 (鼻罩), v4=2 (鼻枕), v5=0 (back to 鼻罩, identified by Round 5 single-variable revert)' },
