@@ -19,7 +19,7 @@ export interface FieldSpec {
   notes?: string;
 }
 
-export const CONFIG_V1_FIELDS: ReadonlyArray<FieldSpec> = [
+export const BA525_CONFIG_FIELDS: ReadonlyArray<FieldSpec> = [
   // Region 1: device / mode (0-39)
   // Round 4 forced splitting offsets 0, 4, 6 into uint8 fields after observing
   // that bytes 1, 5, 6, 10 vary with UI changes while bytes 0, 4, 7 stay constant.
@@ -102,7 +102,7 @@ export interface ParsedField {
   value: number | Uint8Array;
 }
 
-export interface ConfigV1 {
+export interface Ba525Config {
   raw: Uint8Array;
   fields: ParsedField[];
   byName: Record<string, ParsedField>;
@@ -135,13 +135,13 @@ function applyScale(raw: number | Uint8Array, scale: number | undefined): number
   return raw * scale;
 }
 
-export function parseConfigV1(input: ArrayBuffer | Uint8Array): ConfigV1 {
+export function parseBa525Config(input: ArrayBuffer | Uint8Array): Ba525Config {
   const raw = toUint8Array(input);
   if (raw.byteLength < PAYLOAD_BYTES) {
-    throw new Error(`config_v1 payload must be at least ${PAYLOAD_BYTES} bytes (got ${raw.byteLength})`);
+    throw new Error(`BA525 config payload must be at least ${PAYLOAD_BYTES} bytes (got ${raw.byteLength})`);
   }
   const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
-  const fields: ParsedField[] = CONFIG_V1_FIELDS.map((spec) => {
+  const fields: ParsedField[] = BA525_CONFIG_FIELDS.map((spec) => {
     const rawValue = readField(view, spec);
     return { spec, raw: rawValue, value: applyScale(rawValue, spec.scale) };
   });
@@ -160,7 +160,7 @@ export interface LockedSummaryEntry {
 
 // Returns every field whose status is 'confirmed' or 'diff-verified' — i.e. anything
 // we've locked down through UI match or cross-version diff, ready for UI display.
-export function summarizeLocked(parsed: ConfigV1): LockedSummaryEntry[] {
+export function summarizeLocked(parsed: Ba525Config): LockedSummaryEntry[] {
   return parsed.fields
     .filter((f) => f.spec.status === 'confirmed' || f.spec.status === 'diff-verified')
     .map((f) => ({

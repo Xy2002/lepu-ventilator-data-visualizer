@@ -427,7 +427,7 @@
 
 ### 模块位置
 
-`src/parser/configV1Parser.ts`（零依赖，仅用 DataView；与现有 `edfParser.ts` 同目录）
+`src/parser/ba525ConfigParser.ts`（零依赖，仅用 DataView；与现有 `edfParser.ts` 同目录）
 
 ### API
 
@@ -446,7 +446,7 @@ export interface FieldSpec {
   notes?: string;       // 矛盾说明 / 推测理由
 }
 
-export const CONFIG_V1_FIELDS: ReadonlyArray<FieldSpec>;
+export const BA525_CONFIG_FIELDS: ReadonlyArray<FieldSpec>;
 
 export interface ParsedField {
   spec: FieldSpec;
@@ -454,27 +454,27 @@ export interface ParsedField {
   value: number | Uint8Array; // 应用 scale 后的值
 }
 
-export interface ConfigV1 {
+export interface Ba525Config {
   raw: Uint8Array;        // 原始 192 字节
-  fields: ParsedField[];  // 按 CONFIG_V1_FIELDS 顺序的解析结果
+  fields: ParsedField[];  // 按 BA525_CONFIG_FIELDS 顺序的解析结果
   byName: Record<string, ParsedField>;  // 用 name 索引
 }
 
-export function parseConfigV1(buf: ArrayBuffer | Uint8Array): ConfigV1;
+export function parseBa525Config(buf: ArrayBuffer | Uint8Array): Ba525Config;
 ```
 
 ### 约束
 
 - 模块零依赖（不引入 React / 任何 UI 类型）
-- 字段定义集中在 `CONFIG_V1_FIELDS` 数组，`parseConfigV1` 由它驱动——字段表更新只改一个地方
-- 提供 fixture 测试 `src/parser/configV1Parser.test.ts`，断言 v1 五个 ✅ 字段值正确
+- 字段定义集中在 `BA525_CONFIG_FIELDS` 数组，`parseBa525Config` 由它驱动——字段表更新只改一个地方
+- 提供 fixture 测试 `src/parser/ba525ConfigParser.test.ts`，断言 v1 五个 ✅ 字段值正确
 
 ### 不做（本设计范围外）
 
 - 修改 RawFileBrowser 或其他 UI 组件
 - 添加 UI 路由 / 渲染逻辑
 
-未来接入 RawFileBrowser 时，只需新增一个展示组件遍历 `CONFIG_V1_FIELDS`，无需改解析器代码。
+未来接入 RawFileBrowser 时，只需新增一个展示组件遍历 `BA525_CONFIG_FIELDS`，无需改解析器代码。
 
 ---
 

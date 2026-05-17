@@ -1,6 +1,6 @@
 // Verbatim 192 bytes of src/docs/config_v1.bin, transcribed as hex.
 // hexToBytes strips whitespace so the line/group formatting is purely cosmetic.
-const CONFIG_V1_HEX = `
+const SAMPLE_1_HEX = `
   cc000002 00000001 01000000 00000000
   fa000100 00010000 00000000 13000000
   02000e00 0d000000 00009441 00001841
@@ -27,11 +27,11 @@ function hexToBytes(hex: string): Uint8Array {
   return out;
 }
 
-export const CONFIG_V1_FIXTURE_BYTES: Uint8Array = hexToBytes(CONFIG_V1_HEX);
+export const BA525_SAMPLE_1_BYTES: Uint8Array = hexToBytes(SAMPLE_1_HEX);
 
 // Verbatim 192 bytes of src/docs/config_v2.bin.
 // Differs from v1 in offsets 98, 103, 105, 106, 109 (UI changes) and 191 (XOR checksum).
-const CONFIG_V2_HEX = `
+const SAMPLE_2_HEX = `
   cc000002 00000001 01000000 00000000
   fa000100 00010000 00000000 13000000
   02000e00 0d000000 00009441 00001841
@@ -46,11 +46,11 @@ const CONFIG_V2_HEX = `
   00000000 00001400 020c4d00 000000b6
 `;
 
-export const CONFIG_V2_FIXTURE_BYTES: Uint8Array = hexToBytes(CONFIG_V2_HEX);
+export const BA525_SAMPLE_2_BYTES: Uint8Array = hexToBytes(SAMPLE_2_HEX);
 
 // Verbatim 192 bytes of src/docs/config_v3.bin.
 // Differs from v2 in offsets 103 (ipap_sens 1->2), 109 (epap_sens 1->3), and 191 (XOR).
-const CONFIG_V3_HEX = `
+const SAMPLE_3_HEX = `
   cc000002 00000001 01000000 00000000
   fa000100 00010000 00000000 13000000
   02000e00 0d000000 00009441 00001841
@@ -65,12 +65,12 @@ const CONFIG_V3_HEX = `
   00000000 00001400 020c4d00 000000b7
 `;
 
-export const CONFIG_V3_FIXTURE_BYTES: Uint8Array = hexToBytes(CONFIG_V3_HEX);
+export const BA525_SAMPLE_3_BYTES: Uint8Array = hexToBytes(SAMPLE_3_HEX);
 
 // Verbatim 192 bytes of src/docs/config_v4.bin.
 // Differs from v3 in offsets 1, 5, 6, 10 (UI enums: temp unit, timezone, mask, tube, lang),
 // offset 28 (timezone 19->20 / UTC+8->UTC+9), and offset 191 (XOR).
-const CONFIG_V4_HEX = `
+const SAMPLE_4_HEX = `
   cc020002 00010201 01000100 00000000
   fa000100 00010000 00000000 14000000
   02000e00 0d000000 00009441 00001841
@@ -85,11 +85,11 @@ const CONFIG_V4_HEX = `
   00000000 00001400 020c4d00 000000b0
 `;
 
-export const CONFIG_V4_FIXTURE_BYTES: Uint8Array = hexToBytes(CONFIG_V4_HEX);
+export const BA525_SAMPLE_4_BYTES: Uint8Array = hexToBytes(SAMPLE_4_HEX);
 
 // Verbatim 192 bytes of src/docs/config_v5.bin.
 // Differs from v4 in offset 6 (face_mask 2->0), offset 10 (temp_unit 1->0), offset 191 (XOR).
-const CONFIG_V5_HEX = `
+const SAMPLE_5_HEX = `
   cc020002 00010001 01000000 00000000
   fa000100 00010000 00000000 14000000
   02000e00 0d000000 00009441 00001841
@@ -104,11 +104,11 @@ const CONFIG_V5_HEX = `
   00000000 00001400 020c4d00 000000b3
 `;
 
-export const CONFIG_V5_FIXTURE_BYTES: Uint8Array = hexToBytes(CONFIG_V5_HEX);
+export const BA525_SAMPLE_5_BYTES: Uint8Array = hexToBytes(SAMPLE_5_HEX);
 
 // Verbatim 192 bytes of src/docs/config_v6.bin.
 // Differs from v5 in offset 97 (delay_time_minutes 0->10) and offset 191 (XOR).
-const CONFIG_V6_HEX = `
+const SAMPLE_6_HEX = `
   cc020002 00010001 01000000 00000000
   fa000100 00010000 00000000 14000000
   02000e00 0d000000 00009441 00001841
@@ -123,13 +123,13 @@ const CONFIG_V6_HEX = `
   00000000 00001400 020c4d00 000000b9
 `;
 
-export const CONFIG_V6_FIXTURE_BYTES: Uint8Array = hexToBytes(CONFIG_V6_HEX);
+export const BA525_SAMPLE_6_BYTES: Uint8Array = hexToBytes(SAMPLE_6_HEX);
 
 // Verbatim 192 bytes of src/docs/config_v7.bin.
 // Differs from v6 in offset 97 (delay 10->0, unexpected revert), offset 102
 // (epr_level 0->1), offset 146 (ramp_start_pressure mantissa 0x80->0xc0 = 4.0->6.0),
 // and offset 191 (XOR checksum).
-const CONFIG_V7_HEX = `
+const SAMPLE_7_HEX = `
   cc020002 00010001 01000000 00000000
   fa000100 00010000 00000000 14000000
   02000e00 0d000000 00009441 00001841
@@ -144,11 +144,11 @@ const CONFIG_V7_HEX = `
   00000000 00001400 020c4d00 000000f2
 `;
 
-export const CONFIG_V7_FIXTURE_BYTES: Uint8Array = hexToBytes(CONFIG_V7_HEX);
+export const BA525_SAMPLE_7_BYTES: Uint8Array = hexToBytes(SAMPLE_7_HEX);
 
 // Verbatim 192 bytes of src/docs/config_v8.bin.
 // Differs from v7 in offset 7 (smart_start 1->0) and offset 191 (XOR).
-const CONFIG_V8_HEX = `
+const SAMPLE_8_HEX = `
   cc020002 00010000 01000000 00000000
   fa000100 00010000 00000000 14000000
   02000e00 0d000000 00009441 00001841
@@ -163,11 +163,11 @@ const CONFIG_V8_HEX = `
   00000000 00001400 020c4d00 000000f3
 `;
 
-export const CONFIG_V8_FIXTURE_BYTES: Uint8Array = hexToBytes(CONFIG_V8_HEX);
+export const BA525_SAMPLE_8_BYTES: Uint8Array = hexToBytes(SAMPLE_8_HEX);
 
 // Verbatim 192 bytes of src/docs/config_v9.bin.
 // Differs from v8 in offset 8 (smart_stop 1->0) and offset 191 (XOR).
-const CONFIG_V9_HEX = `
+const SAMPLE_9_HEX = `
   cc020002 00010000 00000000 00000000
   fa000100 00010000 00000000 14000000
   02000e00 0d000000 00009441 00001841
@@ -182,12 +182,12 @@ const CONFIG_V9_HEX = `
   00000000 00001400 020c4d00 000000f2
 `;
 
-export const CONFIG_V9_FIXTURE_BYTES: Uint8Array = hexToBytes(CONFIG_V9_HEX);
+export const BA525_SAMPLE_9_BYTES: Uint8Array = hexToBytes(SAMPLE_9_HEX);
 
 // Verbatim 192 bytes of src/docs/config_v10.bin.
 // Differs from v9 in offset 1 (language 2->0, English->简体中文), offset 2
 // (indicator_light 0->1), offset 191 (XOR).
-const CONFIG_V10_HEX = `
+const SAMPLE_10_HEX = `
   cc000102 00010000 00000000 00000000
   fa000100 00010000 00000000 14000000
   02000e00 0d000000 00009441 00001841
@@ -202,12 +202,12 @@ const CONFIG_V10_HEX = `
   00000000 00001400 020c4d00 000000f1
 `;
 
-export const CONFIG_V10_FIXTURE_BYTES: Uint8Array = hexToBytes(CONFIG_V10_HEX);
+export const BA525_SAMPLE_10_BYTES: Uint8Array = hexToBytes(SAMPLE_10_HEX);
 
 // Verbatim 192 bytes of src/docs/config_v11.bin.
 // Differs from v10 in offset 2 (indicator 1->0), offset 4 (screen_saver 0->1),
 // offset 18 (low_pressure_alarm 1->0), offset 191 (XOR).
-const CONFIG_V11_HEX = `
+const SAMPLE_11_HEX = `
   cc000002 01010000 00000000 00000000
   fa000000 00010000 00000000 14000000
   02000e00 0d000000 00009441 00001841
@@ -222,11 +222,11 @@ const CONFIG_V11_HEX = `
   00000000 00001400 020c4d00 000000f0
 `;
 
-export const CONFIG_V11_FIXTURE_BYTES: Uint8Array = hexToBytes(CONFIG_V11_HEX);
+export const BA525_SAMPLE_11_BYTES: Uint8Array = hexToBytes(SAMPLE_11_HEX);
 
 // Verbatim 192 bytes of src/docs/config_v12.bin.
 // Differs from v11 in offset 96 (therapy_mode 3->0, Auto-S->CPAP) and offset 191 (XOR).
-const CONFIG_V12_HEX = `
+const SAMPLE_12_HEX = `
   cc000002 01010000 00000000 00000000
   fa000000 00010000 00000000 14000000
   02000e00 0d000000 00009441 00001841
@@ -241,4 +241,4 @@ const CONFIG_V12_HEX = `
   00000000 00001400 020c4d00 000000f3
 `;
 
-export const CONFIG_V12_FIXTURE_BYTES: Uint8Array = hexToBytes(CONFIG_V12_HEX);
+export const BA525_SAMPLE_12_BYTES: Uint8Array = hexToBytes(SAMPLE_12_HEX);
