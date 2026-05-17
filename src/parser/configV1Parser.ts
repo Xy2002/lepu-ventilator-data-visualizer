@@ -21,15 +21,22 @@ export interface FieldSpec {
 
 export const CONFIG_V1_FIELDS: ReadonlyArray<FieldSpec> = [
   // Region 1: device / mode (0-39)
-  { offset: 0,  size: 2, type: 'uint16LE',  name: 'record_size_marker', status: 'inferred', notes: 'old EDF analysis: 204' },
-  { offset: 2,  size: 2, type: 'uint16LE',  name: 'header_ref',         status: 'inferred', notes: 'old EDF analysis: 512' },
-  { offset: 6,  size: 2, type: 'uint16LE',  name: 'config_flags',       status: 'inferred' },
-  { offset: 8,  size: 2, type: 'uint16LE',  name: 'enable_flag',        status: 'inferred' },
+  // Round 4 forced splitting offsets 0, 4, 6 into uint8 fields after observing
+  // that bytes 1, 5, 6, 10 vary with UI changes while bytes 0, 4, 7 stay constant.
+  { offset: 0,  size: 1, type: 'uint8',     name: 'record_size_marker', status: 'reserved', notes: 'constant 0xCC across v1-v4' },
+  { offset: 1,  size: 1, type: 'uint8',     name: 'enum_face_mask_or_language_1', status: 'inferred', notes: 'v1-v3=0, v4=2; one of {face_mask, language} (Round 4 +2 delta); Round 5 disambiguates' },
+  { offset: 2,  size: 2, type: 'uint16LE',  name: 'header_ref',         status: 'reserved', notes: 'constant 512 across v1-v4' },
+  { offset: 4,  size: 1, type: 'uint8',     name: 'reserved_4',         status: 'reserved', notes: 'constant 0' },
+  { offset: 5,  size: 1, type: 'uint8',     name: 'enum_temp_unit_or_tube_5', status: 'inferred', notes: 'v1-v3=0, v4=1; one of {temp_unit, tube_size} (Round 4 +1 delta); Round 5 disambiguates' },
+  { offset: 6,  size: 1, type: 'uint8',     name: 'enum_face_mask_or_language_6', status: 'inferred', notes: 'v1-v3=0, v4=2; one of {face_mask, language} (Round 4 +2 delta); Round 5 disambiguates' },
+  { offset: 7,  size: 1, type: 'uint8',     name: 'reserved_7',         status: 'reserved', notes: 'constant 0x01 across v1-v4' },
+  { offset: 8,  size: 2, type: 'uint16LE',  name: 'enable_flag',        status: 'inferred', notes: 'v1-v4=1' },
+  { offset: 10, size: 1, type: 'uint8',     name: 'enum_temp_unit_or_tube_10', status: 'inferred', notes: 'v1-v3=0, v4=1; one of {temp_unit, tube_size} (Round 4 +1 delta); Round 5 disambiguates' },
   { offset: 16, size: 2, type: 'uint16LE',  name: 'high_pressure_alarm', label: '高吸气压力报警', scale: 0.1, unit: 'cmH2O', status: 'confirmed' },
   { offset: 18, size: 2, type: 'uint16LE',  name: 'unknown_18',         status: 'unknown' },
   { offset: 20, size: 2, type: 'uint16LE',  name: 'unknown_20',         status: 'unknown' },
-  { offset: 28, size: 2, type: 'uint16LE',  name: 'unknown_28',         status: 'unknown' },
-  { offset: 32, size: 2, type: 'uint16LE',  name: 'therapy_mode_primary', status: 'inferred', notes: 'v1 = 2; Auto-S?' },
+  { offset: 28, size: 2, type: 'uint16LE',  name: 'timezone',           label: '时区', status: 'diff-verified', notes: 'v1=19 (UTC+8), v4=20 (UTC+9); encoding: value = UTC_offset + 11' },
+  { offset: 32, size: 2, type: 'uint16LE',  name: 'therapy_mode_primary', status: 'inferred', notes: 'v1-v4=2; Auto-S?' },
   { offset: 34, size: 2, type: 'uint16LE',  name: 'unknown_34',         status: 'unknown' },
   { offset: 36, size: 2, type: 'uint16LE',  name: 'unknown_36',         status: 'unknown' },
 
@@ -140,20 +147,24 @@ export function parseConfigV1(input: ArrayBuffer | Uint8Array): ConfigV1 {
   return { raw, fields, byName };
 }
 
-export interface ConfirmedSummaryEntry {
+export interface LockedSummaryEntry {
   name: string;
   label: string;
   value: number | Uint8Array;
   unit: string;
+  status: 'confirmed' | 'diff-verified';
 }
 
-export function summarizeConfirmed(parsed: ConfigV1): ConfirmedSummaryEntry[] {
+// Returns every field whose status is 'confirmed' or 'diff-verified' — i.e. anything
+// we've locked down through UI match or cross-version diff, ready for UI display.
+export function summarizeLocked(parsed: ConfigV1): LockedSummaryEntry[] {
   return parsed.fields
-    .filter((f) => f.spec.status === 'confirmed')
+    .filter((f) => f.spec.status === 'confirmed' || f.spec.status === 'diff-verified')
     .map((f) => ({
       name: f.spec.name,
       label: f.spec.label ?? f.spec.name,
       value: f.value,
       unit: f.spec.unit ?? '',
+      status: f.spec.status as 'confirmed' | 'diff-verified',
     }));
 }

@@ -59,26 +59,28 @@
 
 > 每轮迭代后更新本表。所有 `source` 标注 "config_v1 + 记录" 的字段表示在 v1 样本中已能与用户 UI 记录直接对应。
 
-### 区域 1 — 设备/模式参数（offset 0–39, uint16LE 为主）
+### 区域 1 — 设备/模式参数（offset 0–39）
+
+> **Round 4 结构修正**：原以为 offset 0、4、6 是 uint16LE，实际是 uint8 混合（低字节是常量/marker，高字节是 UI 参数或反过来）。下表已重构。
 
 | offset | size | type | name | scale | unit | status | source |
 |---|---|---|---|---|---|---|---|
-| 0  | 2 | uint16LE | record_size_marker     | —   | —      | ⚠️ | 旧 EDF 分析（值=204） |
-| 2  | 2 | uint16LE | header_ref             | —   | —      | ⚠️ | 旧 EDF 分析（值=512） |
-| 4  | 2 | uint16LE | _reserved_4            | —   | —      | 🟨 | v1 = 0 |
-| 6  | 2 | uint16LE | config_flags           | —   | —      | ⚠️ | 旧 EDF 分析（值=256） |
-| 8  | 2 | uint16LE | enable_flag            | —   | —      | ⚠️ | 旧 EDF 分析（值=1） |
-| 10 | 6 | bytes    | _reserved_10           | —   | —      | 🟨 | v1 全 0 |
+| 0  | 1 | uint8    | record_size_marker     | — | —   | 🟨 | v1-v4 = 0xCC（marker） |
+| 1  | 1 | uint8    | enum_face_mask_or_language_1 | — | enum | ⚠️ | v1-v3=0, v4=2；候选 {面罩, 语言} |
+| 2  | 2 | uint16LE | header_ref             | — | —   | 🟨 | v1-v4 = 512（constant header reference） |
+| 4  | 1 | uint8    | reserved_4             | — | —   | 🟨 | v1-v4 = 0 |
+| 5  | 1 | uint8    | enum_temp_unit_or_tube_5 | — | enum | ⚠️ | v1-v3=0, v4=1；候选 {温度单位, 管道} |
+| 6  | 1 | uint8    | enum_face_mask_or_language_6 | — | enum | ⚠️ | v1-v3=0, v4=2；候选 {面罩, 语言} |
+| 7  | 1 | uint8    | reserved_7             | — | —   | 🟨 | v1-v4 = 0x01（constant flag） |
+| 8  | 2 | uint16LE | enable_flag            | — | —   | ⚠️ | v1-v4 = 1 |
+| 10 | 1 | uint8    | enum_temp_unit_or_tube_10 | — | enum | ⚠️ | v1-v3=0, v4=1；候选 {温度单位, 管道} |
 | 16 | 2 | uint16LE | **high_pressure_alarm** | /10 | cmH₂O | ✅ | config_v1 + 记录（25.0） |
-| 18 | 2 | uint16LE | _unknown_18            | —   | —      | ❓ | v1 = 1 |
-| 20 | 2 | uint16LE | _unknown_20            | —   | —      | ❓ | v1 = 256 |
-| 22 | 6 | bytes    | _reserved_22           | —   | —      | 🟨 | v1 全 0 |
-| 28 | 2 | uint16LE | _unknown_28            | —   | —      | ❓ | v1 = 19 |
-| 30 | 2 | uint16LE | _reserved_30           | —   | —      | 🟨 | v1 = 0 |
-| 32 | 2 | uint16LE | therapy_mode_primary   | —   | enum   | ⚠️ | v1 = 2（Auto-S?）|
-| 34 | 2 | uint16LE | _unknown_34            | —   | —      | ❓ | v1 = 14 |
-| 36 | 2 | uint16LE | _unknown_36            | —   | —      | ❓ | v1 = 13 |
-| 38 | 2 | uint16LE | _reserved_38           | —   | —      | 🟨 | v1 = 0 |
+| 18 | 2 | uint16LE | _unknown_18            | — | —   | ❓ | v1-v4 = 1 |
+| 20 | 2 | uint16LE | _unknown_20            | — | —   | ❓ | v1-v4 = 256 |
+| 28 | 2 | uint16LE | **timezone**           | — | enum | 🔬 | v1=19 (UTC+8), v4=20 (UTC+9)；编码 value = UTC_offset + 11 |
+| 32 | 2 | uint16LE | therapy_mode_primary   | — | enum | ⚠️ | v1-v4 = 2（Auto-S?） |
+| 34 | 2 | uint16LE | _unknown_34            | — | —   | ❓ | v1-v4 = 14 |
+| 36 | 2 | uint16LE | _unknown_36            | — | —   | ❓ | v1-v4 = 13 |
 
 ### 区域 2 — 浮点统计/校准（offset 40–67, 7 × float32LE）
 
@@ -157,23 +159,33 @@
 
 ---
 
-## 5. 已锁定字段汇总（Round 1 + 2 + 3）
+## 5. 已锁定字段汇总（Round 1 + 2 + 3 + 4）
 
-**✅ Confirmed / 🔬 Diff-verified（共 11 个）**
+**✅ Confirmed / 🔬 Diff-verified（共 12 个）**
 
-| offset | name | v1 → v2 → v3 | 来源 |
+| offset | name | v1 → v2 → v3 → v4 | 来源 |
 |---|---|---|---|
-| 16  | high_pressure_alarm  | 250 → 250 → 250（25.0 cmH₂O） | ✅ Round 1 |
-| 98  | humidifier_level     | 1 → 3 → 3                    | 🔬 Round 2 |
-| 103 | ipap_sensitivity     | 3 → 1 → 2                    | 🔬 Round 3 |
-| 105 | rise_rate            | 2 → 3 → 3                    | 🔬 Round 2 |
-| 106 | fall_rate            | 3 → 1 → 1                    | 🔬 Round 3 |
-| 109 | epap_sensitivity     | 3 → 1 → 3                    | 🔬 Round 3 |
+| 16  | high_pressure_alarm  | 250（25.0 cmH₂O，unchanged） | ✅ Round 1 |
+| 28  | timezone             | 19 → 19 → 19 → 20（UTC+8 → +9） | 🔬 Round 4 |
+| 98  | humidifier_level     | 1 → 3 → 3 → 3                | 🔬 Round 2 |
+| 103 | ipap_sensitivity     | 3 → 1 → 2 → 2                | 🔬 Round 3 |
+| 105 | rise_rate            | 2 → 3 → 3 → 3                | 🔬 Round 2 |
+| 106 | fall_rate            | 3 → 1 → 1 → 1                | 🔬 Round 3 |
+| 109 | epap_sensitivity     | 3 → 1 → 3 → 3                | 🔬 Round 3 |
 | 132 | epap_max             | 14.0 cmH₂O（unchanged）       | ✅ Round 1 |
 | 136 | epap_min             | 7.0 cmH₂O（unchanged）        | ✅ Round 1 |
 | 140 | pressure_support     | 3.0 cmH₂O（unchanged）        | ✅ Round 1 |
 | 169 | backlight_seconds    | 60 秒（unchanged）            | ✅ Round 1 |
-| 191 | payload_xor_checksum | 0xB7 → 0xB6 → 0xB7           | ✅ Round 2（数学验证） |
+| 191 | payload_xor_checksum | 0xB7 → 0xB6 → 0xB7 → 0xB0    | ✅ Round 2（数学验证） |
+
+**⚠️ 收窄到 2 候选（Round 5 待区分）**
+
+| offset | v3 → v4 | 候选含义 |
+|---|---|---|
+| 1   | 0 → 2 | 面罩 / 语言（+2 delta） |
+| 5   | 0 → 1 | 温度单位 / 管道（+1 delta） |
+| 6   | 0 → 2 | 面罩 / 语言（+2 delta） |
+| 10  | 0 → 1 | 温度单位 / 管道（+1 delta） |
 
 ---
 
@@ -244,6 +256,27 @@
 
 锁定字段累计：5（R1）+ 3（R2，含 XOR）+ 3（R3）= **11 个**。
 
+### Round 4 — `config_v4.bin` (2026-05-18)
+
+**改动**（在 v3 基础上）：温度单位 °C→°F、时区 UTC+8→UTC+9、面罩 鼻罩→鼻枕、管道 22mm→15mm、语言 简体中文→English。
+
+**diff 结果**：6 字节变化 = 5 个 UI 改动 + 1 个校验和。
+
+- 🔬 锁定字段 (1)：
+  - **offset 28 = timezone**（时区，编码 `value = UTC_offset + 11`：v1=19 ↔ UTC+8、v4=20 ↔ UTC+9，两个独立数据点完美吻合）
+- ⚠️ 结构错误纠正（Round 1）：原假设 offset 0/4/6 是 uint16LE，v4 diff 暴露 byte 1、5、6、10 都是独立 UI 参数。重构为 uint8 组：
+  - offset 0  = `record_size_marker` 常量 0xCC
+  - offset 1  = `enum_face_mask_or_language_1`（+2 delta，候选 {面罩, 语言}）
+  - offset 4  = `reserved_4` 常量 0
+  - offset 5  = `enum_temp_unit_or_tube_5`（+1 delta，候选 {温度单位, 管道}）
+  - offset 6  = `enum_face_mask_or_language_6`（+2 delta，候选 {面罩, 语言}）
+  - offset 7  = `reserved_7` 常量 0x01
+  - offset 10 = `enum_temp_unit_or_tube_10`（+1 delta，候选 {温度单位, 管道}）
+- ⚠️ 收窄字段 (4)：4 个 UI 枚举字节定位完成但成对模糊，需 Round 5 单变量 disambiguate。
+- ✅ 校验和验证：v4 上 `XOR(bytes[0..190]) == byte[191] == 0xB0`，连续四个文件都满足。
+
+锁定字段累计：5（R1）+ 3（R2）+ 3（R3）+ 1（R4）= **12 个**。
+
 ---
 
 ## 8. 后续轮次计划
@@ -264,21 +297,25 @@
 
 **预期 diff 字节数**：5 个独立字段 → 至少 5 个字节变化；如果某些参数在 v1 中同时显示于"用户设定"和"治疗设置"两区且共享底层字段，diff 字节数应仍为 5；若是独立字段，可能有更多变化。
 
-### Round 4 (v4) — B 法推理枚举组
+### Round 5 (v5) — A 法区分 4 个枚举字段（精确版）
 
-| 参数 | v3 当前 | v4 目标 |
+只改 2 个 UI 参数（在 v4 基础上）：
+
+| 参数 | v4 当前 | v5 目标 |
 |---|---|---|
-| 温度单位 | °C | **°F** |
-| 时区     | UTC+8 | **UTC+9** |
-| 面罩     | 鼻罩 | **鼻枕** |
-| 管道     | 22mm | **15mm** |
-| 语言     | 简体中文 | **English** |
+| 温度单位 | °F | **°C**（改回） |
+| 面罩     | 鼻枕 | **鼻罩**（改回） |
+| 时区/管道/语言 | （v4 状态） | **不动** |
 
-预期 5 个 UI 改动 → 5 个字节变化 + offset 191 重算 = 6 字节 diff。
+判定规则：
+- offset 5 或 10 中**改回 1→0** 的字节 = 温度单位；另一个 = 管道
+- offset 1 或 6 中**改回 2→0** 的字节 = 面罩；另一个 = 语言
 
-### Round 5 (v5) — A 法精确定位"延迟时间"开关
+预期 3 字节变化 = 2 个 UI 改动 + offset 191 重算。
 
-只改延迟时间：关闭 → 10 分钟。其他全部保持 v4 状态。预期 1-2 字节变化 + offset 191 重算，能精确锁定"延迟时间开关字节"和"延迟时长字节"。
+### Round 6 (v6) — A 法精确定位"延迟时间"开关
+
+只改延迟时间：关闭 → 10 分钟。其他全部保持 v5 状态。预期 1-2 字节变化 + offset 191 重算，能精确锁定"延迟时间开关字节"和"延迟时长字节"。
 
 ---
 

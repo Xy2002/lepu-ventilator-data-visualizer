@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { CONFIG_V1_FIELDS, parseConfigV1, summarizeConfirmed } from './configV1Parser';
+import { CONFIG_V1_FIELDS, parseConfigV1, summarizeLocked } from './configV1Parser';
 import {
   CONFIG_V1_FIXTURE_BYTES,
   CONFIG_V2_FIXTURE_BYTES,
   CONFIG_V3_FIXTURE_BYTES,
+  CONFIG_V4_FIXTURE_BYTES,
 } from './configV1Fixtures';
 
 describe('CONFIG_V1_FIELDS', () => {
@@ -129,27 +130,34 @@ describe('parseConfigV1 on the v1 fixture', () => {
   });
 });
 
-describe('summarizeConfirmed', () => {
-  it('returns confirmed fields in spec order with display-ready values', () => {
+describe('summarizeLocked', () => {
+  it('returns confirmed + diff-verified fields in spec order', () => {
     const r = parseConfigV1(CONFIG_V1_FIXTURE_BYTES);
-    const summary = summarizeConfirmed(r);
+    const summary = summarizeLocked(r);
     expect(summary.map((s) => s.name)).toEqual([
       'high_pressure_alarm',
+      'timezone',
+      'humidifier_level',
+      'ipap_sensitivity',
+      'rise_rate',
+      'fall_rate',
+      'epap_sensitivity',
       'epap_max',
       'epap_min',
       'pressure_support',
       'backlight_seconds',
       'payload_xor_checksum',
     ]);
-    expect(summary[0]).toMatchObject({
+    expect(summary.find((s) => s.name === 'high_pressure_alarm')).toMatchObject({
       label: '高吸气压力报警',
       value: 25.0,
       unit: 'cmH2O',
+      status: 'confirmed',
     });
-    expect(summary[4]).toMatchObject({
-      label: '背光秒数',
-      value: 60,
-      unit: 's',
+    expect(summary.find((s) => s.name === 'humidifier_level')).toMatchObject({
+      label: '湿化水平',
+      value: 1,
+      status: 'diff-verified',
     });
   });
 });
@@ -183,6 +191,14 @@ describe('Round 2: v1 vs v2 diff verification', () => {
 });
 
 describe('Round 3: v2 vs v3 disambiguation', () => {
+  it('all four fixtures (v1..v4) pass the XOR checksum at offset 191', () => {
+    for (const fixture of [CONFIG_V1_FIXTURE_BYTES, CONFIG_V2_FIXTURE_BYTES, CONFIG_V3_FIXTURE_BYTES, CONFIG_V4_FIXTURE_BYTES]) {
+      let xor = 0;
+      for (let i = 0; i < 191; i++) xor ^= fixture[i];
+      expect(xor).toBe(fixture[191]);
+    }
+  });
+
   it('only the 3 expected bytes differ between v2 and v3 fixtures', () => {
     const diffOffsets: number[] = [];
     for (let i = 0; i < 192; i++) {
@@ -206,9 +222,48 @@ describe('Round 3: v2 vs v3 disambiguation', () => {
     expect(parseConfigV1(CONFIG_V3_FIXTURE_BYTES).byName.fall_rate.value).toBe(1);
   });
 
-  it('payload_xor_checksum cycles 0xB7 -> 0xB6 -> 0xB7 across v1/v2/v3', () => {
+  it('payload_xor_checksum cycles 0xB7 -> 0xB6 -> 0xB7 -> 0xB0 across v1/v2/v3/v4', () => {
     expect(parseConfigV1(CONFIG_V1_FIXTURE_BYTES).byName.payload_xor_checksum.value).toBe(0xb7);
     expect(parseConfigV1(CONFIG_V2_FIXTURE_BYTES).byName.payload_xor_checksum.value).toBe(0xb6);
     expect(parseConfigV1(CONFIG_V3_FIXTURE_BYTES).byName.payload_xor_checksum.value).toBe(0xb7);
+    expect(parseConfigV1(CONFIG_V4_FIXTURE_BYTES).byName.payload_xor_checksum.value).toBe(0xb0);
+  });
+});
+
+describe('Round 4: v3 vs v4 enum-group diff', () => {
+  it('only the 6 expected bytes differ between v3 and v4 fixtures', () => {
+    const diffOffsets: number[] = [];
+    for (let i = 0; i < 192; i++) {
+      if (CONFIG_V3_FIXTURE_BYTES[i] !== CONFIG_V4_FIXTURE_BYTES[i]) diffOffsets.push(i);
+    }
+    expect(diffOffsets).toEqual([1, 5, 6, 10, 28, 191]);
+  });
+
+  it('timezone encodes UTC offset as value - 11 (v1 UTC+8 = 19, v4 UTC+9 = 20)', () => {
+    expect(parseConfigV1(CONFIG_V1_FIXTURE_BYTES).byName.timezone.value).toBe(19);
+    expect(parseConfigV1(CONFIG_V4_FIXTURE_BYTES).byName.timezone.value).toBe(20);
+  });
+
+  it('the four enum candidate bytes were 0 in v1-v3 and changed in v4', () => {
+    const candidates = [
+      'enum_face_mask_or_language_1',
+      'enum_temp_unit_or_tube_5',
+      'enum_face_mask_or_language_6',
+      'enum_temp_unit_or_tube_10',
+    ];
+    for (const name of candidates) {
+      for (const v of [CONFIG_V1_FIXTURE_BYTES, CONFIG_V2_FIXTURE_BYTES, CONFIG_V3_FIXTURE_BYTES]) {
+        expect(parseConfigV1(v).byName[name].value).toBe(0);
+      }
+      const v4Val = parseConfigV1(CONFIG_V4_FIXTURE_BYTES).byName[name].value;
+      expect(v4Val === 1 || v4Val === 2).toBe(true);
+    }
+  });
+
+  it('record_size_marker and reserved_7 stay constant across all four fixtures', () => {
+    for (const fixture of [CONFIG_V1_FIXTURE_BYTES, CONFIG_V2_FIXTURE_BYTES, CONFIG_V3_FIXTURE_BYTES, CONFIG_V4_FIXTURE_BYTES]) {
+      expect(parseConfigV1(fixture).byName.record_size_marker.value).toBe(0xcc);
+      expect(parseConfigV1(fixture).byName.reserved_7.value).toBe(0x01);
+    }
   });
 });
