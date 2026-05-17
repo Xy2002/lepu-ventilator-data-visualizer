@@ -111,15 +111,15 @@
 | 100 | 1 | uint8 | _unknown_100            | — | enum    | ❓ | v1=v2=2 |
 | 101 | 1 | uint8 | _unknown_101            | — | enum    | ❓ | v1=v2=2 |
 | 102 | 1 | uint8 | mask_type               | — | enum    | ⚠️ | v1=v2=0（鼻罩）|
-| 103 | 1 | uint8 | sensitivity_or_fallrate_103 | — | enum | ⚠️ | v1=3, v2=1；属于 {吸气灵敏度, 呼气灵敏度, 降压速度} 之一，Round 3 区分 |
-| 104 | 1 | uint8 | auto_start              | — | bool    | ⚠️ | v1=v2=1（智能启动开）|
-| 105 | 1 | uint8 | **rise_rate**           | — | level   | 🔬 | v1=2, v2=3（Round 2 diff 锁定，匹配 UI 升压 2→3）|
-| 106 | 1 | uint8 | sensitivity_or_fallrate_106 | — | enum | ⚠️ | v1=3, v2=1；同 103 |
-| 107 | 1 | uint8 | _unknown_107            | — | enum    | ❓ | v1=v2=1 |
-| 108 | 1 | uint8 | apnea_threshold_seconds | — | second  | ⚠️ | v1=v2=10 |
-| 109 | 1 | uint8 | sensitivity_or_fallrate_109 | — | enum | ⚠️ | v1=3, v2=1；同 103 |
-| 110 | 1 | uint8 | _unknown_110            | — | —       | ❓ | v1=v2=20 |
-| 111 | 1 | uint8 | _unknown_111            | — | enum    | ❓ | v1=v2=3 |
+| 103 | 1 | uint8 | **ipap_sensitivity**    | — | level   | 🔬 | v2=1, v3=2（Round 3 唯一 +1 变化）|
+| 104 | 1 | uint8 | auto_start              | — | bool    | ⚠️ | v1=v2=v3=1（智能启动开）|
+| 105 | 1 | uint8 | **rise_rate**           | — | level   | 🔬 | v1=2, v2=v3=3（Round 2）|
+| 106 | 1 | uint8 | **fall_rate**           | — | level   | 🔬 | v1=3, v2=v3=1（Round 3 排除法：唯一未变的候选）|
+| 107 | 1 | uint8 | _unknown_107            | — | enum    | ❓ | v1=v2=v3=1 |
+| 108 | 1 | uint8 | apnea_threshold_seconds | — | second  | ⚠️ | v1=v2=v3=10 |
+| 109 | 1 | uint8 | **epap_sensitivity**    | — | level   | 🔬 | v2=1, v3=3（Round 3 唯一 +2 变化）|
+| 110 | 1 | uint8 | _unknown_110            | — | —       | ❓ | v1=v2=v3=20 |
+| 111 | 1 | uint8 | _unknown_111            | — | enum    | ❓ | v1=v2=v3=3 |
 
 ### 区域 5 — 治疗压力参数（offset 112–167, 14 × float32LE）
 
@@ -157,28 +157,23 @@
 
 ---
 
-## 5. 已锁定字段汇总（Round 1 + 2）
+## 5. 已锁定字段汇总（Round 1 + 2 + 3）
 
-**✅ Confirmed / 🔬 Diff-verified（共 8 个）**
+**✅ Confirmed / 🔬 Diff-verified（共 11 个）**
 
-| offset | name | v1 → v2 | 来源 |
+| offset | name | v1 → v2 → v3 | 来源 |
 |---|---|---|---|
-| 16  | high_pressure_alarm  | 250 → 250（25.0 cmH₂O）  | ✅ Round 1（UI 记录） |
-| 98  | humidifier_level     | 1 → 3                   | 🔬 Round 2（diff + UI 记录两轮匹配） |
-| 105 | rise_rate            | 2 → 3                   | 🔬 Round 2（diff + UI 记录两轮匹配） |
-| 132 | epap_max             | 14.0 → 14.0 cmH₂O       | ✅ Round 1 |
-| 136 | epap_min             | 7.0 → 7.0 cmH₂O         | ✅ Round 1 |
-| 140 | pressure_support     | 3.0 → 3.0 cmH₂O         | ✅ Round 1 |
-| 169 | backlight_seconds    | 60 → 60 秒              | ✅ Round 1 |
-| 191 | payload_xor_checksum | 0xB7 → 0xB6             | ✅ Round 2（数学验证 XOR(bytes[0..190]) == byte[191]） |
-
-**⚠️ 收窄到 3 候选（Round 3 待区分）**
-
-| offset | v1 → v2 | 候选含义 |
-|---|---|---|
-| 103 | 3 → 1 | 吸气灵敏度 / 呼气灵敏度 / 降压速度 之一 |
-| 106 | 3 → 1 | 同上 |
-| 109 | 3 → 1 | 同上 |
+| 16  | high_pressure_alarm  | 250 → 250 → 250（25.0 cmH₂O） | ✅ Round 1 |
+| 98  | humidifier_level     | 1 → 3 → 3                    | 🔬 Round 2 |
+| 103 | ipap_sensitivity     | 3 → 1 → 2                    | 🔬 Round 3 |
+| 105 | rise_rate            | 2 → 3 → 3                    | 🔬 Round 2 |
+| 106 | fall_rate            | 3 → 1 → 1                    | 🔬 Round 3 |
+| 109 | epap_sensitivity     | 3 → 1 → 3                    | 🔬 Round 3 |
+| 132 | epap_max             | 14.0 cmH₂O（unchanged）       | ✅ Round 1 |
+| 136 | epap_min             | 7.0 cmH₂O（unchanged）        | ✅ Round 1 |
+| 140 | pressure_support     | 3.0 cmH₂O（unchanged）        | ✅ Round 1 |
+| 169 | backlight_seconds    | 60 秒（unchanged）            | ✅ Round 1 |
+| 191 | payload_xor_checksum | 0xB7 → 0xB6 → 0xB7           | ✅ Round 2（数学验证） |
 
 ---
 
@@ -235,6 +230,20 @@
   - "用户设定区"和"治疗设置区"同名灵敏度/速度字段**确实共享底层字节**（变化数 = UI 改动数，不是 2 倍）
   - 旧推测 offset 101 = 湿化水平 **彻底否定**（湿化在 98，101 在 v1/v2 都是 2，未参与本轮 UI 改动）
 
+### Round 3 — `config_v3.bin` (2026-05-17)
+
+**改动**（在 v2 基础上）：吸气灵敏度 1→2、呼气灵敏度 1→3、降压速度保持 1。
+
+**diff 结果**：3 字节变化 = 2 个 UI 改动 + 1 个校验和。
+
+- 🔬 锁定字段 (3)：
+  - **offset 103 = ipap_sensitivity**（吸气灵敏度，唯一 +1 变化）
+  - **offset 109 = epap_sensitivity**（呼气灵敏度，唯一 +2 变化）
+  - **offset 106 = fall_rate**（降压速度，排除法：候选集中唯一保持不变的字段）
+- ✅ 校验和再次自证：v3 上 `XOR(bytes[0..190]) == byte[191] == 0xB7`，连续三个文件都满足
+
+锁定字段累计：5（R1）+ 3（R2，含 XOR）+ 3（R3）= **11 个**。
+
 ---
 
 ## 8. 后续轮次计划
@@ -255,34 +264,17 @@
 
 **预期 diff 字节数**：5 个独立字段 → 至少 5 个字节变化；如果某些参数在 v1 中同时显示于"用户设定"和"治疗设置"两区且共享底层字段，diff 字节数应仍为 5；若是独立字段，可能有更多变化。
 
-### Round 3 (v3) — 单变量法区分 {103, 106, 109}
-
-**改动清单**（在 v2 状态基础上）：
-
-| 参数 | v2 | v3 | 预期变化 |
-|---|---|---|---|
-| 吸气灵敏度 | 1 | **2** | 某个候选字节 1→2 |
-| 呼气灵敏度 | 1 | **3** | 某个候选字节 1→3 |
-| 降压速度   | 1 | **1**（不动） | 对应候选字节保持 1 |
-
-其他参数全部保持 v2 状态。
-
-**判定规则**：
-- 唯一 1→2 的字节 = 吸气灵敏度
-- 唯一 1→3 的字节 = 呼气灵敏度
-- 保持 1 不变的字节 = 降压速度
-
-预期会同时变化 offset 191（XOR 校验和重算）。
-
 ### Round 4 (v4) — B 法推理枚举组
 
-| 参数 | v3 | v4 |
+| 参数 | v3 当前 | v4 目标 |
 |---|---|---|
 | 温度单位 | °C | **°F** |
 | 时区     | UTC+8 | **UTC+9** |
 | 面罩     | 鼻罩 | **鼻枕** |
 | 管道     | 22mm | **15mm** |
 | 语言     | 简体中文 | **English** |
+
+预期 5 个 UI 改动 → 5 个字节变化 + offset 191 重算 = 6 字节 diff。
 
 ### Round 5 (v5) — A 法精确定位"延迟时间"开关
 

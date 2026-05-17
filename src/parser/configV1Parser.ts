@@ -50,13 +50,13 @@ export const CONFIG_V1_FIELDS: ReadonlyArray<FieldSpec> = [
   { offset: 100, size: 1, type: 'uint8', name: 'unknown_100',              status: 'unknown' },
   { offset: 101, size: 1, type: 'uint8', name: 'unknown_101',              status: 'unknown' },
   { offset: 102, size: 1, type: 'uint8', name: 'mask_type',                status: 'inferred', notes: 'v1=v2=0 (nasal mask, unchanged in v2)' },
-  { offset: 103, size: 1, type: 'uint8', name: 'sensitivity_or_fallrate_103', status: 'inferred', notes: 'v1=3, v2=1; one of {ipap_sens, epap_sens, fall_rate}; pending Round 3 disambiguation' },
-  { offset: 104, size: 1, type: 'uint8', name: 'auto_start',               status: 'inferred', notes: 'v1=v2=1 (smart-start on, unchanged)' },
-  { offset: 105, size: 1, type: 'uint8', name: 'rise_rate',                label: '升压速度', status: 'diff-verified', notes: 'v1=2, v2=3; matches UI rise rate 2->3' },
-  { offset: 106, size: 1, type: 'uint8', name: 'sensitivity_or_fallrate_106', status: 'inferred', notes: 'v1=3, v2=1; one of {ipap_sens, epap_sens, fall_rate}; pending Round 3 disambiguation' },
+  { offset: 103, size: 1, type: 'uint8', name: 'ipap_sensitivity',         label: '吸气灵敏度', status: 'diff-verified', notes: 'v2=1, v3=2 (unique +1 delta matches UI 1->2)' },
+  { offset: 104, size: 1, type: 'uint8', name: 'auto_start',               status: 'inferred', notes: 'v1=v2=v3=1 (smart-start on, unchanged)' },
+  { offset: 105, size: 1, type: 'uint8', name: 'rise_rate',                label: '升压速度', status: 'diff-verified', notes: 'v1=2, v2=v3=3; matches UI rise rate 2->3' },
+  { offset: 106, size: 1, type: 'uint8', name: 'fall_rate',                label: '降压速度', status: 'diff-verified', notes: 'v1=3, v2=v3=1 (by elimination in Round 3: only fall_rate was kept unchanged at 1)' },
   { offset: 107, size: 1, type: 'uint8', name: 'unknown_107',              status: 'unknown' },
-  { offset: 108, size: 1, type: 'uint8', name: 'apnea_threshold_seconds',  status: 'inferred', notes: 'v1=v2=10 (unchanged); matches AI/HI event analysis' },
-  { offset: 109, size: 1, type: 'uint8', name: 'sensitivity_or_fallrate_109', status: 'inferred', notes: 'v1=3, v2=1; one of {ipap_sens, epap_sens, fall_rate}; pending Round 3 disambiguation' },
+  { offset: 108, size: 1, type: 'uint8', name: 'apnea_threshold_seconds',  status: 'inferred', notes: 'v1=v2=v3=10 (unchanged); matches AI/HI event analysis' },
+  { offset: 109, size: 1, type: 'uint8', name: 'epap_sensitivity',         label: '呼气灵敏度', status: 'diff-verified', notes: 'v2=1, v3=3 (unique +2 delta matches UI 1->3)' },
   { offset: 110, size: 1, type: 'uint8', name: 'unknown_110',              status: 'unknown' },
   { offset: 111, size: 1, type: 'uint8', name: 'unknown_111',              status: 'unknown' },
 
@@ -83,7 +83,7 @@ export const CONFIG_V1_FIELDS: ReadonlyArray<FieldSpec> = [
   { offset: 184, size: 1, type: 'uint8', name: 'unknown_184',       status: 'unknown' },
   { offset: 185, size: 1, type: 'uint8', name: 'unknown_185',       status: 'unknown' },
   { offset: 186, size: 1, type: 'uint8', name: 'unknown_186',       status: 'unknown' },
-  { offset: 191, size: 1, type: 'uint8', name: 'payload_xor_checksum', label: '校验和', status: 'confirmed', notes: 'XOR of bytes[0..190]; verified across v1 and v2 (XOR(bytes[0..190]) ^ byte[191] = 0)' },
+  { offset: 191, size: 1, type: 'uint8', name: 'payload_xor_checksum', label: '校验和', status: 'confirmed', notes: 'XOR of bytes[0..190]; verified across v1/v2/v3' },
 ];
 
 export interface ParsedField {
