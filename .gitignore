@@ -11,3 +11,5 @@ DATAFILE/
 DATAFILE
 CONFIG/
 CONFIG
+src/docs
+.claude
