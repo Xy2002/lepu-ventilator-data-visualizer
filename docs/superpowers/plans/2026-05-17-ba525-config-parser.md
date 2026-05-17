@@ -1,19 +1,21 @@
-# config_v1.bin Parser Implementation Plan
+# Lepu BA525 Config Parser Implementation Plan
+
+> **Status:** Executed 2026-05-17 and refined through 12 reverse-engineering rounds (Rounds 2–12 done iteratively in conversation, not pre-planned). API was later renamed to use BA525 / Ba525 prefix (commit f06613c) since "V1" wrongly implied a format-version when it was really just the first sample's filename. This plan's text has been retroactively updated to the final names; commit messages in git history reflect the original sequencing.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a zero-dependency TypeScript parser for the 192-byte ventilator configuration binary, driven by a single field-spec table so iterative spec updates (adding/promoting fields) require only one edit.
+**Goal:** Build a zero-dependency TypeScript parser for the 192-byte Lepu BA525 ventilator configuration binary, driven by a single field-spec table so iterative spec updates (adding/promoting fields) require only one edit.
 
-**Architecture:** A single module `src/parser/configV1Parser.ts` that exposes (1) typed field-spec data `CONFIG_V1_FIELDS`, (2) a `parseConfigV1` function that reads bytes via `DataView` according to each spec entry's `type`, and (3) result types (`ConfigV1`, `ParsedField`). Unit tests cover (a) the FIELDS table shape, (b) primitive type reading, (c) scale application, (d) the full v1.bin fixture, using an inline hex constant so tests don't depend on local-only data files.
+**Architecture:** A single module `src/parser/ba525ConfigParser.ts` that exposes (1) typed field-spec data `BA525_CONFIG_FIELDS`, (2) a `parseBa525Config` function that reads bytes via `DataView` according to each spec entry's `type`, and (3) result types (`Ba525Config`, `ParsedField`). Unit tests cover (a) the FIELDS table shape, (b) primitive type reading, (c) scale application, (d) the full v1.bin fixture, using an inline hex constant so tests don't depend on local-only data files.
 
 **Tech Stack:**
 - TypeScript 5.9 (strict mode, isolatedModules, noUnusedLocals)
 - Vitest 4.0 (already configured with jsdom environment)
 - Node-built `DataView` (no runtime deps)
 
-**Spec reference:** `docs/superpowers/specs/2026-05-17-config-v1-bin-parsing-design.md`
+**Spec reference:** `docs/superpowers/specs/2026-05-17-ba525-config-bin-spec.md`
 
-**Path divergence from spec:** Spec mentions `src/lib/configV1Parser.ts`. Project convention places parsers in `src/parser/` next to `edfParser.ts`. Plan uses `src/parser/configV1Parser.ts`. Task 7 updates the spec's path reference for consistency.
+**Path note:** Initial draft of the spec had `src/lib/ba525ConfigParser.ts`; this plan corrected it to `src/parser/` to match the existing `edfParser.ts` convention (Task 7 below). After the rename refactor, the final path is `src/parser/ba525ConfigParser.ts`.
 
 ---
 
@@ -21,30 +23,30 @@
 
 | Path | Responsibility |
 |---|---|
-| `src/parser/configV1Parser.ts` | Types (`FieldSpec`, `FieldStatus`, `ParsedField`, `ConfigV1`), the `CONFIG_V1_FIELDS` data table, and the `parseConfigV1` function. Zero dependencies on UI / React. |
-| `src/parser/configV1Fixtures.ts` | Hex string + helper to materialize the v1.bin bytes as a `Uint8Array`. Kept separate so test files don't carry a 192-byte literal. |
-| `src/parser/configV1Parser.test.ts` | Vitest test suite for the parser. |
-| `docs/superpowers/specs/2026-05-17-config-v1-bin-parsing-design.md` | (existing) Updated in Task 7 with the corrected module path. |
+| `src/parser/ba525ConfigParser.ts` | Types (`FieldSpec`, `FieldStatus`, `ParsedField`, `Ba525Config`), the `BA525_CONFIG_FIELDS` data table, and the `parseBa525Config` function. Zero dependencies on UI / React. |
+| `src/parser/ba525ConfigFixtures.ts` | Hex string + helper to materialize the v1.bin bytes as a `Uint8Array`. Kept separate so test files don't carry a 192-byte literal. |
+| `src/parser/ba525ConfigParser.test.ts` | Vitest test suite for the parser. |
+| `docs/superpowers/specs/2026-05-17-ba525-config-bin-spec.md` | (existing) Updated in Task 7 with the corrected module path. |
 
 ---
 
 ## Task 1: Create field-spec types and the FIELDS table
 
 **Files:**
-- Create: `src/parser/configV1Parser.ts`
-- Create: `src/parser/configV1Parser.test.ts`
+- Create: `src/parser/ba525ConfigParser.ts`
+- Create: `src/parser/ba525ConfigParser.test.ts`
 
 - [ ] **Step 1: Write the failing test**
 
-Create `src/parser/configV1Parser.test.ts`:
+Create `src/parser/ba525ConfigParser.test.ts`:
 
 ```ts
 import { describe, expect, it } from 'vitest';
-import { CONFIG_V1_FIELDS } from './configV1Parser';
+import { BA525_CONFIG_FIELDS } from './ba525ConfigParser';
 
-describe('CONFIG_V1_FIELDS', () => {
+describe('BA525_CONFIG_FIELDS', () => {
   it('contains the 5 v1-confirmed fields with the expected offsets and types', () => {
-    const byName = Object.fromEntries(CONFIG_V1_FIELDS.map((f) => [f.name, f]));
+    const byName = Object.fromEntries(BA525_CONFIG_FIELDS.map((f) => [f.name, f]));
 
     expect(byName.high_pressure_alarm).toMatchObject({
       offset: 16,
@@ -61,14 +63,14 @@ describe('CONFIG_V1_FIELDS', () => {
   });
 
   it('every field stays within the 192-byte payload', () => {
-    for (const f of CONFIG_V1_FIELDS) {
+    for (const f of BA525_CONFIG_FIELDS) {
       expect(f.offset).toBeGreaterThanOrEqual(0);
       expect(f.offset + f.size).toBeLessThanOrEqual(192);
     }
   });
 
   it('field names are unique', () => {
-    const names = CONFIG_V1_FIELDS.map((f) => f.name);
+    const names = BA525_CONFIG_FIELDS.map((f) => f.name);
     expect(new Set(names).size).toBe(names.length);
   });
 });
@@ -76,12 +78,12 @@ describe('CONFIG_V1_FIELDS', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run src/parser/configV1Parser.test.ts`
-Expected: FAIL — `Failed to load url ./configV1Parser` (module does not exist yet).
+Run: `npx vitest run src/parser/ba525ConfigParser.test.ts`
+Expected: FAIL — `Failed to load url ./ba525ConfigParser` (module does not exist yet).
 
 - [ ] **Step 3: Create the parser module with types and the FIELDS table**
 
-Create `src/parser/configV1Parser.ts`:
+Create `src/parser/ba525ConfigParser.ts`:
 
 ```ts
 export type FieldStatus =
@@ -114,7 +116,7 @@ export interface FieldSpec {
   notes?: string;
 }
 
-export const CONFIG_V1_FIELDS: ReadonlyArray<FieldSpec> = [
+export const BA525_CONFIG_FIELDS: ReadonlyArray<FieldSpec> = [
   // ---- Region 1: device / mode (0-39) ----
   { offset: 0,  size: 2, type: 'uint16LE',  name: 'record_size_marker', status: 'inferred', notes: 'old EDF analysis: 204' },
   { offset: 2,  size: 2, type: 'uint16LE',  name: 'header_ref',         status: 'inferred', notes: 'old EDF analysis: 512' },
@@ -184,39 +186,39 @@ export const CONFIG_V1_FIELDS: ReadonlyArray<FieldSpec> = [
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `npx vitest run src/parser/configV1Parser.test.ts`
+Run: `npx vitest run src/parser/ba525ConfigParser.test.ts`
 Expected: PASS (3 tests passing).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/parser/configV1Parser.ts src/parser/configV1Parser.test.ts
-git commit -m "feat(config-v1): add FieldSpec types and CONFIG_V1_FIELDS table"
+git add src/parser/ba525ConfigParser.ts src/parser/ba525ConfigParser.test.ts
+git commit -m "feat(ba525-config): add FieldSpec types and BA525_CONFIG_FIELDS table"
 ```
 
 ---
 
-## Task 2: Implement parseConfigV1 skeleton (input validation + raw passthrough)
+## Task 2: Implement parseBa525Config skeleton (input validation + raw passthrough)
 
 **Files:**
-- Modify: `src/parser/configV1Parser.ts`
-- Modify: `src/parser/configV1Parser.test.ts`
+- Modify: `src/parser/ba525ConfigParser.ts`
+- Modify: `src/parser/ba525ConfigParser.test.ts`
 
 - [ ] **Step 1: Append the failing tests**
 
-Append to `src/parser/configV1Parser.test.ts`:
+Append to `src/parser/ba525ConfigParser.test.ts`:
 
 ```ts
-import { parseConfigV1 } from './configV1Parser';
+import { parseBa525Config } from './ba525ConfigParser';
 
-describe('parseConfigV1 input handling', () => {
+describe('parseBa525Config input handling', () => {
   it('throws when the buffer is shorter than 192 bytes', () => {
-    expect(() => parseConfigV1(new Uint8Array(191))).toThrow(/192 bytes/);
+    expect(() => parseBa525Config(new Uint8Array(191))).toThrow(/192 bytes/);
   });
 
   it('accepts an ArrayBuffer', () => {
     const buf = new ArrayBuffer(192);
-    const result = parseConfigV1(buf);
+    const result = parseBa525Config(buf);
     expect(result.raw).toBeInstanceOf(Uint8Array);
     expect(result.raw.byteLength).toBe(192);
   });
@@ -225,7 +227,7 @@ describe('parseConfigV1 input handling', () => {
     const bytes = new Uint8Array(192);
     bytes[16] = 0xfa;
     bytes[17] = 0x00;
-    const result = parseConfigV1(bytes);
+    const result = parseBa525Config(bytes);
     expect(result.raw[16]).toBe(0xfa);
     expect(result.raw[17]).toBe(0x00);
   });
@@ -234,12 +236,12 @@ describe('parseConfigV1 input handling', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run src/parser/configV1Parser.test.ts`
-Expected: FAIL — `parseConfigV1 is not exported` (function does not exist yet).
+Run: `npx vitest run src/parser/ba525ConfigParser.test.ts`
+Expected: FAIL — `parseBa525Config is not exported` (function does not exist yet).
 
 - [ ] **Step 3: Add the skeleton implementation**
 
-Append to `src/parser/configV1Parser.ts`:
+Append to `src/parser/ba525ConfigParser.ts`:
 
 ```ts
 export interface ParsedField {
@@ -250,7 +252,7 @@ export interface ParsedField {
   value: number | Uint8Array;
 }
 
-export interface ConfigV1 {
+export interface Ba525Config {
   raw: Uint8Array;
   fields: ParsedField[];
   byName: Record<string, ParsedField>;
@@ -263,7 +265,7 @@ function toUint8Array(input: ArrayBuffer | Uint8Array): Uint8Array {
   return new Uint8Array(input);
 }
 
-export function parseConfigV1(input: ArrayBuffer | Uint8Array): ConfigV1 {
+export function parseBa525Config(input: ArrayBuffer | Uint8Array): Ba525Config {
   const raw = toUint8Array(input);
   if (raw.byteLength < PAYLOAD_BYTES) {
     throw new Error(`config_v1 payload must be at least ${PAYLOAD_BYTES} bytes (got ${raw.byteLength})`);
@@ -278,14 +280,14 @@ export function parseConfigV1(input: ArrayBuffer | Uint8Array): ConfigV1 {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `npx vitest run src/parser/configV1Parser.test.ts`
+Run: `npx vitest run src/parser/ba525ConfigParser.test.ts`
 Expected: PASS (6 tests passing).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/parser/configV1Parser.ts src/parser/configV1Parser.test.ts
-git commit -m "feat(config-v1): add parseConfigV1 skeleton with input validation"
+git add src/parser/ba525ConfigParser.ts src/parser/ba525ConfigParser.test.ts
+git commit -m "feat(ba525-config): add parseBa525Config skeleton with input validation"
 ```
 
 ---
@@ -293,15 +295,15 @@ git commit -m "feat(config-v1): add parseConfigV1 skeleton with input validation
 ## Task 3: Read primitive types from the buffer
 
 **Files:**
-- Modify: `src/parser/configV1Parser.ts`
-- Modify: `src/parser/configV1Parser.test.ts`
+- Modify: `src/parser/ba525ConfigParser.ts`
+- Modify: `src/parser/ba525ConfigParser.test.ts`
 
 - [ ] **Step 1: Append the failing tests**
 
-Append to `src/parser/configV1Parser.test.ts`:
+Append to `src/parser/ba525ConfigParser.test.ts`:
 
 ```ts
-describe('parseConfigV1 primitive reading', () => {
+describe('parseBa525Config primitive reading', () => {
   function makeBuffer(): Uint8Array {
     const b = new Uint8Array(192);
     // high_pressure_alarm @ offset 16 uint16LE = 250 (0x00FA) → value 25.0 after scale 0.1
@@ -315,37 +317,37 @@ describe('parseConfigV1 primitive reading', () => {
   }
 
   it('reads uint8 fields', () => {
-    const r = parseConfigV1(makeBuffer());
+    const r = parseBa525Config(makeBuffer());
     const bl = r.byName.backlight_seconds;
     expect(bl.raw).toBe(60);
     expect(bl.value).toBe(60);
   });
 
   it('reads uint16LE fields and applies scale', () => {
-    const r = parseConfigV1(makeBuffer());
+    const r = parseBa525Config(makeBuffer());
     const hp = r.byName.high_pressure_alarm;
     expect(hp.raw).toBe(250);
     expect(hp.value).toBeCloseTo(25.0, 5);
   });
 
   it('reads float32LE fields', () => {
-    const r = parseConfigV1(makeBuffer());
+    const r = parseBa525Config(makeBuffer());
     const epap = r.byName.epap_max;
     expect(epap.raw).toBeCloseTo(14.0, 5);
     expect(epap.value).toBeCloseTo(14.0, 5);
   });
 
-  it('produces fields in the same order as CONFIG_V1_FIELDS', () => {
-    const r = parseConfigV1(new Uint8Array(192));
-    expect(r.fields.length).toBe(CONFIG_V1_FIELDS.length);
-    for (let i = 0; i < CONFIG_V1_FIELDS.length; i++) {
-      expect(r.fields[i].spec.name).toBe(CONFIG_V1_FIELDS[i].name);
+  it('produces fields in the same order as BA525_CONFIG_FIELDS', () => {
+    const r = parseBa525Config(new Uint8Array(192));
+    expect(r.fields.length).toBe(BA525_CONFIG_FIELDS.length);
+    for (let i = 0; i < BA525_CONFIG_FIELDS.length; i++) {
+      expect(r.fields[i].spec.name).toBe(BA525_CONFIG_FIELDS[i].name);
     }
   });
 
   it('byName indexes all field names', () => {
-    const r = parseConfigV1(new Uint8Array(192));
-    for (const f of CONFIG_V1_FIELDS) {
+    const r = parseBa525Config(new Uint8Array(192));
+    for (const f of BA525_CONFIG_FIELDS) {
       expect(r.byName[f.name]).toBeDefined();
       expect(r.byName[f.name].spec).toBe(f);
     }
@@ -355,12 +357,12 @@ describe('parseConfigV1 primitive reading', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run src/parser/configV1Parser.test.ts`
-Expected: FAIL on all 5 new tests — `byName.backlight_seconds is undefined`, etc., because `parseConfigV1` still returns empty `fields` and `byName`.
+Run: `npx vitest run src/parser/ba525ConfigParser.test.ts`
+Expected: FAIL on all 5 new tests — `byName.backlight_seconds is undefined`, etc., because `parseBa525Config` still returns empty `fields` and `byName`.
 
 - [ ] **Step 3: Implement the reader**
 
-In `src/parser/configV1Parser.ts`, replace the empty-return body of `parseConfigV1` with:
+In `src/parser/ba525ConfigParser.ts`, replace the empty-return body of `parseBa525Config` with:
 
 ```ts
 function readField(view: DataView, spec: FieldSpec): number | Uint8Array {
@@ -383,13 +385,13 @@ function applyScale(raw: number | Uint8Array, scale: number | undefined): number
   return raw * scale;
 }
 
-export function parseConfigV1(input: ArrayBuffer | Uint8Array): ConfigV1 {
+export function parseBa525Config(input: ArrayBuffer | Uint8Array): Ba525Config {
   const raw = toUint8Array(input);
   if (raw.byteLength < PAYLOAD_BYTES) {
     throw new Error(`config_v1 payload must be at least ${PAYLOAD_BYTES} bytes (got ${raw.byteLength})`);
   }
   const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
-  const fields: ParsedField[] = CONFIG_V1_FIELDS.map((spec) => {
+  const fields: ParsedField[] = BA525_CONFIG_FIELDS.map((spec) => {
     const rawValue = readField(view, spec);
     return { spec, raw: rawValue, value: applyScale(rawValue, spec.scale) };
   });
@@ -401,14 +403,14 @@ export function parseConfigV1(input: ArrayBuffer | Uint8Array): ConfigV1 {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `npx vitest run src/parser/configV1Parser.test.ts`
+Run: `npx vitest run src/parser/ba525ConfigParser.test.ts`
 Expected: PASS (11 tests).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/parser/configV1Parser.ts src/parser/configV1Parser.test.ts
-git commit -m "feat(config-v1): read uint8/uint16LE/float32LE/bytes with scale support"
+git add src/parser/ba525ConfigParser.ts src/parser/ba525ConfigParser.test.ts
+git commit -m "feat(ba525-config): read uint8/uint16LE/float32LE/bytes with scale support"
 ```
 
 ---
@@ -416,19 +418,19 @@ git commit -m "feat(config-v1): read uint8/uint16LE/float32LE/bytes with scale s
 ## Task 4: Add the v1 fixture (hex literal → Uint8Array)
 
 **Files:**
-- Create: `src/parser/configV1Fixtures.ts`
-- Modify: `src/parser/configV1Parser.test.ts`
+- Create: `src/parser/ba525ConfigFixtures.ts`
+- Modify: `src/parser/ba525ConfigParser.test.ts`
 
 - [ ] **Step 1: Append the failing fixture test**
 
-Append to `src/parser/configV1Parser.test.ts`:
+Append to `src/parser/ba525ConfigParser.test.ts`:
 
 ```ts
-import { CONFIG_V1_FIXTURE_BYTES } from './configV1Fixtures';
+import { BA525_SAMPLE_1_BYTES } from './ba525ConfigFixtures';
 
-describe('parseConfigV1 on the v1 fixture', () => {
+describe('parseBa525Config on the v1 fixture', () => {
   it('decodes the 5 confirmed fields to their recorded UI values', () => {
-    const r = parseConfigV1(CONFIG_V1_FIXTURE_BYTES);
+    const r = parseBa525Config(BA525_SAMPLE_1_BYTES);
 
     expect(r.byName.high_pressure_alarm.raw).toBe(250);
     expect(r.byName.high_pressure_alarm.value).toBeCloseTo(25.0, 5);
@@ -441,24 +443,24 @@ describe('parseConfigV1 on the v1 fixture', () => {
   });
 
   it('fixture is exactly 192 bytes', () => {
-    expect(CONFIG_V1_FIXTURE_BYTES.byteLength).toBe(192);
+    expect(BA525_SAMPLE_1_BYTES.byteLength).toBe(192);
   });
 });
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run src/parser/configV1Parser.test.ts`
-Expected: FAIL — `Failed to load url ./configV1Fixtures`.
+Run: `npx vitest run src/parser/ba525ConfigParser.test.ts`
+Expected: FAIL — `Failed to load url ./ba525ConfigFixtures`.
 
 - [ ] **Step 3: Create the fixture module**
 
-Create `src/parser/configV1Fixtures.ts` with the exact bytes from `src/docs/config_v1.bin`:
+Create `src/parser/ba525ConfigFixtures.ts` with the exact bytes from `src/docs/config_v1.bin`:
 
 ```ts
 // Verbatim bytes of src/docs/config_v1.bin, 12 lines of 32 hex chars each.
 // hexToBytes strips whitespace so line breaks are fine.
-const CONFIG_V1_HEX = `
+const SAMPLE_1_HEX = `
   cc000002 00000001 01000000 00000000
   fa000100 00010000 00000000 13000000
   02000e00 0d000000 00009441 00001841
@@ -485,34 +487,34 @@ function hexToBytes(hex: string): Uint8Array {
   return out;
 }
 
-export const CONFIG_V1_FIXTURE_BYTES: Uint8Array = hexToBytes(CONFIG_V1_HEX);
+export const BA525_SAMPLE_1_BYTES: Uint8Array = hexToBytes(SAMPLE_1_HEX);
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `npx vitest run src/parser/configV1Parser.test.ts`
+Run: `npx vitest run src/parser/ba525ConfigParser.test.ts`
 Expected: PASS (13 tests).
 
 - [ ] **Step 5: Verify the fixture matches the actual bin file**
 
-Run: `npx tsx -e "import('./src/parser/configV1Fixtures.ts').then(async m => { const fs = await import('node:fs'); const real = fs.readFileSync('./src/docs/config_v1.bin'); const same = Buffer.compare(Buffer.from(m.CONFIG_V1_FIXTURE_BYTES), real); console.log(same === 0 ? 'OK: fixture matches src/docs/config_v1.bin' : 'MISMATCH'); })"`
+Run: `npx tsx -e "import('./src/parser/ba525ConfigFixtures.ts').then(async m => { const fs = await import('node:fs'); const real = fs.readFileSync('./src/docs/config_v1.bin'); const same = Buffer.compare(Buffer.from(m.BA525_SAMPLE_1_BYTES), real); console.log(same === 0 ? 'OK: fixture matches src/docs/config_v1.bin' : 'MISMATCH'); })"`
 
 If `tsx` isn't installed, alternative one-liner using Node only:
-`node --experimental-strip-types -e "import('./src/parser/configV1Fixtures.ts').then(async m => { const fs = await import('node:fs'); const real = fs.readFileSync('./src/docs/config_v1.bin'); console.log(Buffer.compare(Buffer.from(m.CONFIG_V1_FIXTURE_BYTES), real) === 0 ? 'OK' : 'MISMATCH'); })"`
+`node --experimental-strip-types -e "import('./src/parser/ba525ConfigFixtures.ts').then(async m => { const fs = await import('node:fs'); const real = fs.readFileSync('./src/docs/config_v1.bin'); console.log(Buffer.compare(Buffer.from(m.BA525_SAMPLE_1_BYTES), real) === 0 ? 'OK' : 'MISMATCH'); })"`
 
 Expected output: `OK: fixture matches src/docs/config_v1.bin`.
 
 If MISMATCH, dump the diff:
 ```bash
 xxd src/docs/config_v1.bin > /tmp/real.hex
-# and compare with CONFIG_V1_HEX above
+# and compare with SAMPLE_1_HEX above
 ```
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/parser/configV1Fixtures.ts src/parser/configV1Parser.test.ts
-git commit -m "test(config-v1): add v1.bin hex fixture and round-trip assertions"
+git add src/parser/ba525ConfigFixtures.ts src/parser/ba525ConfigParser.test.ts
+git commit -m "test(ba525-config): add v1.bin hex fixture and round-trip assertions"
 ```
 
 ---
@@ -520,22 +522,22 @@ git commit -m "test(config-v1): add v1.bin hex fixture and round-trip assertions
 ## Task 5: Add a confirmed-fields summary helper
 
 **Files:**
-- Modify: `src/parser/configV1Parser.ts`
-- Modify: `src/parser/configV1Parser.test.ts`
+- Modify: `src/parser/ba525ConfigParser.ts`
+- Modify: `src/parser/ba525ConfigParser.test.ts`
 
 This task adds a small ergonomic helper so consumers (e.g., a future RawFileBrowser integration) don't need to hand-filter the `fields` array. Skip if you find it not needed when wiring the UI later — but writing it now means the parser module is self-sufficient.
 
 - [ ] **Step 1: Append the failing test**
 
-Append to `src/parser/configV1Parser.test.ts`:
+Append to `src/parser/ba525ConfigParser.test.ts`:
 
 ```ts
-import { summarizeConfirmed } from './configV1Parser';
+import { summarizeLocked } from './ba525ConfigParser';
 
-describe('summarizeConfirmed', () => {
+describe('summarizeLocked', () => {
   it('returns only confirmed fields, in spec order, with display-ready values', () => {
-    const r = parseConfigV1(CONFIG_V1_FIXTURE_BYTES);
-    const summary = summarizeConfirmed(r);
+    const r = parseBa525Config(BA525_SAMPLE_1_BYTES);
+    const summary = summarizeLocked(r);
     expect(summary.map((s) => s.name)).toEqual([
       'high_pressure_alarm',
       'epap_max',
@@ -559,22 +561,22 @@ describe('summarizeConfirmed', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run src/parser/configV1Parser.test.ts`
-Expected: FAIL — `summarizeConfirmed is not exported`.
+Run: `npx vitest run src/parser/ba525ConfigParser.test.ts`
+Expected: FAIL — `summarizeLocked is not exported`.
 
 - [ ] **Step 3: Add the helper**
 
-Append to `src/parser/configV1Parser.ts`:
+Append to `src/parser/ba525ConfigParser.ts`:
 
 ```ts
-export interface ConfirmedSummaryEntry {
+export interface LockedSummaryEntry {
   name: string;
   label: string;
   value: number | Uint8Array;
   unit: string;
 }
 
-export function summarizeConfirmed(parsed: ConfigV1): ConfirmedSummaryEntry[] {
+export function summarizeLocked(parsed: Ba525Config): LockedSummaryEntry[] {
   return parsed.fields
     .filter((f) => f.spec.status === 'confirmed')
     .map((f) => ({
@@ -588,14 +590,14 @@ export function summarizeConfirmed(parsed: ConfigV1): ConfirmedSummaryEntry[] {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `npx vitest run src/parser/configV1Parser.test.ts`
+Run: `npx vitest run src/parser/ba525ConfigParser.test.ts`
 Expected: PASS (14 tests).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/parser/configV1Parser.ts src/parser/configV1Parser.test.ts
-git commit -m "feat(config-v1): add summarizeConfirmed helper for UI consumers"
+git add src/parser/ba525ConfigParser.ts src/parser/ba525ConfigParser.test.ts
+git commit -m "feat(ba525-config): add summarizeLocked helper for UI consumers"
 ```
 
 ---
@@ -607,7 +609,7 @@ git commit -m "feat(config-v1): add summarizeConfirmed helper for UI consumers"
 - [ ] **Step 1: Run the full test suite**
 
 Run: `npm test`
-Expected: All tests pass, including the existing edfParser suite and the new configV1Parser suite.
+Expected: All tests pass, including the existing edfParser suite and the new ba525ConfigParser suite.
 
 - [ ] **Step 2: Run the TypeScript build to catch strict errors**
 
@@ -622,36 +624,22 @@ If `npm run build` fails with errors only in your new files, fix them. If it fai
 
 ## Task 7: Align the spec doc's module path
 
-The spec currently mentions `src/lib/configV1Parser.ts` but the implementation lives in `src/parser/configV1Parser.ts`. Update the spec so the doc and code agree.
+The spec's initial draft mentioned `src/lib/configV1Parser.ts` but the implementation lived in `src/parser/configV1Parser.ts` (later renamed to `src/parser/ba525ConfigParser.ts`). Update the spec so the doc and code agree.
+
+> **Historical note:** When this plan was originally executed, the rename to BA525 hadn't happened yet, so the spec edit at the time was `src/lib/configV1Parser.ts` → `src/parser/configV1Parser.ts`. The BA525 rename happened later in a separate refactor (commit f06613c); the spec was updated again then.
 
 **Files:**
-- Modify: `docs/superpowers/specs/2026-05-17-config-v1-bin-parsing-design.md`
+- Modify: `docs/superpowers/specs/2026-05-17-ba525-config-bin-spec.md`
 
 - [ ] **Step 1: Edit the spec**
 
-In `docs/superpowers/specs/2026-05-17-config-v1-bin-parsing-design.md`, find the line:
-```
-`src/lib/configV1Parser.ts`（零依赖，仅用 DataView）
-```
-Replace with:
-```
-`src/parser/configV1Parser.ts`（零依赖，仅用 DataView；与现有 `edfParser.ts` 同目录）
-```
-
-Then find:
-```
-`src/lib/configV1Parser.test.ts`
-```
-Replace with:
-```
-`src/parser/configV1Parser.test.ts`
-```
+In `docs/superpowers/specs/2026-05-17-ba525-config-bin-spec.md`, find the line referencing `src/lib/` and update it to `src/parser/ba525ConfigParser.ts`. Also update any test-file path reference.
 
 - [ ] **Step 2: Commit**
 
 ```bash
-git add docs/superpowers/specs/2026-05-17-config-v1-bin-parsing-design.md
-git commit -m "docs(config-v1): align spec module path with src/parser/ convention"
+git add docs/superpowers/specs/2026-05-17-ba525-config-bin-spec.md
+git commit -m "docs(ba525-config): align spec module path with src/parser/ convention"
 ```
 
 ---
@@ -671,6 +659,6 @@ git commit -m "docs(config-v1): align spec module path with src/parser/ conventi
 
 **Placeholder scan:** No TBD / TODO / "add error handling" / "similar to Task N" present. Code blocks are concrete and complete.
 
-**Type consistency:** Names checked across tasks: `FieldSpec`, `FieldStatus`, `FieldType`, `ParsedField`, `ConfigV1`, `CONFIG_V1_FIELDS`, `parseConfigV1`, `summarizeConfirmed`, `CONFIG_V1_FIXTURE_BYTES`. All match between definition and reference sites. The `value` field in `ConfirmedSummaryEntry` uses the same union type (`number | Uint8Array`) as `ParsedField.value`.
+**Type consistency:** Names checked across tasks: `FieldSpec`, `FieldStatus`, `FieldType`, `ParsedField`, `Ba525Config`, `BA525_CONFIG_FIELDS`, `parseBa525Config`, `summarizeLocked`, `BA525_SAMPLE_1_BYTES`. All match between definition and reference sites. The `value` field in `LockedSummaryEntry` uses the same union type (`number | Uint8Array`) as `ParsedField.value`.
 
 **Scope check:** Single self-contained module + tests + one spec touch-up. Fits one implementation plan.

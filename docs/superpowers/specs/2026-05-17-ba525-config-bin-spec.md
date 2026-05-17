@@ -1,14 +1,14 @@
-# config_v1.bin 格式规范
+# Lepu BA525 配置二进制格式规范
 
-**日期**：2026-05-17
+**日期**：2026-05-17（最后更新 2026-05-18，共 12 轮迭代完成）
 **作者**：Brainstorming session
-**状态**：设计阶段 — 字段表会随后续轮次迭代更新
+**状态**：✅ 所有 25 个用户可调 UI 参数已锁定，剩余字段为出厂常量/校准值/未启用功能位
 
 ---
 
 ## 1. 概览
 
-`config_v1.bin` 是从 Lepu 系列呼吸机 UI 导出的配置二进制文件，长度 **192 字节**。
+`config_v{N}.bin` 是从 Lepu **BA525** 呼吸机 UI 导出的配置二进制文件，长度 **192 字节**。整套 12 个样本（`config_v1.bin` 到 `config_v12.bin`）都是同一种格式。
 
 与项目内已有的 `docs/config_edf_analysis.md` 分析的 EDF `config` 区别：
 
@@ -26,12 +26,12 @@
 ## 2. 总体布局
 
 ```
-[  0,  40)   设备/模式参数         uint16LE 为主
+[  0,  40)   设备/模式参数         uint8/uint16LE 混合（Round 4/8/9/10/11 多次拆分）
 [ 40,  68)   浮点统计/校准          7 × float32LE
 [ 68,  96)   保留全零              —
 [ 96, 112)   功能开关/枚举          16 × uint8
 [112, 168)   治疗压力参数           14 × float32LE
-[168, 192)   附加参数               uint8 混合
+[168, 192)   附加参数               uint8 混合（含 XOR 校验和）
 ```
 
 ---
@@ -61,7 +61,7 @@
 
 ### 区域 1 — 设备/模式参数（offset 0–39）
 
-> **Round 4 结构修正**：原以为 offset 0、4、6 是 uint16LE，实际是 uint8 混合（低字节是常量/marker，高字节是 UI 参数或反过来）。下表已重构。
+> **Round 4/8/9/10/11 结构修正**：Round 1 把 offset 0/2/4/6/8/18 都标成 uint16LE，但后续 diff 暴露其中 byte 1/2/5/6/7/8/18 都是独立的 UI 参数，byte 0/3/9/19 才是常量/marker。下表已重构成 uint8 + 偶尔 uint16LE。
 
 | offset | size | type | name | scale | unit | status | source |
 |---|---|---|---|---|---|---|---|
@@ -79,25 +79,25 @@
 | 16 | 2 | uint16LE | **high_pressure_alarm** | /10 | cmH₂O | ✅ | config_v1 + 记录（25.0） |
 | 18 | 1 | uint8    | **low_pressure_alarm** | — | bool | 🔬 | v1-v10=1 (开), v11=0 (关)；Round 11 锁定。原 uint16LE 假设错 |
 | 19 | 1 | uint8    | reserved_19            | — | —   | 🟨 | v1-v11 = 0 |
-| 20 | 2 | uint16LE | _unknown_20            | — | —   | ❓ | v1-v4 = 256 |
-| 28 | 2 | uint16LE | **timezone**           | — | enum | 🔬 | v1=19 (UTC+8), v4=20 (UTC+9)；编码 value = UTC_offset + 11 |
+| 20 | 2 | uint16LE | _unknown_20            | — | —   | ❓ | v1-v12 = 256（恒定，未跟 UI）|
+| 28 | 2 | uint16LE | **timezone**           | — | enum | 🔬 | v1=19 (UTC+8), v4-v12=20 (UTC+9)；编码 value = UTC_offset + 11 |
 | 32 | 2 | uint16LE | _unknown_32            | — | —    | ❓ | v1-v12=2；原推测 therapy_mode_primary 错的（therapy_mode 在 offset 96）|
-| 34 | 2 | uint16LE | _unknown_34            | — | —   | ❓ | v1-v4 = 14 |
-| 36 | 2 | uint16LE | _unknown_36            | — | —   | ❓ | v1-v4 = 13 |
+| 34 | 2 | uint16LE | _unknown_34            | — | —   | ❓ | v1-v12 = 14（恒定）|
+| 36 | 2 | uint16LE | _unknown_36            | — | —   | ❓ | v1-v12 = 13（恒定）|
 
 ### 区域 2 — 浮点统计/校准（offset 40–67, 7 × float32LE）
 
-> 旧 EDF 分析推断这 7 个 float 是设备出厂校准 / 传感器系数。v1 数值与旧分析一致：
+> 旧 EDF 分析推断这 7 个 float 是设备出厂校准 / 传感器系数。v1-v12 全程恒定，不响应任何 UI 操作：
 
 | offset | size | type | name | scale | unit | status | source |
 |---|---|---|---|---|---|---|---|
-| 40 | 4 | float32LE | calibration_pressure_peak    | — | cmH₂O | ⚠️ | v1 = 18.5 |
-| 44 | 4 | float32LE | calibration_pressure_min     | — | cmH₂O | ⚠️ | v1 = 9.5 |
-| 48 | 4 | float32LE | calibration_std_or_leak      | — | —     | ⚠️ | v1 = 2.032 |
-| 52 | 4 | float32LE | calibration_pressure_95th    | — | cmH₂O | ⚠️ | v1 = 18.6 |
-| 56 | 4 | float32LE | calibration_pressure_mean    | — | cmH₂O | ⚠️ | v1 = 10.3 |
-| 60 | 4 | float32LE | calibration_pressure_range   | — | cmH₂O | ⚠️ | v1 = 8.3 |
-| 64 | 4 | float32LE | calibration_sensor_coeff     | — | —     | ⚠️ | v1 = 0.0321 |
+| 40 | 4 | float32LE | calibration_pressure_peak    | — | cmH₂O | ⚠️ | v1-v12 = 18.5 |
+| 44 | 4 | float32LE | calibration_pressure_min     | — | cmH₂O | ⚠️ | v1-v12 = 9.5 |
+| 48 | 4 | float32LE | calibration_std_or_leak      | — | —     | ⚠️ | v1-v12 = 2.032 |
+| 52 | 4 | float32LE | calibration_pressure_95th    | — | cmH₂O | ⚠️ | v1-v12 = 18.6 |
+| 56 | 4 | float32LE | calibration_pressure_mean    | — | cmH₂O | ⚠️ | v1-v12 = 10.3 |
+| 60 | 4 | float32LE | calibration_pressure_range   | — | cmH₂O | ⚠️ | v1-v12 = 8.3 |
+| 64 | 4 | float32LE | calibration_sensor_coeff     | — | —     | ⚠️ | v1-v12 = 0.0321 |
 
 ### 区域 3 — 保留全零（offset 68–95）
 
@@ -110,55 +110,55 @@
 | offset | size | type | name | scale | unit | status | source |
 |---|---|---|---|---|---|---|---|
 | 96  | 1 | uint8 | **therapy_mode**        | — | enum    | 🔬 | v1-v11=3 (Auto-S), v12=0 (CPAP)；Round 12 锁定 |
-| 97  | 1 | uint8 | **delay_time_minutes**  | — | min     | 🔬 | v1-v5=0 (关闭), v6=10；编码 0=关闭, N=N 分钟（Round 6 单变量锁定）|
-| 98  | 1 | uint8 | **humidifier_level**    | — | level   | 🔬 | v1=1, v2-v6=3（Round 2 diff 锁定）|
-| 99  | 1 | uint8 | _unknown_99             | — | —       | ❓ | v1-v6=20；Round 6 排除：不是延迟时间，可能是出厂常量 |
-| 100 | 1 | uint8 | _unknown_100            | — | enum    | ❓ | v1-v7=2 |
-| 101 | 1 | uint8 | _unknown_101            | — | enum    | ❓ | v1-v7=2 |
-| 102 | 1 | uint8 | **epr_level**           | — | level   | 🔬 | v1-v6=0 (关闭), v7=1（Round 7 锁定；原推测 mask_type 是错的，face_mask 在 offset 6）|
-| 103 | 1 | uint8 | **ipap_sensitivity**    | — | level   | 🔬 | v2=1, v3=2（Round 3 唯一 +1 变化）|
-| 104 | 1 | uint8 | _unknown_104            | — | —       | ❓ | v1-v8=1；Round 1 推测 auto_start 但 Round 8 已锁定 smart_start 在 offset 7 |
-| 105 | 1 | uint8 | **rise_rate**           | — | level   | 🔬 | v1=2, v2=v3=3（Round 2）|
-| 106 | 1 | uint8 | **fall_rate**           | — | level   | 🔬 | v1=3, v2=v3=1（Round 3 排除法：唯一未变的候选）|
-| 107 | 1 | uint8 | _unknown_107            | — | enum    | ❓ | v1=v2=v3=1 |
-| 108 | 1 | uint8 | apnea_threshold_seconds | — | second  | ⚠️ | v1=v2=v3=10 |
-| 109 | 1 | uint8 | **epap_sensitivity**    | — | level   | 🔬 | v2=1, v3=3（Round 3 唯一 +2 变化）|
-| 110 | 1 | uint8 | _unknown_110            | — | —       | ❓ | v1=v2=v3=20 |
-| 111 | 1 | uint8 | _unknown_111            | — | enum    | ❓ | v1=v2=v3=3 |
+| 97  | 1 | uint8 | **delay_time_minutes**  | — | min     | 🔬 | v1-v5=0, v6=10, v7-v12=0；编码 0=关闭, N=N 分钟（Round 6 单变量锁定）|
+| 98  | 1 | uint8 | **humidifier_level**    | — | level   | 🔬 | v1=1, v2-v12=3（Round 2 diff 锁定）|
+| 99  | 1 | uint8 | _unknown_99             | — | —       | ❓ | v1-v12=20；Round 6 排除：不是延迟时间，可能是出厂常量 |
+| 100 | 1 | uint8 | _unknown_100            | — | enum    | ❓ | v1-v12=2 |
+| 101 | 1 | uint8 | _unknown_101            | — | enum    | ❓ | v1-v12=2 |
+| 102 | 1 | uint8 | **epr_level**           | — | level   | 🔬 | v1-v6=0, v7-v12=1（Round 7 锁定；原推测 mask_type 是错的，face_mask 在 offset 6）|
+| 103 | 1 | uint8 | **ipap_sensitivity**    | — | level   | 🔬 | v1=3, v2=1, v3-v12=2（Round 3 唯一 +1 变化）|
+| 104 | 1 | uint8 | _unknown_104            | — | —       | ❓ | v1-v12=1；Round 1 推测 auto_start 但 Round 8 已锁定 smart_start 在 offset 7 |
+| 105 | 1 | uint8 | **rise_rate**           | — | level   | 🔬 | v1=2, v2-v12=3（Round 2）|
+| 106 | 1 | uint8 | **fall_rate**           | — | level   | 🔬 | v1=3, v2-v12=1（Round 3 排除法：唯一未变的候选）|
+| 107 | 1 | uint8 | _unknown_107            | — | enum    | ❓ | v1-v12=1 |
+| 108 | 1 | uint8 | apnea_threshold_seconds | — | second  | ⚠️ | v1-v12=10 |
+| 109 | 1 | uint8 | **epap_sensitivity**    | — | level   | 🔬 | v1=3, v2=1, v3-v12=3（Round 3 唯一 +2 变化）|
+| 110 | 1 | uint8 | _unknown_110            | — | —       | ❓ | v1-v12=20 |
+| 111 | 1 | uint8 | _unknown_111            | — | enum    | ❓ | v1-v12=3 |
 
 ### 区域 5 — 治疗压力参数（offset 112–167, 14 × float32LE）
 
 | offset | size | type | name | scale | unit | status | source |
 |---|---|---|---|---|---|---|---|
-| 112 | 4 | float32LE | _unknown_112      | — | cmH₂O | ❓ | v1 = 8.0  |
-| 116 | 4 | float32LE | _unknown_116      | — | cmH₂O | ❓ | v1 = 10.0 |
-| 120 | 4 | float32LE | _unknown_120      | — | cmH₂O | ❓ | v1 = 4.0  |
-| 124 | 4 | float32LE | _unknown_124      | — | cmH₂O | ❓ | v1 = 10.0 |
-| 128 | 4 | float32LE | _unknown_128      | — | cmH₂O | ❓ | v1 = 4.0  |
-| 132 | 4 | float32LE | **epap_max**      | — | cmH₂O | ✅ | config_v1 + 记录（14.0）|
-| 136 | 4 | float32LE | **epap_min**      | — | cmH₂O | ✅ | config_v1 + 记录（7.0）|
-| 140 | 4 | float32LE | **pressure_support** | — | cmH₂O | ✅ | config_v1 + 记录（3.0）|
-| 144 | 4 | float32LE | **ramp_start_pressure** | — | cmH₂O | 🔬 | v1-v6=4.0, v7=6.0（Round 7 锁定起始压力）|
-| 148 | 4 | float32LE | _unknown_148      | — | cmH₂O | ❓ | v1 = 10.0 |
-| 152 | 4 | float32LE | _unknown_152      | — | cmH₂O | ❓ | v1 = 4.0  |
-| 156 | 4 | float32LE | _unknown_156      | — | cmH₂O | ❓ | v1 = 10.0 |
-| 160 | 4 | float32LE | _unknown_160      | — | cmH₂O | ❓ | v1 = 4.0  |
-| 164 | 4 | float32LE | _unknown_164      | — | cmH₂O | ❓ | v1 = 3.0；旧分析猜"起始压力"，但记录起始压力=4.0 矛盾 |
+| 112 | 4 | float32LE | _unknown_112      | — | cmH₂O | ❓ | v1-v12 = 8.0  |
+| 116 | 4 | float32LE | _unknown_116      | — | cmH₂O | ❓ | v1-v12 = 10.0 |
+| 120 | 4 | float32LE | _unknown_120      | — | cmH₂O | ❓ | v1-v12 = 4.0  |
+| 124 | 4 | float32LE | _unknown_124      | — | cmH₂O | ❓ | v1-v12 = 10.0 |
+| 128 | 4 | float32LE | _unknown_128      | — | cmH₂O | ❓ | v1-v12 = 4.0  |
+| 132 | 4 | float32LE | **epap_max**      | — | cmH₂O | ✅ | v1-v12 = 14.0（config_v1 + 记录）|
+| 136 | 4 | float32LE | **epap_min**      | — | cmH₂O | ✅ | v1-v12 = 7.0（config_v1 + 记录）|
+| 140 | 4 | float32LE | **pressure_support** | — | cmH₂O | ✅ | v1-v12 = 3.0（config_v1 + 记录）|
+| 144 | 4 | float32LE | **ramp_start_pressure** | — | cmH₂O | 🔬 | v1-v6=4.0, v7-v12=6.0（Round 7 锁定起始压力）|
+| 148 | 4 | float32LE | _unknown_148      | — | cmH₂O | ❓ | v1-v12 = 10.0 |
+| 152 | 4 | float32LE | _unknown_152      | — | cmH₂O | ❓ | v1-v12 = 4.0  |
+| 156 | 4 | float32LE | _unknown_156      | — | cmH₂O | ❓ | v1-v12 = 10.0 |
+| 160 | 4 | float32LE | _unknown_160      | — | cmH₂O | ❓ | v1-v12 = 4.0  |
+| 164 | 4 | float32LE | _unknown_164      | — | cmH₂O | ❓ | v1-v12 = 3.0；旧分析猜"起始压力"被否定，真实位置在 offset 144 |
 
 ### 区域 6 — 附加参数（offset 168–191）
 
 | offset | size | type | name | scale | unit | status | source |
 |---|---|---|---|---|---|---|---|
-| 168 | 1  | uint8 | _unknown_168           | — | enum   | ❓ | v1 = 5 |
-| 169 | 1  | uint8 | **backlight_seconds**  | — | second | ✅ | config_v1 + 记录（60）|
-| 170 | 12 | bytes | _reserved_170          | — | —      | 🟨 | v1 全 0 |
-| 182 | 1  | uint8 | _unknown_182           | — | —      | ❓ | v1 = 20（与 99 同值）|
-| 183 | 1  | uint8 | _reserved_183          | — | —      | 🟨 | v1 = 0 |
-| 184 | 1  | uint8 | _unknown_184           | — | enum   | ❓ | v1 = 2 |
-| 185 | 1  | uint8 | _unknown_185           | — | —      | ❓ | v1 = 12 |
-| 186 | 1  | uint8 | _unknown_186           | — | —      | ❓ | v1 = 77 (0x4D) |
-| 187 | 4  | bytes | _reserved_187          | — | —      | 🟨 | v1 全 0 |
-| 191 | 1  | uint8 | **payload_xor_checksum** | — | —    | ✅ | XOR(bytes[0..190])；v1 和 v2 均验证通过 |
+| 168 | 1  | uint8 | _unknown_168           | — | enum   | ❓ | v1-v12 = 5 |
+| 169 | 1  | uint8 | **backlight_seconds**  | — | second | ✅ | v1-v12 = 60（config_v1 + 记录）|
+| 170 | 12 | bytes | _reserved_170          | — | —      | 🟨 | v1-v12 全 0 |
+| 182 | 1  | uint8 | _unknown_182           | — | —      | ❓ | v1-v12 = 20（与 99 同值）|
+| 183 | 1  | uint8 | _reserved_183          | — | —      | 🟨 | v1-v12 = 0 |
+| 184 | 1  | uint8 | _unknown_184           | — | enum   | ❓ | v1-v12 = 2 |
+| 185 | 1  | uint8 | _unknown_185           | — | —      | ❓ | v1-v12 = 12 |
+| 186 | 1  | uint8 | _unknown_186           | — | —      | ❓ | v1-v12 = 77 (0x4D) |
+| 187 | 4  | bytes | _reserved_187          | — | —      | 🟨 | v1-v12 全 0 |
+| 191 | 1  | uint8 | **payload_xor_checksum** | — | —    | ✅ | XOR(bytes[0..190])；v1-v12 全部数学验证通过 |
 
 ---
 
@@ -166,33 +166,33 @@
 
 **✅ Confirmed / 🔬 Diff-verified（共 25 个）— 所有用户可调 UI 参数已全部锁定**
 
-| offset | name | v1→v2→v3→v4→v5→v6 | 来源 |
+| offset | name | v1→...→v12 | 来源 |
 |---|---|---|---|
-| 1   | language             | 0→0→0→2→2→2→2→2→2→0  | 🔬 Round 5 |
-| 2   | indicator_light      | 0→0→0→0→0→0→0→0→0→1→0 | 🔬 Round 10 |
-| 4   | screen_saver         | 0→0→0→0→0→0→0→0→0→0→1 | 🔬 Round 11 |
+| 1   | language             | 0→0→0→2→2→2→2→2→2→0→0→0 | 🔬 Round 5 |
+| 2   | indicator_light      | 0→0→0→0→0→0→0→0→0→1→0→0 | 🔬 Round 10 |
+| 4   | screen_saver         | 0→0→0→0→0→0→0→0→0→0→1→1 | 🔬 Round 11 |
+| 5   | tube_size            | 0→0→0→1→1→1→1→1→1→1→1→1 | 🔬 Round 5 |
+| 6   | face_mask            | 0→0→0→2→0→0→0→0→0→0→0→0 | 🔬 Round 5 |
+| 7   | smart_start          | 1→1→1→1→1→1→1→0→0→0→0→0 | 🔬 Round 8 |
+| 8   | smart_stop           | 1→1→1→1→1→1→1→1→0→0→0→0 | 🔬 Round 9 |
+| 10  | temperature_unit     | 0→0→0→1→0→0→0→0→0→0→0→0 | 🔬 Round 5 |
+| 16  | high_pressure_alarm  | 250 (25.0 cmH₂O，v1-v12 unchanged) | ✅ Round 1 |
 | 18  | low_pressure_alarm   | 1→1→1→1→1→1→1→1→1→1→0→0 | 🔬 Round 11 |
+| 28  | timezone             | 19→19→19→20→20→20→20→20→20→20→20→20 | 🔬 Round 4 |
 | 96  | therapy_mode         | 3→3→3→3→3→3→3→3→3→3→3→0 | 🔬 Round 12 |
-| 5   | tube_size            | 0→0→0→1→1→1          | 🔬 Round 5 |
-| 6   | face_mask            | 0→0→0→2→0→0→0→0      | 🔬 Round 5 |
-| 7   | smart_start          | 1→1→1→1→1→1→1→0→0    | 🔬 Round 8 |
-| 8   | smart_stop           | 1→1→1→1→1→1→1→1→0    | 🔬 Round 9 |
-| 10  | temperature_unit     | 0→0→0→1→0→0→0→0→0    | 🔬 Round 5 |
-| 16  | high_pressure_alarm  | 250（25.0 cmH₂O，unchanged） | ✅ Round 1 |
-| 28  | timezone             | 19→19→19→20→20→20    | 🔬 Round 4 |
-| 97  | delay_time_minutes   | 0→0→0→0→0→10         | 🔬 Round 6 |
-| 98  | humidifier_level     | 1→3→3→3→3→3          | 🔬 Round 2 |
-| 103 | ipap_sensitivity     | 3→1→2→2→2→2          | 🔬 Round 3 |
-| 105 | rise_rate            | 2→3→3→3→3→3          | 🔬 Round 2 |
-| 106 | fall_rate            | 3→1→1→1→1→1          | 🔬 Round 3 |
-| 102 | epr_level            | 0→0→0→0→0→0→1        | 🔬 Round 7 |
-| 109 | epap_sensitivity     | 3→1→3→3→3→3          | 🔬 Round 3 |
-| 132 | epap_max             | 14.0 cmH₂O（unchanged）       | ✅ Round 1 |
-| 144 | ramp_start_pressure  | 4.0→4.0→4.0→4.0→4.0→4.0→6.0 | 🔬 Round 7 |
-| 136 | epap_min             | 7.0 cmH₂O（unchanged）        | ✅ Round 1 |
-| 140 | pressure_support     | 3.0 cmH₂O（unchanged）        | ✅ Round 1 |
-| 169 | backlight_seconds    | 60 秒（unchanged）            | ✅ Round 1 |
-| 191 | payload_xor_checksum | 0xB7→0xB6→0xB7→0xB0→0xB3→0xB9 | ✅ Round 2（数学验证） |
+| 97  | delay_time_minutes   | 0→0→0→0→0→10→0→0→0→0→0→0 | 🔬 Round 6 |
+| 98  | humidifier_level     | 1→3→3→3→3→3→3→3→3→3→3→3 | 🔬 Round 2 |
+| 102 | epr_level            | 0→0→0→0→0→0→1→1→1→1→1→1 | 🔬 Round 7 |
+| 103 | ipap_sensitivity     | 3→1→2→2→2→2→2→2→2→2→2→2 | 🔬 Round 3 |
+| 105 | rise_rate            | 2→3→3→3→3→3→3→3→3→3→3→3 | 🔬 Round 2 |
+| 106 | fall_rate            | 3→1→1→1→1→1→1→1→1→1→1→1 | 🔬 Round 3 |
+| 109 | epap_sensitivity     | 3→1→3→3→3→3→3→3→3→3→3→3 | 🔬 Round 3 |
+| 132 | epap_max             | 14.0 cmH₂O（v1-v12 unchanged） | ✅ Round 1 |
+| 136 | epap_min             | 7.0 cmH₂O（v1-v12 unchanged）  | ✅ Round 1 |
+| 140 | pressure_support     | 3.0 cmH₂O（v1-v12 unchanged）  | ✅ Round 1 |
+| 144 | ramp_start_pressure  | 4.0→4.0→4.0→4.0→4.0→4.0→6.0→6.0→6.0→6.0→6.0→6.0 | 🔬 Round 7 |
+| 169 | backlight_seconds    | 60 秒（v1-v12 unchanged）      | ✅ Round 1 |
+| 191 | payload_xor_checksum | 0xB7→0xB6→0xB7→0xB0→0xB3→0xB9→0xF2→0xF3→0xF2→0xF1→0xF0→0xF3 | ✅ Round 2（数学验证）|
 
 ---
 
@@ -204,19 +204,13 @@
 
 3. ~~**呼气舒适度（EPR）开关位置未知**~~：✅ Round 7 解决 — EPR 在 **offset 102**（编码 0=关闭, N=等级）。同时纠正了 Round 1 把 offset 102 误标为 mask_type 的错误。
 
-4. **起始压力定位**：记录"起始压力=4.0"，但旧分析定位的 offset 164 = 3.0。
-   - 假设：旧分析定位错误。
-   - 验证方案：单变量——把起始压力从 4.0 改到 6.0，观察哪个 float 变化。
+4. ~~**起始压力定位**~~：✅ Round 7 解决 — 起始压力在 **offset 144**（float32, v1-v6=4.0, v7-v12=6.0）。原推测的 offset 164 不是起始压力，仍是 unknown_164。
 
-5. **治疗模式编码**：记录"Auto-S"。offset 32 (uint16) = 2 与 offset 96 (uint8) = 3 至少有一个是治疗模式枚举，但需要切换治疗模式才能确认。
-   - 验证方案：单变量——切到 CPAP 或 BiPAP 模式，观察哪个字节变化。
+5. ~~**治疗模式编码**~~：✅ Round 12 解决 — 治疗模式在 **offset 96**（uint8, 编码 0=CPAP, 3=Auto-S）。原推测的 offset 32 (uint16LE = 2) 与 UI 完全不相关，已降级为 unknown_32。
 
-6. **"用户设定"区与"治疗设置"区同名参数关系**：
-   - 用户记录中 `吸气灵敏度/呼气灵敏度/升压速度/降压速度/延迟时间` 在两个区都出现。
-   - 假设：底层是同一字段，UI 显示两次。
-   - 验证方案：第一轮 v2 改动只动一处（比如治疗设置区的吸气灵敏度），看是否只有一个字节变。
+6. ~~**"用户设定"区与"治疗设置"区同名参数关系**~~：✅ Round 2 副发现 — 同名灵敏度/速度字段**共享底层字节**（diff 字节数 = UI 改动数，不是 2 倍）。一个底层 byte 在 UI 上显示在两个不同位置。
 
-7. **区域 5 的 14 个 float**：大量重复值（4.0, 10.0），尚不清楚哪些是真正用到的参数、哪些是冗余/向后兼容字段。
+7. **区域 5 中其余 10 个 float 仍未识别**（offsets 112/116/120/124/128/148/152/156/160/164）：v1-v12 全部恒定，没有 UI 操作能让它们变化。推测是各模式独立的最大/最小压力配置项，或冗余/向后兼容字段。需要切换治疗模式 + 改压力来探测。
 
 ---
 
@@ -396,22 +390,6 @@
 
 ## 8. 后续轮次计划
 
-### Round 2 (v2) — B 法批量推理灵敏度/速度/湿化组
-
-**改动清单**（在呼吸机 UI 上）：
-
-| 参数 | v1 | v2 | 目的 |
-|---|---|---|---|
-| 吸气灵敏度 | 3 | **1** | 定位灵敏度字节 |
-| 呼气灵敏度 | 3 | **1** | 定位灵敏度字节 |
-| 升压速度   | 2 | **3** | 定位速度字节 |
-| 降压速度   | 3 | **1** | 定位速度字节 |
-| 湿化水平   | 1 | **3** | 修复湿化定位 |
-
-其他参数保持不变。导出 `config_v2.bin`，在 `ventilator_config.md` 追加 `## Round 2` 节记录改动。
-
-**预期 diff 字节数**：5 个独立字段 → 至少 5 个字节变化；如果某些参数在 v1 中同时显示于"用户设定"和"治疗设置"两区且共享底层字段，diff 字节数应仍为 5；若是独立字段，可能有更多变化。
-
 ### 所有计划轮次已完成（Round 1–12）
 
 所有用户可调 UI 参数已 diff-verified。未来如需进一步研究：
@@ -467,14 +445,14 @@ export function parseBa525Config(buf: ArrayBuffer | Uint8Array): Ba525Config;
 
 - 模块零依赖（不引入 React / 任何 UI 类型）
 - 字段定义集中在 `BA525_CONFIG_FIELDS` 数组，`parseBa525Config` 由它驱动——字段表更新只改一个地方
-- 提供 fixture 测试 `src/parser/ba525ConfigParser.test.ts`，断言 v1 五个 ✅ 字段值正确
+- 提供 fixture 测试 `src/parser/ba525ConfigParser.test.ts`，断言所有 25 个已锁定字段在 v1-v12 fixture 上的值正确
 
 ### 不做（本设计范围外）
 
 - 修改 RawFileBrowser 或其他 UI 组件
 - 添加 UI 路由 / 渲染逻辑
 
-未来接入 RawFileBrowser 时，只需新增一个展示组件遍历 `BA525_CONFIG_FIELDS`，无需改解析器代码。
+未来接入 RawFileBrowser 时，只需新增一个展示组件遍历 `summarizeLocked()` 的结果，无需改解析器代码。
 
 ---
 
