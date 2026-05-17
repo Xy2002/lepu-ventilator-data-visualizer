@@ -417,11 +417,17 @@ export interface FieldSpec {
   size: number;
   type: 'uint8' | 'uint16LE' | 'uint32LE' | 'float32LE' | 'bytes';
   name: string;
-  label?: string;       // 中文 UI 标签
-  scale?: number;       // 例如 high_pressure_alarm 的 0.1
-  unit?: string;        // cmH₂O / 秒 / 分钟 / —
+  label?: string;             // 中文 UI 标签
+  scale?: number;             // 例如 high_pressure_alarm 的 0.1
+  unit?: string;              // cmH2O / s / min
   status: FieldStatus;
-  notes?: string;       // 矛盾说明 / 推测理由
+  notes?: string;             // 矛盾说明 / 推测理由
+
+  // 显示层（让原始字节有意义）：
+  enumMap?: Record<number, string>;   // 有限枚举：raw → 显示标签（如 0 → '鼻罩'）
+  inferredKeys?: number[];            // enumMap 中标签为推测的 raw 值（未经 UI 文本直接确认）
+  decode?: (raw: number) => string;   // 公式型解码（如 timezone: value - 11；delay: 0=关闭, N=N 分钟）
+  precision?: number;                 // 数值小数位数（如 cmH2O 字段固定 1 位）
 }
 
 export const BA525_CONFIG_FIELDS: ReadonlyArray<FieldSpec>;
@@ -430,6 +436,7 @@ export interface ParsedField {
   spec: FieldSpec;
   raw: number | Uint8Array;   // 原始读出值
   value: number | Uint8Array; // 应用 scale 后的值
+  display: string;            // 人类可读：enum 标签 / decode 结果 / "值 单位" / 原始字符串
 }
 
 export interface Ba525Config {
@@ -439,7 +446,34 @@ export interface Ba525Config {
 }
 
 export function parseBa525Config(buf: ArrayBuffer | Uint8Array): Ba525Config;
+
+export interface LockedSummaryEntry {
+  name: string;
+  label: string;
+  value: number | Uint8Array;
+  display: string;     // 直接拿来显示给用户
+  unit: string;
+  status: 'confirmed' | 'diff-verified';
+}
+
+// 返回所有 confirmed / diff-verified 字段，适合 UI 列表渲染。
+export function summarizeLocked(parsed: Ba525Config): LockedSummaryEntry[];
 ```
+
+**display 计算优先级**（在 `parseBa525Config` 内部）：
+
+1. raw / value 是 Uint8Array → 渲染为 hex 字符串
+2. `spec.enumMap` 有 `raw` 键 → 用 `enumMap[raw]`
+3. `spec.decode` 存在 → 用 `spec.decode(raw)`
+4. `spec.unit` 存在 → `${value.toFixed(precision ?? 0)} ${unit}`（精度按 `precision` 控制）
+5. fallback → `String(value)`
+
+**inferredKeys 的语义**：当某个 enumMap 的标签是从典型 UI 命名习惯**推测**而不是从用户记录直接确认时，把对应的 raw key 列在 `inferredKeys` 里。UI 渲染时可以给这些值加个"推测"标记（如斜体、问号图标），方便后续用 UI 实测纠正。当前推测项：
+
+- `ipap_sensitivity` / `epap_sensitivity`: enumMap `{1: 低, 2: 中, 3: 高}`, `inferredKeys: [1, 2]`（只有 3=高 是 UI 确认）
+- `rise_rate`: enumMap `{1: 慢, 2: 中, 3: 快}`, `inferredKeys: [1, 3]`（只有 2=中 是 UI 确认）
+- `fall_rate`: enumMap `{1: 慢, 2: 中, 3: 快}`, `inferredKeys: [1, 2]`（只有 3=快 是 UI 确认）
+- `humidifier_level` / `epr_level` 使用 `decode` 而非 enumMap（标签格式 `${N}档`），格式同样是推测，靠 notes 注明
 
 ### 约束
 

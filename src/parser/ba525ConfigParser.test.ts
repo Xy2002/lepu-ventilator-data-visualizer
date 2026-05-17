@@ -465,3 +465,125 @@ describe('Round 12: v11 vs v12 therapy_mode', () => {
     }
   });
 });
+
+describe('display formatting', () => {
+  it('uses enumMap labels for known raw enum keys', () => {
+    const v1 = parseBa525Config(BA525_SAMPLE_1_BYTES);
+    expect(v1.byName.face_mask.display).toBe('鼻罩');
+    expect(v1.byName.language.display).toBe('简体中文');
+    expect(v1.byName.temperature_unit.display).toBe('°C');
+    expect(v1.byName.tube_size.display).toBe('22mm');
+    expect(v1.byName.smart_start.display).toBe('开启');
+    expect(v1.byName.smart_stop.display).toBe('开启');
+    expect(v1.byName.indicator_light.display).toBe('关闭');
+    expect(v1.byName.screen_saver.display).toBe('关闭');
+    expect(v1.byName.low_pressure_alarm.display).toBe('开启');
+    expect(v1.byName.therapy_mode.display).toBe('Auto-S');
+
+    const v4 = parseBa525Config(BA525_SAMPLE_4_BYTES);
+    expect(v4.byName.face_mask.display).toBe('鼻枕');
+    expect(v4.byName.language.display).toBe('English');
+    expect(v4.byName.temperature_unit.display).toBe('°F');
+    expect(v4.byName.tube_size.display).toBe('15mm');
+
+    const v12 = parseBa525Config(BA525_SAMPLE_12_BYTES);
+    expect(v12.byName.therapy_mode.display).toBe('CPAP');
+  });
+
+  it('uses sensitivity / rate level labels', () => {
+    // v1 had ipap_sensitivity=3 (高), epap_sensitivity=3 (高), rise_rate=2 (中), fall_rate=3 (快)
+    const v1 = parseBa525Config(BA525_SAMPLE_1_BYTES);
+    expect(v1.byName.ipap_sensitivity.display).toBe('高');
+    expect(v1.byName.epap_sensitivity.display).toBe('高');
+    expect(v1.byName.rise_rate.display).toBe('中');
+    expect(v1.byName.fall_rate.display).toBe('快');
+
+    // v2 dropped sensitivities to 1, rise rate to 3, fall rate to 1
+    const v2 = parseBa525Config(BA525_SAMPLE_2_BYTES);
+    expect(v2.byName.ipap_sensitivity.display).toBe('低');
+    expect(v2.byName.rise_rate.display).toBe('快');
+    expect(v2.byName.fall_rate.display).toBe('慢');
+
+    // v3 moved ipap to 2 (中), epap to 3 (高)
+    const v3 = parseBa525Config(BA525_SAMPLE_3_BYTES);
+    expect(v3.byName.ipap_sensitivity.display).toBe('中');
+    expect(v3.byName.epap_sensitivity.display).toBe('高');
+  });
+
+  it('uses decode for timezone (value = UTC_offset + 11)', () => {
+    expect(parseBa525Config(BA525_SAMPLE_1_BYTES).byName.timezone.display).toBe('UTC+8');
+    expect(parseBa525Config(BA525_SAMPLE_4_BYTES).byName.timezone.display).toBe('UTC+9');
+  });
+
+  it('uses decode for delay_time_minutes (0 -> 关闭, N -> N 分钟)', () => {
+    expect(parseBa525Config(BA525_SAMPLE_1_BYTES).byName.delay_time_minutes.display).toBe('关闭');
+    expect(parseBa525Config(BA525_SAMPLE_6_BYTES).byName.delay_time_minutes.display).toBe('10 分钟');
+  });
+
+  it('uses 1档/2档/3档 format for humidifier_level and epr_level', () => {
+    expect(parseBa525Config(BA525_SAMPLE_1_BYTES).byName.humidifier_level.display).toBe('1档');
+    expect(parseBa525Config(BA525_SAMPLE_2_BYTES).byName.humidifier_level.display).toBe('3档');
+
+    // epr_level: 0 -> '关闭', N -> 'N档'
+    expect(parseBa525Config(BA525_SAMPLE_1_BYTES).byName.epr_level.display).toBe('关闭');
+    expect(parseBa525Config(BA525_SAMPLE_7_BYTES).byName.epr_level.display).toBe('1档');
+  });
+
+  it('renders numeric values with unit and precision', () => {
+    const v1 = parseBa525Config(BA525_SAMPLE_1_BYTES);
+    expect(v1.byName.high_pressure_alarm.display).toBe('25.0 cmH2O');
+    expect(v1.byName.epap_max.display).toBe('14.0 cmH2O');
+    expect(v1.byName.epap_min.display).toBe('7.0 cmH2O');
+    expect(v1.byName.pressure_support.display).toBe('3.0 cmH2O');
+    expect(v1.byName.ramp_start_pressure.display).toBe('4.0 cmH2O');
+    expect(v1.byName.backlight_seconds.display).toBe('60 s');
+
+    const v7 = parseBa525Config(BA525_SAMPLE_7_BYTES);
+    expect(v7.byName.ramp_start_pressure.display).toBe('6.0 cmH2O');
+  });
+
+  it('renders the XOR checksum as hex', () => {
+    expect(parseBa525Config(BA525_SAMPLE_1_BYTES).byName.payload_xor_checksum.display).toBe('0xB7');
+    expect(parseBa525Config(BA525_SAMPLE_12_BYTES).byName.payload_xor_checksum.display).toBe('0xF3');
+  });
+
+  it('falls back to raw integer string for fields without enumMap/decode/unit', () => {
+    // unknown_32 has no enumMap/decode/unit — should display as raw integer
+    const v1 = parseBa525Config(BA525_SAMPLE_1_BYTES);
+    expect(v1.byName.unknown_32.display).toBe('2');
+  });
+});
+
+describe('inferredKeys metadata', () => {
+  it('marks the level fields with inferredKeys for unconfirmed labels', () => {
+    const byName = Object.fromEntries(BA525_CONFIG_FIELDS.map((f) => [f.name, f]));
+    expect(byName.ipap_sensitivity.enumMap).toEqual({ 1: '低', 2: '中', 3: '高' });
+    expect(byName.ipap_sensitivity.inferredKeys).toEqual([1, 2]);
+    expect(byName.epap_sensitivity.inferredKeys).toEqual([1, 2]);
+    expect(byName.rise_rate.inferredKeys).toEqual([1, 3]);
+    expect(byName.fall_rate.inferredKeys).toEqual([1, 2]);
+  });
+
+  it('fully-confirmed enums have no inferredKeys', () => {
+    const byName = Object.fromEntries(BA525_CONFIG_FIELDS.map((f) => [f.name, f]));
+    expect(byName.face_mask.inferredKeys).toBeUndefined();
+    expect(byName.language.inferredKeys).toBeUndefined();
+    expect(byName.temperature_unit.inferredKeys).toBeUndefined();
+    expect(byName.therapy_mode.inferredKeys).toBeUndefined();
+  });
+});
+
+describe('summarizeLocked exposes display strings', () => {
+  it('each locked entry has a display field', () => {
+    const summary = summarizeLocked(parseBa525Config(BA525_SAMPLE_1_BYTES));
+    for (const entry of summary) {
+      expect(typeof entry.display).toBe('string');
+      expect(entry.display.length).toBeGreaterThan(0);
+    }
+    const byName = Object.fromEntries(summary.map((s) => [s.name, s]));
+    expect(byName.face_mask.display).toBe('鼻罩');
+    expect(byName.timezone.display).toBe('UTC+8');
+    expect(byName.epap_max.display).toBe('14.0 cmH2O');
+    expect(byName.ipap_sensitivity.display).toBe('高');
+  });
+});
