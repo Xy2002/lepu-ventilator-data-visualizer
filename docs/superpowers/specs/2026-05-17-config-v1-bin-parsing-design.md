@@ -70,8 +70,8 @@
 | 2  | 2 | uint16LE | header_ref             | — | —   | 🟨 | v1-v5 = 512 |
 | 4  | 1 | uint8    | reserved_4             | — | —   | 🟨 | v1-v5 = 0 |
 | 5  | 1 | uint8    | **tube_size**          | — | enum | 🔬 | 0=22mm, 1=15mm（v1-v3=0, v4-v5=1；Round 5 排除法）|
-| 6  | 1 | uint8    | **face_mask**          | — | enum | 🔬 | 0=鼻罩, 2=鼻枕（v1-v3=0, v4=2, v5=0；Round 5 单变量改回）|
-| 7  | 1 | uint8    | reserved_7             | — | —   | 🟨 | v1-v5 = 0x01 |
+| 6  | 1 | uint8    | **face_mask**          | — | enum | 🔬 | 0=鼻罩, 2=鼻枕（v1-v3=0, v4=2, v5-v8=0；Round 5 单变量改回）|
+| 7  | 1 | uint8    | **smart_start**        | — | bool | 🔬 | v1-v7=1 (开), v8=0 (关)；Round 8 锁定。Round 4 误标 reserved 是错的——只是用户没改过 |
 | 8  | 2 | uint16LE | enable_flag            | — | —   | ⚠️ | v1-v5 = 1 |
 | 10 | 1 | uint8    | **temperature_unit**   | — | enum | 🔬 | 0=°C, 1=°F（v1-v3=0, v4=1, v5=0；Round 5 单变量改回）|
 | 16 | 2 | uint16LE | **high_pressure_alarm** | /10 | cmH₂O | ✅ | config_v1 + 记录（25.0） |
@@ -114,7 +114,7 @@
 | 101 | 1 | uint8 | _unknown_101            | — | enum    | ❓ | v1-v7=2 |
 | 102 | 1 | uint8 | **epr_level**           | — | level   | 🔬 | v1-v6=0 (关闭), v7=1（Round 7 锁定；原推测 mask_type 是错的，face_mask 在 offset 6）|
 | 103 | 1 | uint8 | **ipap_sensitivity**    | — | level   | 🔬 | v2=1, v3=2（Round 3 唯一 +1 变化）|
-| 104 | 1 | uint8 | auto_start              | — | bool    | ⚠️ | v1=v2=v3=1（智能启动开）|
+| 104 | 1 | uint8 | _unknown_104            | — | —       | ❓ | v1-v8=1；Round 1 推测 auto_start 但 Round 8 已锁定 smart_start 在 offset 7 |
 | 105 | 1 | uint8 | **rise_rate**           | — | level   | 🔬 | v1=2, v2=v3=3（Round 2）|
 | 106 | 1 | uint8 | **fall_rate**           | — | level   | 🔬 | v1=3, v2=v3=1（Round 3 排除法：唯一未变的候选）|
 | 107 | 1 | uint8 | _unknown_107            | — | enum    | ❓ | v1=v2=v3=1 |
@@ -159,16 +159,17 @@
 
 ---
 
-## 5. 已锁定字段汇总（Round 1–7）
+## 5. 已锁定字段汇总（Round 1–8）
 
-**✅ Confirmed / 🔬 Diff-verified（共 19 个）**
+**✅ Confirmed / 🔬 Diff-verified（共 20 个）**
 
 | offset | name | v1→v2→v3→v4→v5→v6 | 来源 |
 |---|---|---|---|
 | 1   | language             | 0→0→0→2→2→2          | 🔬 Round 5 |
 | 5   | tube_size            | 0→0→0→1→1→1          | 🔬 Round 5 |
-| 6   | face_mask            | 0→0→0→2→0→0          | 🔬 Round 5 |
-| 10  | temperature_unit     | 0→0→0→1→0→0          | 🔬 Round 5 |
+| 6   | face_mask            | 0→0→0→2→0→0→0→0      | 🔬 Round 5 |
+| 7   | smart_start          | 1→1→1→1→1→1→1→0      | 🔬 Round 8 |
+| 10  | temperature_unit     | 0→0→0→1→0→0→0→0      | 🔬 Round 5 |
 | 16  | high_pressure_alarm  | 250（25.0 cmH₂O，unchanged） | ✅ Round 1 |
 | 28  | timezone             | 19→19→19→20→20→20    | 🔬 Round 4 |
 | 97  | delay_time_minutes   | 0→0→0→0→0→10         | 🔬 Round 6 |
@@ -314,6 +315,21 @@
 - ✅ 校验和 v7 上 `XOR(bytes[0..190]) == byte[191] == 0xF2`，连续 7 文件全通过
 
 锁定字段累计：17（R1-R6）+ 2（R7）= **19 个**。
+
+### Round 8 — `config_v8.bin` (2026-05-18)
+
+**改动**（在 v7 基础上）：智能启动 开启→关闭。其他保持。
+
+> 用户确认 v7 中 delay_time_minutes 的 10→0 是手动改的，不是设备副作用。spec 已更新对应 note。
+
+**diff 结果**：仅 2 字节变化 = 1 个 UI 改动 + 1 个校验和。
+
+- 🔬 锁定字段 (1)：
+  - **offset 7 = smart_start**（v1-v7=1, v8=0；Round 4 误标 `reserved_7` 是错的——只是用户从没改过）
+- ⚠️ 推断纠正：原 offset 104 推测 `auto_start` 被否定（v1-v8 一直是 1，与 smart_start 行为不一致），降级为 `unknown_104`
+- 💡 教训：跨样本恒定的字节 **不等于** reserved，可能只是"用户没动过"。后续标 reserved 时要慎重
+
+锁定字段累计：19（R1-R7）+ 1（R8）= **20 个**。
 
 ---
 
