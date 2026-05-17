@@ -65,15 +65,15 @@
 
 | offset | size | type | name | scale | unit | status | source |
 |---|---|---|---|---|---|---|---|
-| 0  | 1 | uint8    | record_size_marker     | — | —   | 🟨 | v1-v4 = 0xCC（marker） |
-| 1  | 1 | uint8    | enum_face_mask_or_language_1 | — | enum | ⚠️ | v1-v3=0, v4=2；候选 {面罩, 语言} |
-| 2  | 2 | uint16LE | header_ref             | — | —   | 🟨 | v1-v4 = 512（constant header reference） |
-| 4  | 1 | uint8    | reserved_4             | — | —   | 🟨 | v1-v4 = 0 |
-| 5  | 1 | uint8    | enum_temp_unit_or_tube_5 | — | enum | ⚠️ | v1-v3=0, v4=1；候选 {温度单位, 管道} |
-| 6  | 1 | uint8    | enum_face_mask_or_language_6 | — | enum | ⚠️ | v1-v3=0, v4=2；候选 {面罩, 语言} |
-| 7  | 1 | uint8    | reserved_7             | — | —   | 🟨 | v1-v4 = 0x01（constant flag） |
-| 8  | 2 | uint16LE | enable_flag            | — | —   | ⚠️ | v1-v4 = 1 |
-| 10 | 1 | uint8    | enum_temp_unit_or_tube_10 | — | enum | ⚠️ | v1-v3=0, v4=1；候选 {温度单位, 管道} |
+| 0  | 1 | uint8    | record_size_marker     | — | —   | 🟨 | v1-v5 = 0xCC（marker） |
+| 1  | 1 | uint8    | **language**           | — | enum | 🔬 | 0=简体中文, 2=English（v1-v3=0, v4-v5=2；Round 5 排除法）|
+| 2  | 2 | uint16LE | header_ref             | — | —   | 🟨 | v1-v5 = 512 |
+| 4  | 1 | uint8    | reserved_4             | — | —   | 🟨 | v1-v5 = 0 |
+| 5  | 1 | uint8    | **tube_size**          | — | enum | 🔬 | 0=22mm, 1=15mm（v1-v3=0, v4-v5=1；Round 5 排除法）|
+| 6  | 1 | uint8    | **face_mask**          | — | enum | 🔬 | 0=鼻罩, 2=鼻枕（v1-v3=0, v4=2, v5=0；Round 5 单变量改回）|
+| 7  | 1 | uint8    | reserved_7             | — | —   | 🟨 | v1-v5 = 0x01 |
+| 8  | 2 | uint16LE | enable_flag            | — | —   | ⚠️ | v1-v5 = 1 |
+| 10 | 1 | uint8    | **temperature_unit**   | — | enum | 🔬 | 0=°C, 1=°F（v1-v3=0, v4=1, v5=0；Round 5 单变量改回）|
 | 16 | 2 | uint16LE | **high_pressure_alarm** | /10 | cmH₂O | ✅ | config_v1 + 记录（25.0） |
 | 18 | 2 | uint16LE | _unknown_18            | — | —   | ❓ | v1-v4 = 1 |
 | 20 | 2 | uint16LE | _unknown_20            | — | —   | ❓ | v1-v4 = 256 |
@@ -159,33 +159,28 @@
 
 ---
 
-## 5. 已锁定字段汇总（Round 1 + 2 + 3 + 4）
+## 5. 已锁定字段汇总（Round 1–5）
 
-**✅ Confirmed / 🔬 Diff-verified（共 12 个）**
+**✅ Confirmed / 🔬 Diff-verified（共 16 个）**
 
-| offset | name | v1 → v2 → v3 → v4 | 来源 |
+| offset | name | v1 → v2 → v3 → v4 → v5 | 来源 |
 |---|---|---|---|
+| 1   | language             | 0 → 0 → 0 → 2 → 2          | 🔬 Round 5 |
+| 5   | tube_size            | 0 → 0 → 0 → 1 → 1          | 🔬 Round 5 |
+| 6   | face_mask            | 0 → 0 → 0 → 2 → 0          | 🔬 Round 5 |
+| 10  | temperature_unit     | 0 → 0 → 0 → 1 → 0          | 🔬 Round 5 |
 | 16  | high_pressure_alarm  | 250（25.0 cmH₂O，unchanged） | ✅ Round 1 |
-| 28  | timezone             | 19 → 19 → 19 → 20（UTC+8 → +9） | 🔬 Round 4 |
-| 98  | humidifier_level     | 1 → 3 → 3 → 3                | 🔬 Round 2 |
-| 103 | ipap_sensitivity     | 3 → 1 → 2 → 2                | 🔬 Round 3 |
-| 105 | rise_rate            | 2 → 3 → 3 → 3                | 🔬 Round 2 |
-| 106 | fall_rate            | 3 → 1 → 1 → 1                | 🔬 Round 3 |
-| 109 | epap_sensitivity     | 3 → 1 → 3 → 3                | 🔬 Round 3 |
+| 28  | timezone             | 19 → 19 → 19 → 20 → 20     | 🔬 Round 4 |
+| 98  | humidifier_level     | 1 → 3 → 3 → 3 → 3          | 🔬 Round 2 |
+| 103 | ipap_sensitivity     | 3 → 1 → 2 → 2 → 2          | 🔬 Round 3 |
+| 105 | rise_rate            | 2 → 3 → 3 → 3 → 3          | 🔬 Round 2 |
+| 106 | fall_rate            | 3 → 1 → 1 → 1 → 1          | 🔬 Round 3 |
+| 109 | epap_sensitivity     | 3 → 1 → 3 → 3 → 3          | 🔬 Round 3 |
 | 132 | epap_max             | 14.0 cmH₂O（unchanged）       | ✅ Round 1 |
 | 136 | epap_min             | 7.0 cmH₂O（unchanged）        | ✅ Round 1 |
 | 140 | pressure_support     | 3.0 cmH₂O（unchanged）        | ✅ Round 1 |
 | 169 | backlight_seconds    | 60 秒（unchanged）            | ✅ Round 1 |
-| 191 | payload_xor_checksum | 0xB7 → 0xB6 → 0xB7 → 0xB0    | ✅ Round 2（数学验证） |
-
-**⚠️ 收窄到 2 候选（Round 5 待区分）**
-
-| offset | v3 → v4 | 候选含义 |
-|---|---|---|
-| 1   | 0 → 2 | 面罩 / 语言（+2 delta） |
-| 5   | 0 → 1 | 温度单位 / 管道（+1 delta） |
-| 6   | 0 → 2 | 面罩 / 语言（+2 delta） |
-| 10  | 0 → 1 | 温度单位 / 管道（+1 delta） |
+| 191 | payload_xor_checksum | 0xB7→0xB6→0xB7→0xB0→0xB3   | ✅ Round 2（数学验证） |
 
 ---
 
@@ -277,6 +272,22 @@
 
 锁定字段累计：5（R1）+ 3（R2）+ 3（R3）+ 1（R4）= **12 个**。
 
+### Round 5 — `config_v5.bin` (2026-05-18)
+
+**改动**（在 v4 基础上）：温度单位 °F→°C（改回）、面罩 鼻枕→鼻罩（改回）。其他保持 v4 状态。
+
+> 用户记录里写"面罩：面罩"，根据字节变化（offset 6 从 2→0）判断应为"面罩：鼻罩"的笔误（"鼻"字漏写）。
+
+**diff 结果**：3 字节变化 = 2 个 UI 改动 + 1 个校验和。
+
+- 🔬 锁定字段 (4)：
+  - **offset 6 = face_mask**（鼻枕→鼻罩，唯一的 2→0 变化）
+  - **offset 10 = temperature_unit**（°F→°C，唯一的 1→0 变化）
+  - **offset 5 = tube_size**（排除法：v4 中候选 +1 delta 对中未改回的那个 = 管道）
+  - **offset 1 = language**（排除法：v4 中候选 +2 delta 对中未改回的那个 = 语言）
+
+锁定字段累计：12（R1-R4）+ 4（R5）= **16 个**。
+
 ---
 
 ## 8. 后续轮次计划
@@ -296,22 +307,6 @@
 其他参数保持不变。导出 `config_v2.bin`，在 `ventilator_config.md` 追加 `## Round 2` 节记录改动。
 
 **预期 diff 字节数**：5 个独立字段 → 至少 5 个字节变化；如果某些参数在 v1 中同时显示于"用户设定"和"治疗设置"两区且共享底层字段，diff 字节数应仍为 5；若是独立字段，可能有更多变化。
-
-### Round 5 (v5) — A 法区分 4 个枚举字段（精确版）
-
-只改 2 个 UI 参数（在 v4 基础上）：
-
-| 参数 | v4 当前 | v5 目标 |
-|---|---|---|
-| 温度单位 | °F | **°C**（改回） |
-| 面罩     | 鼻枕 | **鼻罩**（改回） |
-| 时区/管道/语言 | （v4 状态） | **不动** |
-
-判定规则：
-- offset 5 或 10 中**改回 1→0** 的字节 = 温度单位；另一个 = 管道
-- offset 1 或 6 中**改回 2→0** 的字节 = 面罩；另一个 = 语言
-
-预期 3 字节变化 = 2 个 UI 改动 + offset 191 重算。
 
 ### Round 6 (v6) — A 法精确定位"延迟时间"开关
 

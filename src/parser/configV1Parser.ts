@@ -23,15 +23,15 @@ export const CONFIG_V1_FIELDS: ReadonlyArray<FieldSpec> = [
   // Region 1: device / mode (0-39)
   // Round 4 forced splitting offsets 0, 4, 6 into uint8 fields after observing
   // that bytes 1, 5, 6, 10 vary with UI changes while bytes 0, 4, 7 stay constant.
-  { offset: 0,  size: 1, type: 'uint8',     name: 'record_size_marker', status: 'reserved', notes: 'constant 0xCC across v1-v4' },
-  { offset: 1,  size: 1, type: 'uint8',     name: 'enum_face_mask_or_language_1', status: 'inferred', notes: 'v1-v3=0, v4=2; one of {face_mask, language} (Round 4 +2 delta); Round 5 disambiguates' },
-  { offset: 2,  size: 2, type: 'uint16LE',  name: 'header_ref',         status: 'reserved', notes: 'constant 512 across v1-v4' },
+  { offset: 0,  size: 1, type: 'uint8',     name: 'record_size_marker', status: 'reserved', notes: 'constant 0xCC across v1-v5' },
+  { offset: 1,  size: 1, type: 'uint8',     name: 'language',          label: '语言',   status: 'diff-verified', notes: 'v1-v3=0 (简体中文), v4=v5=2 (English); Round 5 kept v4 value while face_mask reverted' },
+  { offset: 2,  size: 2, type: 'uint16LE',  name: 'header_ref',         status: 'reserved', notes: 'constant 512 across v1-v5' },
   { offset: 4,  size: 1, type: 'uint8',     name: 'reserved_4',         status: 'reserved', notes: 'constant 0' },
-  { offset: 5,  size: 1, type: 'uint8',     name: 'enum_temp_unit_or_tube_5', status: 'inferred', notes: 'v1-v3=0, v4=1; one of {temp_unit, tube_size} (Round 4 +1 delta); Round 5 disambiguates' },
-  { offset: 6,  size: 1, type: 'uint8',     name: 'enum_face_mask_or_language_6', status: 'inferred', notes: 'v1-v3=0, v4=2; one of {face_mask, language} (Round 4 +2 delta); Round 5 disambiguates' },
-  { offset: 7,  size: 1, type: 'uint8',     name: 'reserved_7',         status: 'reserved', notes: 'constant 0x01 across v1-v4' },
-  { offset: 8,  size: 2, type: 'uint16LE',  name: 'enable_flag',        status: 'inferred', notes: 'v1-v4=1' },
-  { offset: 10, size: 1, type: 'uint8',     name: 'enum_temp_unit_or_tube_10', status: 'inferred', notes: 'v1-v3=0, v4=1; one of {temp_unit, tube_size} (Round 4 +1 delta); Round 5 disambiguates' },
+  { offset: 5,  size: 1, type: 'uint8',     name: 'tube_size',         label: '管道',   status: 'diff-verified', notes: 'v1-v3=0 (22mm), v4=v5=1 (15mm); Round 5 kept v4 value while temp_unit reverted' },
+  { offset: 6,  size: 1, type: 'uint8',     name: 'face_mask',         label: '面罩',   status: 'diff-verified', notes: 'v1-v3=0 (鼻罩), v4=2 (鼻枕), v5=0 (back to 鼻罩, identified by Round 5 single-variable revert)' },
+  { offset: 7,  size: 1, type: 'uint8',     name: 'reserved_7',         status: 'reserved', notes: 'constant 0x01 across v1-v5' },
+  { offset: 8,  size: 2, type: 'uint16LE',  name: 'enable_flag',        status: 'inferred', notes: 'v1-v5=1' },
+  { offset: 10, size: 1, type: 'uint8',     name: 'temperature_unit',  label: '温度单位', status: 'diff-verified', notes: 'v1-v3=0 (°C), v4=1 (°F), v5=0 (back to °C, identified by Round 5 single-variable revert)' },
   { offset: 16, size: 2, type: 'uint16LE',  name: 'high_pressure_alarm', label: '高吸气压力报警', scale: 0.1, unit: 'cmH2O', status: 'confirmed' },
   { offset: 18, size: 2, type: 'uint16LE',  name: 'unknown_18',         status: 'unknown' },
   { offset: 20, size: 2, type: 'uint16LE',  name: 'unknown_20',         status: 'unknown' },

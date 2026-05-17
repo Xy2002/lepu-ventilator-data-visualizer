@@ -5,6 +5,7 @@ import {
   CONFIG_V2_FIXTURE_BYTES,
   CONFIG_V3_FIXTURE_BYTES,
   CONFIG_V4_FIXTURE_BYTES,
+  CONFIG_V5_FIXTURE_BYTES,
 } from './configV1Fixtures';
 
 describe('CONFIG_V1_FIELDS', () => {
@@ -135,6 +136,10 @@ describe('summarizeLocked', () => {
     const r = parseConfigV1(CONFIG_V1_FIXTURE_BYTES);
     const summary = summarizeLocked(r);
     expect(summary.map((s) => s.name)).toEqual([
+      'language',
+      'tube_size',
+      'face_mask',
+      'temperature_unit',
       'high_pressure_alarm',
       'timezone',
       'humidifier_level',
@@ -157,6 +162,11 @@ describe('summarizeLocked', () => {
     expect(summary.find((s) => s.name === 'humidifier_level')).toMatchObject({
       label: '湿化水平',
       value: 1,
+      status: 'diff-verified',
+    });
+    expect(summary.find((s) => s.name === 'face_mask')).toMatchObject({
+      label: '面罩',
+      value: 0,
       status: 'diff-verified',
     });
   });
@@ -191,8 +201,8 @@ describe('Round 2: v1 vs v2 diff verification', () => {
 });
 
 describe('Round 3: v2 vs v3 disambiguation', () => {
-  it('all four fixtures (v1..v4) pass the XOR checksum at offset 191', () => {
-    for (const fixture of [CONFIG_V1_FIXTURE_BYTES, CONFIG_V2_FIXTURE_BYTES, CONFIG_V3_FIXTURE_BYTES, CONFIG_V4_FIXTURE_BYTES]) {
+  it('all five fixtures (v1..v5) pass the XOR checksum at offset 191', () => {
+    for (const fixture of [CONFIG_V1_FIXTURE_BYTES, CONFIG_V2_FIXTURE_BYTES, CONFIG_V3_FIXTURE_BYTES, CONFIG_V4_FIXTURE_BYTES, CONFIG_V5_FIXTURE_BYTES]) {
       let xor = 0;
       for (let i = 0; i < 191; i++) xor ^= fixture[i];
       expect(xor).toBe(fixture[191]);
@@ -244,14 +254,9 @@ describe('Round 4: v3 vs v4 enum-group diff', () => {
     expect(parseConfigV1(CONFIG_V4_FIXTURE_BYTES).byName.timezone.value).toBe(20);
   });
 
-  it('the four enum candidate bytes were 0 in v1-v3 and changed in v4', () => {
-    const candidates = [
-      'enum_face_mask_or_language_1',
-      'enum_temp_unit_or_tube_5',
-      'enum_face_mask_or_language_6',
-      'enum_temp_unit_or_tube_10',
-    ];
-    for (const name of candidates) {
+  it('the four enum bytes were 0 in v1-v3 and changed in v4', () => {
+    const enumFields = ['language', 'tube_size', 'face_mask', 'temperature_unit'];
+    for (const name of enumFields) {
       for (const v of [CONFIG_V1_FIXTURE_BYTES, CONFIG_V2_FIXTURE_BYTES, CONFIG_V3_FIXTURE_BYTES]) {
         expect(parseConfigV1(v).byName[name].value).toBe(0);
       }
@@ -260,10 +265,40 @@ describe('Round 4: v3 vs v4 enum-group diff', () => {
     }
   });
 
-  it('record_size_marker and reserved_7 stay constant across all four fixtures', () => {
-    for (const fixture of [CONFIG_V1_FIXTURE_BYTES, CONFIG_V2_FIXTURE_BYTES, CONFIG_V3_FIXTURE_BYTES, CONFIG_V4_FIXTURE_BYTES]) {
+  it('record_size_marker and reserved_7 stay constant across all five fixtures', () => {
+    for (const fixture of [CONFIG_V1_FIXTURE_BYTES, CONFIG_V2_FIXTURE_BYTES, CONFIG_V3_FIXTURE_BYTES, CONFIG_V4_FIXTURE_BYTES, CONFIG_V5_FIXTURE_BYTES]) {
       expect(parseConfigV1(fixture).byName.record_size_marker.value).toBe(0xcc);
       expect(parseConfigV1(fixture).byName.reserved_7.value).toBe(0x01);
     }
+  });
+});
+
+describe('Round 5: v4 vs v5 single-variable disambiguation', () => {
+  it('only the 3 expected bytes differ between v4 and v5 fixtures', () => {
+    const diffOffsets: number[] = [];
+    for (let i = 0; i < 192; i++) {
+      if (CONFIG_V4_FIXTURE_BYTES[i] !== CONFIG_V5_FIXTURE_BYTES[i]) diffOffsets.push(i);
+    }
+    expect(diffOffsets).toEqual([6, 10, 191]);
+  });
+
+  it('temperature_unit reverts to 0 at offset 10 (°F -> °C)', () => {
+    expect(parseConfigV1(CONFIG_V4_FIXTURE_BYTES).byName.temperature_unit.value).toBe(1);
+    expect(parseConfigV1(CONFIG_V5_FIXTURE_BYTES).byName.temperature_unit.value).toBe(0);
+  });
+
+  it('face_mask reverts to 0 at offset 6 (鼻枕 -> 鼻罩)', () => {
+    expect(parseConfigV1(CONFIG_V4_FIXTURE_BYTES).byName.face_mask.value).toBe(2);
+    expect(parseConfigV1(CONFIG_V5_FIXTURE_BYTES).byName.face_mask.value).toBe(0);
+  });
+
+  it('tube_size stays at 1 across v4/v5 (identifies offset 5 by elimination)', () => {
+    expect(parseConfigV1(CONFIG_V4_FIXTURE_BYTES).byName.tube_size.value).toBe(1);
+    expect(parseConfigV1(CONFIG_V5_FIXTURE_BYTES).byName.tube_size.value).toBe(1);
+  });
+
+  it('language stays at 2 across v4/v5 (identifies offset 1 by elimination)', () => {
+    expect(parseConfigV1(CONFIG_V4_FIXTURE_BYTES).byName.language.value).toBe(2);
+    expect(parseConfigV1(CONFIG_V5_FIXTURE_BYTES).byName.language.value).toBe(2);
   });
 });
