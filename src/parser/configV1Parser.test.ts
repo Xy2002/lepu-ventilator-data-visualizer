@@ -6,6 +6,7 @@ import {
   CONFIG_V3_FIXTURE_BYTES,
   CONFIG_V4_FIXTURE_BYTES,
   CONFIG_V5_FIXTURE_BYTES,
+  CONFIG_V6_FIXTURE_BYTES,
 } from './configV1Fixtures';
 
 describe('CONFIG_V1_FIELDS', () => {
@@ -142,6 +143,7 @@ describe('summarizeLocked', () => {
       'temperature_unit',
       'high_pressure_alarm',
       'timezone',
+      'delay_time_minutes',
       'humidifier_level',
       'ipap_sensitivity',
       'rise_rate',
@@ -201,8 +203,8 @@ describe('Round 2: v1 vs v2 diff verification', () => {
 });
 
 describe('Round 3: v2 vs v3 disambiguation', () => {
-  it('all five fixtures (v1..v5) pass the XOR checksum at offset 191', () => {
-    for (const fixture of [CONFIG_V1_FIXTURE_BYTES, CONFIG_V2_FIXTURE_BYTES, CONFIG_V3_FIXTURE_BYTES, CONFIG_V4_FIXTURE_BYTES, CONFIG_V5_FIXTURE_BYTES]) {
+  it('all six fixtures (v1..v6) pass the XOR checksum at offset 191', () => {
+    for (const fixture of [CONFIG_V1_FIXTURE_BYTES, CONFIG_V2_FIXTURE_BYTES, CONFIG_V3_FIXTURE_BYTES, CONFIG_V4_FIXTURE_BYTES, CONFIG_V5_FIXTURE_BYTES, CONFIG_V6_FIXTURE_BYTES]) {
       let xor = 0;
       for (let i = 0; i < 191; i++) xor ^= fixture[i];
       expect(xor).toBe(fixture[191]);
@@ -300,5 +302,30 @@ describe('Round 5: v4 vs v5 single-variable disambiguation', () => {
   it('language stays at 2 across v4/v5 (identifies offset 1 by elimination)', () => {
     expect(parseConfigV1(CONFIG_V4_FIXTURE_BYTES).byName.language.value).toBe(2);
     expect(parseConfigV1(CONFIG_V5_FIXTURE_BYTES).byName.language.value).toBe(2);
+  });
+});
+
+describe('Round 6: v5 vs v6 delay time pinpoint', () => {
+  it('only 2 bytes differ between v5 and v6 (delay_time + checksum)', () => {
+    const diffOffsets: number[] = [];
+    for (let i = 0; i < 192; i++) {
+      if (CONFIG_V5_FIXTURE_BYTES[i] !== CONFIG_V6_FIXTURE_BYTES[i]) diffOffsets.push(i);
+    }
+    expect(diffOffsets).toEqual([97, 191]);
+  });
+
+  it('delay_time_minutes encodes 0 as off and N as N minutes', () => {
+    // v1-v5 all had delay time off
+    for (const v of [CONFIG_V1_FIXTURE_BYTES, CONFIG_V2_FIXTURE_BYTES, CONFIG_V3_FIXTURE_BYTES, CONFIG_V4_FIXTURE_BYTES, CONFIG_V5_FIXTURE_BYTES]) {
+      expect(parseConfigV1(v).byName.delay_time_minutes.value).toBe(0);
+    }
+    // v6 set delay to 10 min
+    expect(parseConfigV1(CONFIG_V6_FIXTURE_BYTES).byName.delay_time_minutes.value).toBe(10);
+  });
+
+  it('offset 99 (previously suspected ramp_time) is constant 20 across all six versions', () => {
+    for (const fixture of [CONFIG_V1_FIXTURE_BYTES, CONFIG_V2_FIXTURE_BYTES, CONFIG_V3_FIXTURE_BYTES, CONFIG_V4_FIXTURE_BYTES, CONFIG_V5_FIXTURE_BYTES, CONFIG_V6_FIXTURE_BYTES]) {
+      expect(parseConfigV1(fixture).byName.unknown_99.value).toBe(20);
+    }
   });
 });

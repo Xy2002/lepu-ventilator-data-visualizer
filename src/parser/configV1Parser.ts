@@ -50,10 +50,10 @@ export const CONFIG_V1_FIELDS: ReadonlyArray<FieldSpec> = [
   { offset: 64, size: 4, type: 'float32LE', name: 'calibration_sensor_coeff',   status: 'inferred' },
 
   // Region 4: uint8 enums (96-111)
-  { offset: 96,  size: 1, type: 'uint8', name: 'therapy_mode_sub',         status: 'inferred', notes: 'v1 = 3 (Auto-S?), unchanged in v2' },
-  { offset: 97,  size: 1, type: 'uint8', name: 'unknown_97',               status: 'unknown' },
+  { offset: 96,  size: 1, type: 'uint8', name: 'therapy_mode_sub',         status: 'inferred', notes: 'v1-v6 = 3 (Auto-S?)' },
+  { offset: 97,  size: 1, type: 'uint8', name: 'delay_time_minutes',      label: '延迟时间', unit: 'min', status: 'diff-verified', notes: 'v1-v5=0 (off), v6=10 (10 min); encoding: 0=off, N=N minutes (no separate switch byte)' },
   { offset: 98,  size: 1, type: 'uint8', name: 'humidifier_level',        label: '湿化水平', status: 'diff-verified', notes: 'v1=1, v2=3; matches UI humidifier 1->3' },
-  { offset: 99,  size: 1, type: 'uint8', name: 'ramp_time_minutes',        status: 'inferred', notes: 'v1=v2=20; UI says ramp off, so this stores duration only; on/off switch lives elsewhere' },
+  { offset: 99,  size: 1, type: 'uint8', name: 'unknown_99',               status: 'unknown', notes: 'v1-v6 constant 20; previously suspected ramp_time_minutes but Round 6 showed delay time is at offset 97 not 99' },
   { offset: 100, size: 1, type: 'uint8', name: 'unknown_100',              status: 'unknown' },
   { offset: 101, size: 1, type: 'uint8', name: 'unknown_101',              status: 'unknown' },
   { offset: 102, size: 1, type: 'uint8', name: 'mask_type',                status: 'inferred', notes: 'v1=v2=0 (nasal mask, unchanged in v2)' },

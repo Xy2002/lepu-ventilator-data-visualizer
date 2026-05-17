@@ -106,10 +106,10 @@
 
 | offset | size | type | name | scale | unit | status | source |
 |---|---|---|---|---|---|---|---|
-| 96  | 1 | uint8 | therapy_mode_sub        | — | enum    | ⚠️ | v1=v2=3（Auto-S?） |
-| 97  | 1 | uint8 | _unknown_97             | — | —       | ❓ | v1=v2=0 |
-| 98  | 1 | uint8 | **humidifier_level**    | — | level   | 🔬 | v1=1, v2=3（Round 2 diff 锁定，匹配 UI 湿化 1→3）|
-| 99  | 1 | uint8 | ramp_time_minutes       | — | minute  | ⚠️ | v1=v2=20；UI 延迟时间=关闭，所以这是时长备份，开关在别处 |
+| 96  | 1 | uint8 | therapy_mode_sub        | — | enum    | ⚠️ | v1-v6=3（Auto-S?） |
+| 97  | 1 | uint8 | **delay_time_minutes**  | — | min     | 🔬 | v1-v5=0 (关闭), v6=10；编码 0=关闭, N=N 分钟（Round 6 单变量锁定）|
+| 98  | 1 | uint8 | **humidifier_level**    | — | level   | 🔬 | v1=1, v2-v6=3（Round 2 diff 锁定）|
+| 99  | 1 | uint8 | _unknown_99             | — | —       | ❓ | v1-v6=20；Round 6 排除：不是延迟时间，可能是出厂常量 |
 | 100 | 1 | uint8 | _unknown_100            | — | enum    | ❓ | v1=v2=2 |
 | 101 | 1 | uint8 | _unknown_101            | — | enum    | ❓ | v1=v2=2 |
 | 102 | 1 | uint8 | mask_type               | — | enum    | ⚠️ | v1=v2=0（鼻罩）|
@@ -159,42 +159,39 @@
 
 ---
 
-## 5. 已锁定字段汇总（Round 1–5）
+## 5. 已锁定字段汇总（Round 1–6）
 
-**✅ Confirmed / 🔬 Diff-verified（共 16 个）**
+**✅ Confirmed / 🔬 Diff-verified（共 17 个）**
 
-| offset | name | v1 → v2 → v3 → v4 → v5 | 来源 |
+| offset | name | v1→v2→v3→v4→v5→v6 | 来源 |
 |---|---|---|---|
-| 1   | language             | 0 → 0 → 0 → 2 → 2          | 🔬 Round 5 |
-| 5   | tube_size            | 0 → 0 → 0 → 1 → 1          | 🔬 Round 5 |
-| 6   | face_mask            | 0 → 0 → 0 → 2 → 0          | 🔬 Round 5 |
-| 10  | temperature_unit     | 0 → 0 → 0 → 1 → 0          | 🔬 Round 5 |
+| 1   | language             | 0→0→0→2→2→2          | 🔬 Round 5 |
+| 5   | tube_size            | 0→0→0→1→1→1          | 🔬 Round 5 |
+| 6   | face_mask            | 0→0→0→2→0→0          | 🔬 Round 5 |
+| 10  | temperature_unit     | 0→0→0→1→0→0          | 🔬 Round 5 |
 | 16  | high_pressure_alarm  | 250（25.0 cmH₂O，unchanged） | ✅ Round 1 |
-| 28  | timezone             | 19 → 19 → 19 → 20 → 20     | 🔬 Round 4 |
-| 98  | humidifier_level     | 1 → 3 → 3 → 3 → 3          | 🔬 Round 2 |
-| 103 | ipap_sensitivity     | 3 → 1 → 2 → 2 → 2          | 🔬 Round 3 |
-| 105 | rise_rate            | 2 → 3 → 3 → 3 → 3          | 🔬 Round 2 |
-| 106 | fall_rate            | 3 → 1 → 1 → 1 → 1          | 🔬 Round 3 |
-| 109 | epap_sensitivity     | 3 → 1 → 3 → 3 → 3          | 🔬 Round 3 |
+| 28  | timezone             | 19→19→19→20→20→20    | 🔬 Round 4 |
+| 97  | delay_time_minutes   | 0→0→0→0→0→10         | 🔬 Round 6 |
+| 98  | humidifier_level     | 1→3→3→3→3→3          | 🔬 Round 2 |
+| 103 | ipap_sensitivity     | 3→1→2→2→2→2          | 🔬 Round 3 |
+| 105 | rise_rate            | 2→3→3→3→3→3          | 🔬 Round 2 |
+| 106 | fall_rate            | 3→1→1→1→1→1          | 🔬 Round 3 |
+| 109 | epap_sensitivity     | 3→1→3→3→3→3          | 🔬 Round 3 |
 | 132 | epap_max             | 14.0 cmH₂O（unchanged）       | ✅ Round 1 |
 | 136 | epap_min             | 7.0 cmH₂O（unchanged）        | ✅ Round 1 |
 | 140 | pressure_support     | 3.0 cmH₂O（unchanged）        | ✅ Round 1 |
 | 169 | backlight_seconds    | 60 秒（unchanged）            | ✅ Round 1 |
-| 191 | payload_xor_checksum | 0xB7→0xB6→0xB7→0xB0→0xB3   | ✅ Round 2（数学验证） |
+| 191 | payload_xor_checksum | 0xB7→0xB6→0xB7→0xB0→0xB3→0xB9 | ✅ Round 2（数学验证） |
 
 ---
 
 ## 6. 矛盾与未解决问题
 
-按优先级降序：
+1. ~~**延迟时间开关位置**~~：✅ Round 6 解决 — 延迟时间在 **offset 97**，编码 0=关闭, N=N 分钟（无独立开关位）。原推测 offset 99/182 不是延迟时间，是别的常量。
 
-1. **延迟时间开关位置**：记录"延迟时间=关闭"，但 offset 99 = 20 且 offset 182 = 20。旧分析将 99/182 都解读为 "ramp time 20 分钟"。
-   - 假设：UI 上"延迟时间"是开关，"20 分钟"是配置值；开关字节在别处（可能是 offset 97/100/105/106 等中的某个）。
-   - 验证方案：第三轮单变量——把"延迟时间"切到 10 分钟，再切回关闭，观察哪个字节随开关变化、哪个字节随时长变化。
+2. ~~**湿化水平字段位置**~~：✅ Round 2 解决 — 湿化水平在 offset 98（不在 offset 101）。
 
-2. ~~**湿化水平字段位置**~~：✅ Round 2 解决 — 湿化水平在 offset 98（不在 offset 101），diff 验证通过（1→3）。
-
-3. ~~**呼气舒适度（EPR）开关**~~：⚠️ Round 1 推测的 offset 98 是错的（98 实为湿化水平）。EPR 真实位置仍未知，需后续单变量轮次定位。
+3. **呼气舒适度（EPR）开关位置未知**：用户记录"呼气舒适度=关闭"。Round 1-6 未触及此 UI 参数。如需定位，运行 Round 7：把呼气舒适度从"关闭"切到任一开启等级。
 
 4. **起始压力定位**：记录"起始压力=4.0"，但旧分析定位的 offset 164 = 3.0。
    - 假设：旧分析定位错误。
@@ -288,6 +285,18 @@
 
 锁定字段累计：12（R1-R4）+ 4（R5）= **16 个**。
 
+### Round 6 — `config_v6.bin` (2026-05-18)
+
+**改动**（在 v5 基础上）：延迟时间 关闭→10min。其他全部保持 v5。
+
+**diff 结果**：仅 2 字节变化 = 1 个 UI 改动 + 1 个校验和。
+
+- 🔬 锁定字段 (1)：
+  - **offset 97 = delay_time_minutes**（v1-v5=0=关闭，v6=10=10 分钟；编码就是直接的分钟数，**没有独立 on/off 开关字节**）
+- ⚠️ Round 1 推测再次纠正：原以为 offset 99 = `ramp_time_minutes`（基于旧 EDF 分析数值=20），但 v1-v6 中 offset 99 始终保持 20、不随 UI 变化。重命名为 `unknown_99`，可能是出厂常量。
+
+锁定字段累计：16（R1-R5）+ 1（R6）= **17 个**。
+
 ---
 
 ## 8. 后续轮次计划
@@ -308,9 +317,9 @@
 
 **预期 diff 字节数**：5 个独立字段 → 至少 5 个字节变化；如果某些参数在 v1 中同时显示于"用户设定"和"治疗设置"两区且共享底层字段，diff 字节数应仍为 5；若是独立字段，可能有更多变化。
 
-### Round 6 (v6) — A 法精确定位"延迟时间"开关
+### Round 7（可选）— 定位"呼气舒适度 / EPR"开关
 
-只改延迟时间：关闭 → 10 分钟。其他全部保持 v5 状态。预期 1-2 字节变化 + offset 191 重算，能精确锁定"延迟时间开关字节"和"延迟时长字节"。
+如果需要继续，下一步可以单变量改：呼气舒适度 关闭→某个等级。预期 1-2 字节变化 + 校验和重算，能精确锁定 EPR 字段。这是最后一个未定位的 UI 开关。
 
 ---
 
