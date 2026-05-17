@@ -39,7 +39,7 @@ export const CONFIG_V1_FIELDS: ReadonlyArray<FieldSpec> = [
   { offset: 19, size: 1, type: 'uint8',     name: 'reserved_19',        status: 'reserved', notes: 'v1-v11=0; high byte of what Round 1 thought was uint16LE unknown_18' },
   { offset: 20, size: 2, type: 'uint16LE',  name: 'unknown_20',         status: 'unknown' },
   { offset: 28, size: 2, type: 'uint16LE',  name: 'timezone',           label: '时区', status: 'diff-verified', notes: 'v1=19 (UTC+8), v4=20 (UTC+9); encoding: value = UTC_offset + 11' },
-  { offset: 32, size: 2, type: 'uint16LE',  name: 'therapy_mode_primary', status: 'inferred', notes: 'v1-v4=2; Auto-S?' },
+  { offset: 32, size: 2, type: 'uint16LE',  name: 'unknown_32',         status: 'unknown', notes: 'v1-v12 constant=2; Round 1 wrongly inferred as therapy_mode_primary, but Round 12 located therapy_mode at offset 96' },
   { offset: 34, size: 2, type: 'uint16LE',  name: 'unknown_34',         status: 'unknown' },
   { offset: 36, size: 2, type: 'uint16LE',  name: 'unknown_36',         status: 'unknown' },
 
@@ -53,7 +53,7 @@ export const CONFIG_V1_FIELDS: ReadonlyArray<FieldSpec> = [
   { offset: 64, size: 4, type: 'float32LE', name: 'calibration_sensor_coeff',   status: 'inferred' },
 
   // Region 4: uint8 enums (96-111)
-  { offset: 96,  size: 1, type: 'uint8', name: 'therapy_mode_sub',         status: 'inferred', notes: 'v1-v6 = 3 (Auto-S?)' },
+  { offset: 96,  size: 1, type: 'uint8', name: 'therapy_mode',            label: '治疗模式', status: 'diff-verified', notes: 'v1-v11=3 (Auto-S), v12=0 (CPAP); Round 12 locked. Encoding: 0=CPAP, 3=Auto-S (other modes unsampled)' },
   { offset: 97,  size: 1, type: 'uint8', name: 'delay_time_minutes',      label: '延迟时间', unit: 'min', status: 'diff-verified', notes: 'v1-v5=0 (off), v6=10 (10 min), v7=0 (user reverted between Round 6 and Round 7, forgot to record); encoding: 0=off, N=N minutes (no separate switch byte)' },
   { offset: 98,  size: 1, type: 'uint8', name: 'humidifier_level',        label: '湿化水平', status: 'diff-verified', notes: 'v1=1, v2=3; matches UI humidifier 1->3' },
   { offset: 99,  size: 1, type: 'uint8', name: 'unknown_99',               status: 'unknown', notes: 'v1-v6 constant 20; previously suspected ramp_time_minutes but Round 6 showed delay time is at offset 97 not 99' },

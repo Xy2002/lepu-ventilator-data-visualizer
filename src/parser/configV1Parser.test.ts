@@ -12,6 +12,7 @@ import {
   CONFIG_V9_FIXTURE_BYTES,
   CONFIG_V10_FIXTURE_BYTES,
   CONFIG_V11_FIXTURE_BYTES,
+  CONFIG_V12_FIXTURE_BYTES,
 } from './configV1Fixtures';
 
 describe('CONFIG_V1_FIELDS', () => {
@@ -153,6 +154,7 @@ describe('summarizeLocked', () => {
       'high_pressure_alarm',
       'low_pressure_alarm',
       'timezone',
+      'therapy_mode',
       'delay_time_minutes',
       'humidifier_level',
       'epr_level',
@@ -215,8 +217,8 @@ describe('Round 2: v1 vs v2 diff verification', () => {
 });
 
 describe('Round 3: v2 vs v3 disambiguation', () => {
-  it('all eleven fixtures (v1..v11) pass the XOR checksum at offset 191', () => {
-    for (const fixture of [CONFIG_V1_FIXTURE_BYTES, CONFIG_V2_FIXTURE_BYTES, CONFIG_V3_FIXTURE_BYTES, CONFIG_V4_FIXTURE_BYTES, CONFIG_V5_FIXTURE_BYTES, CONFIG_V6_FIXTURE_BYTES, CONFIG_V7_FIXTURE_BYTES, CONFIG_V8_FIXTURE_BYTES, CONFIG_V9_FIXTURE_BYTES, CONFIG_V10_FIXTURE_BYTES, CONFIG_V11_FIXTURE_BYTES]) {
+  it('all twelve fixtures (v1..v12) pass the XOR checksum at offset 191', () => {
+    for (const fixture of [CONFIG_V1_FIXTURE_BYTES, CONFIG_V2_FIXTURE_BYTES, CONFIG_V3_FIXTURE_BYTES, CONFIG_V4_FIXTURE_BYTES, CONFIG_V5_FIXTURE_BYTES, CONFIG_V6_FIXTURE_BYTES, CONFIG_V7_FIXTURE_BYTES, CONFIG_V8_FIXTURE_BYTES, CONFIG_V9_FIXTURE_BYTES, CONFIG_V10_FIXTURE_BYTES, CONFIG_V11_FIXTURE_BYTES, CONFIG_V12_FIXTURE_BYTES]) {
       let xor = 0;
       for (let i = 0; i < 191; i++) xor ^= fixture[i];
       expect(xor).toBe(fixture[191]);
@@ -438,5 +440,28 @@ describe('Round 11: v10 vs v11 screen_saver + low_pressure_alarm + indicator sel
   it('low_pressure_alarm at offset 18 flips 1 -> 0 (matches UI 开启 -> 关闭)', () => {
     expect(parseConfigV1(CONFIG_V10_FIXTURE_BYTES).byName.low_pressure_alarm.value).toBe(1);
     expect(parseConfigV1(CONFIG_V11_FIXTURE_BYTES).byName.low_pressure_alarm.value).toBe(0);
+  });
+});
+
+describe('Round 12: v11 vs v12 therapy_mode', () => {
+  it('only 2 bytes differ (therapy_mode + checksum) — no pressure floats touched', () => {
+    const diffOffsets: number[] = [];
+    for (let i = 0; i < 192; i++) {
+      if (CONFIG_V11_FIXTURE_BYTES[i] !== CONFIG_V12_FIXTURE_BYTES[i]) diffOffsets.push(i);
+    }
+    expect(diffOffsets).toEqual([96, 191]);
+  });
+
+  it('therapy_mode at offset 96 changes 3 (Auto-S) -> 0 (CPAP)', () => {
+    expect(parseConfigV1(CONFIG_V11_FIXTURE_BYTES).byName.therapy_mode.value).toBe(3);
+    expect(parseConfigV1(CONFIG_V12_FIXTURE_BYTES).byName.therapy_mode.value).toBe(0);
+  });
+
+  it('all treatment-pressure floats stay unchanged across the Auto-S -> CPAP switch', () => {
+    const v11 = parseConfigV1(CONFIG_V11_FIXTURE_BYTES);
+    const v12 = parseConfigV1(CONFIG_V12_FIXTURE_BYTES);
+    for (const name of ['epap_max', 'epap_min', 'pressure_support', 'ramp_start_pressure']) {
+      expect(v11.byName[name].value).toBeCloseTo(v12.byName[name].value as number, 5);
+    }
   });
 });

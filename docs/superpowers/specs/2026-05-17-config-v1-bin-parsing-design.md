@@ -81,7 +81,7 @@
 | 19 | 1 | uint8    | reserved_19            | — | —   | 🟨 | v1-v11 = 0 |
 | 20 | 2 | uint16LE | _unknown_20            | — | —   | ❓ | v1-v4 = 256 |
 | 28 | 2 | uint16LE | **timezone**           | — | enum | 🔬 | v1=19 (UTC+8), v4=20 (UTC+9)；编码 value = UTC_offset + 11 |
-| 32 | 2 | uint16LE | therapy_mode_primary   | — | enum | ⚠️ | v1-v4 = 2（Auto-S?） |
+| 32 | 2 | uint16LE | _unknown_32            | — | —    | ❓ | v1-v12=2；原推测 therapy_mode_primary 错的（therapy_mode 在 offset 96）|
 | 34 | 2 | uint16LE | _unknown_34            | — | —   | ❓ | v1-v4 = 14 |
 | 36 | 2 | uint16LE | _unknown_36            | — | —   | ❓ | v1-v4 = 13 |
 
@@ -109,7 +109,7 @@
 
 | offset | size | type | name | scale | unit | status | source |
 |---|---|---|---|---|---|---|---|
-| 96  | 1 | uint8 | therapy_mode_sub        | — | enum    | ⚠️ | v1-v6=3（Auto-S?） |
+| 96  | 1 | uint8 | **therapy_mode**        | — | enum    | 🔬 | v1-v11=3 (Auto-S), v12=0 (CPAP)；Round 12 锁定 |
 | 97  | 1 | uint8 | **delay_time_minutes**  | — | min     | 🔬 | v1-v5=0 (关闭), v6=10；编码 0=关闭, N=N 分钟（Round 6 单变量锁定）|
 | 98  | 1 | uint8 | **humidifier_level**    | — | level   | 🔬 | v1=1, v2-v6=3（Round 2 diff 锁定）|
 | 99  | 1 | uint8 | _unknown_99             | — | —       | ❓ | v1-v6=20；Round 6 排除：不是延迟时间，可能是出厂常量 |
@@ -162,16 +162,17 @@
 
 ---
 
-## 5. 已锁定字段汇总（Round 1–11）
+## 5. 已锁定字段汇总（Round 1–12）
 
-**✅ Confirmed / 🔬 Diff-verified（共 24 个）**
+**✅ Confirmed / 🔬 Diff-verified（共 25 个）— 所有用户可调 UI 参数已全部锁定**
 
 | offset | name | v1→v2→v3→v4→v5→v6 | 来源 |
 |---|---|---|---|
 | 1   | language             | 0→0→0→2→2→2→2→2→2→0  | 🔬 Round 5 |
 | 2   | indicator_light      | 0→0→0→0→0→0→0→0→0→1→0 | 🔬 Round 10 |
 | 4   | screen_saver         | 0→0→0→0→0→0→0→0→0→0→1 | 🔬 Round 11 |
-| 18  | low_pressure_alarm   | 1→1→1→1→1→1→1→1→1→1→0 | 🔬 Round 11 |
+| 18  | low_pressure_alarm   | 1→1→1→1→1→1→1→1→1→1→0→0 | 🔬 Round 11 |
+| 96  | therapy_mode         | 3→3→3→3→3→3→3→3→3→3→3→0 | 🔬 Round 12 |
 | 5   | tube_size            | 0→0→0→1→1→1          | 🔬 Round 5 |
 | 6   | face_mask            | 0→0→0→2→0→0→0→0      | 🔬 Round 5 |
 | 7   | smart_start          | 1→1→1→1→1→1→1→0→0    | 🔬 Round 8 |
@@ -377,6 +378,20 @@
 
 锁定字段累计：22（R1-R10）+ 2（R11）= **24 个**。
 
+### Round 12 — `config_v12.bin` (2026-05-18) — **最终 UI 参数**
+
+**改动**（在 v11 基础上）：治疗模式 Auto-S → CPAP。
+
+**diff 结果**：仅 2 字节变化 = 1 个 UI 改动 + 1 个校验和。**所有治疗压力 float（epap_max/min, PS, ramp_start）保持不变**，证明治疗模式只是个"选择器"，不会自动重置其他配置。
+
+- 🔬 锁定字段 (1)：
+  - **offset 96 = therapy_mode**（编码 0=CPAP, 3=Auto-S；其他模式如 BiPAP/CPAP-S 等尚未采样）
+- ⚠️ 推断纠正：原 offset 32 (uint16LE = 2) 被 Round 1 推测为 `therapy_mode_primary`，但 v1-v12 全是 2，从未跟随 UI 变化。降级为 `unknown_32`。
+
+锁定字段累计：24（R1-R11）+ 1（R12）= **25 个**。
+
+🎉 **所有 25 个用户可调 UI 参数已全部锁定**。剩下的 unknown_* 字节都不响应任何 UI 操作（推测为出厂常量/校准值/未启用功能位）。
+
 ---
 
 ## 8. 后续轮次计划
@@ -397,23 +412,14 @@
 
 **预期 diff 字节数**：5 个独立字段 → 至少 5 个字节变化；如果某些参数在 v1 中同时显示于"用户设定"和"治疗设置"两区且共享底层字段，diff 字节数应仍为 5；若是独立字段，可能有更多变化。
 
-### Round 8（可选）— 治疗模式 + 智能启动/停止
+### 所有计划轮次已完成（Round 1–12）
 
-| 参数 | 当前 | 目标 |
-|---|---|---|
-| 治疗模式 | Auto-S | **切换到 CPAP 或 BiPAP** |
-| 智能启动 | 开启 | **关闭** |
-| 智能停止 | 开启 | **关闭** |
+所有用户可调 UI 参数已 diff-verified。未来如需进一步研究：
 
-预期：治疗模式变化可能多个 uint16 字节变化（offset 32 / 96）；智能启动/停止应各占 1 uint8 字节。
-
-### Round 9（可选）— 指示灯 / 屏保 / 低气道压力报警
-
-| 参数 | 当前 | 目标 |
-|---|---|---|
-| 指示灯 | 关闭 | **开启** |
-| 屏保 | 关闭 | **任一时长** |
-| 低气道压力报警 | 开启 | **关闭** |
+- **采样治疗模式枚举**：当前只有 0 (CPAP) 和 3 (Auto-S) 两个值。可以试 BiPAP、CPAP-S 等其他模式以补全编码。
+- **校准 float（offset 40-67, 7 个）**：v1-v12 全部恒定，没有 UI 暴露。可能是出厂校准。
+- **区域 5 中其余未识别 float（offset 112-128, 148-164）**：可能是各模式独立的最大/最小压力配置项，可以通过切换治疗模式 + 改压力来探测。
+- **未知 uint8（offset 100, 101, 104, 107, 110, 111 等）**：v1-v12 全部恒定，目前没有线索。
 
 ---
 
