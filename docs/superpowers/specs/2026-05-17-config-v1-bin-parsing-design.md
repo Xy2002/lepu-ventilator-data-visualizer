@@ -249,7 +249,7 @@
 
 ### 模块位置
 
-`src/lib/configV1Parser.ts`（零依赖，仅用 DataView）
+`src/parser/configV1Parser.ts`（零依赖，仅用 DataView；与现有 `edfParser.ts` 同目录）
 
 ### API
 
@@ -289,7 +289,7 @@ export function parseConfigV1(buf: ArrayBuffer | Uint8Array): ConfigV1;
 
 - 模块零依赖（不引入 React / 任何 UI 类型）
 - 字段定义集中在 `CONFIG_V1_FIELDS` 数组，`parseConfigV1` 由它驱动——字段表更新只改一个地方
-- 提供 fixture 测试 `src/lib/configV1Parser.test.ts`，断言 v1 五个 ✅ 字段值正确
+- 提供 fixture 测试 `src/parser/configV1Parser.test.ts`，断言 v1 五个 ✅ 字段值正确
 
 ### 不做（本设计范围外）
 
