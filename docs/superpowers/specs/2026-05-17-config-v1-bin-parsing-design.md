@@ -110,9 +110,9 @@
 | 97  | 1 | uint8 | **delay_time_minutes**  | — | min     | 🔬 | v1-v5=0 (关闭), v6=10；编码 0=关闭, N=N 分钟（Round 6 单变量锁定）|
 | 98  | 1 | uint8 | **humidifier_level**    | — | level   | 🔬 | v1=1, v2-v6=3（Round 2 diff 锁定）|
 | 99  | 1 | uint8 | _unknown_99             | — | —       | ❓ | v1-v6=20；Round 6 排除：不是延迟时间，可能是出厂常量 |
-| 100 | 1 | uint8 | _unknown_100            | — | enum    | ❓ | v1=v2=2 |
-| 101 | 1 | uint8 | _unknown_101            | — | enum    | ❓ | v1=v2=2 |
-| 102 | 1 | uint8 | mask_type               | — | enum    | ⚠️ | v1=v2=0（鼻罩）|
+| 100 | 1 | uint8 | _unknown_100            | — | enum    | ❓ | v1-v7=2 |
+| 101 | 1 | uint8 | _unknown_101            | — | enum    | ❓ | v1-v7=2 |
+| 102 | 1 | uint8 | **epr_level**           | — | level   | 🔬 | v1-v6=0 (关闭), v7=1（Round 7 锁定；原推测 mask_type 是错的，face_mask 在 offset 6）|
 | 103 | 1 | uint8 | **ipap_sensitivity**    | — | level   | 🔬 | v2=1, v3=2（Round 3 唯一 +1 变化）|
 | 104 | 1 | uint8 | auto_start              | — | bool    | ⚠️ | v1=v2=v3=1（智能启动开）|
 | 105 | 1 | uint8 | **rise_rate**           | — | level   | 🔬 | v1=2, v2=v3=3（Round 2）|
@@ -135,7 +135,7 @@
 | 132 | 4 | float32LE | **epap_max**      | — | cmH₂O | ✅ | config_v1 + 记录（14.0）|
 | 136 | 4 | float32LE | **epap_min**      | — | cmH₂O | ✅ | config_v1 + 记录（7.0）|
 | 140 | 4 | float32LE | **pressure_support** | — | cmH₂O | ✅ | config_v1 + 记录（3.0）|
-| 144 | 4 | float32LE | _unknown_144      | — | cmH₂O | ❓ | v1 = 4.0  |
+| 144 | 4 | float32LE | **ramp_start_pressure** | — | cmH₂O | 🔬 | v1-v6=4.0, v7=6.0（Round 7 锁定起始压力）|
 | 148 | 4 | float32LE | _unknown_148      | — | cmH₂O | ❓ | v1 = 10.0 |
 | 152 | 4 | float32LE | _unknown_152      | — | cmH₂O | ❓ | v1 = 4.0  |
 | 156 | 4 | float32LE | _unknown_156      | — | cmH₂O | ❓ | v1 = 10.0 |
@@ -159,9 +159,9 @@
 
 ---
 
-## 5. 已锁定字段汇总（Round 1–6）
+## 5. 已锁定字段汇总（Round 1–7）
 
-**✅ Confirmed / 🔬 Diff-verified（共 17 个）**
+**✅ Confirmed / 🔬 Diff-verified（共 19 个）**
 
 | offset | name | v1→v2→v3→v4→v5→v6 | 来源 |
 |---|---|---|---|
@@ -176,8 +176,10 @@
 | 103 | ipap_sensitivity     | 3→1→2→2→2→2          | 🔬 Round 3 |
 | 105 | rise_rate            | 2→3→3→3→3→3          | 🔬 Round 2 |
 | 106 | fall_rate            | 3→1→1→1→1→1          | 🔬 Round 3 |
+| 102 | epr_level            | 0→0→0→0→0→0→1        | 🔬 Round 7 |
 | 109 | epap_sensitivity     | 3→1→3→3→3→3          | 🔬 Round 3 |
 | 132 | epap_max             | 14.0 cmH₂O（unchanged）       | ✅ Round 1 |
+| 144 | ramp_start_pressure  | 4.0→4.0→4.0→4.0→4.0→4.0→6.0 | 🔬 Round 7 |
 | 136 | epap_min             | 7.0 cmH₂O（unchanged）        | ✅ Round 1 |
 | 140 | pressure_support     | 3.0 cmH₂O（unchanged）        | ✅ Round 1 |
 | 169 | backlight_seconds    | 60 秒（unchanged）            | ✅ Round 1 |
@@ -191,7 +193,7 @@
 
 2. ~~**湿化水平字段位置**~~：✅ Round 2 解决 — 湿化水平在 offset 98（不在 offset 101）。
 
-3. **呼气舒适度（EPR）开关位置未知**：用户记录"呼气舒适度=关闭"。Round 1-6 未触及此 UI 参数。如需定位，运行 Round 7：把呼气舒适度从"关闭"切到任一开启等级。
+3. ~~**呼气舒适度（EPR）开关位置未知**~~：✅ Round 7 解决 — EPR 在 **offset 102**（编码 0=关闭, N=等级）。同时纠正了 Round 1 把 offset 102 误标为 mask_type 的错误。
 
 4. **起始压力定位**：记录"起始压力=4.0"，但旧分析定位的 offset 164 = 3.0。
    - 假设：旧分析定位错误。
@@ -297,6 +299,22 @@
 
 锁定字段累计：16（R1-R5）+ 1（R6）= **17 个**。
 
+### Round 7 — `config_v7.bin` (2026-05-18)
+
+**改动**（在 v6 基础上）：呼气舒适度 关闭→1、起始压力 4.0→6.0。
+
+> 副作用：v7 中 byte 97 (`delay_time_minutes`) 从 10 变回 0。用户记录未提及，按"用户漏记，顺手关掉了延迟时间"处理（也可能是设备改 EPR 时的自动复位行为，但本轮无法区分）。
+
+**diff 结果**：4 字节变化 = 1 (EPR) + 1 (float mantissa) + 1 (delay 副作用) + 1 (校验和)。
+
+- 🔬 锁定字段 (2)：
+  - **offset 102 = epr_level**（呼气舒适度，0→1；纠正 Round 1 错误推测的 mask_type）
+  - **offset 144 = ramp_start_pressure**（float32，4.0→6.0；IEEE 754 实际只有 1 个尾数字节变化）
+- ⚠️ 副效应：byte 97 (delay_time) 从 10→0 — 不影响已锁定的 delay_time_minutes 结论
+- ✅ 校验和 v7 上 `XOR(bytes[0..190]) == byte[191] == 0xF2`，连续 7 文件全通过
+
+锁定字段累计：17（R1-R6）+ 2（R7）= **19 个**。
+
 ---
 
 ## 8. 后续轮次计划
@@ -317,9 +335,23 @@
 
 **预期 diff 字节数**：5 个独立字段 → 至少 5 个字节变化；如果某些参数在 v1 中同时显示于"用户设定"和"治疗设置"两区且共享底层字段，diff 字节数应仍为 5；若是独立字段，可能有更多变化。
 
-### Round 7（可选）— 定位"呼气舒适度 / EPR"开关
+### Round 8（可选）— 治疗模式 + 智能启动/停止
 
-如果需要继续，下一步可以单变量改：呼气舒适度 关闭→某个等级。预期 1-2 字节变化 + 校验和重算，能精确锁定 EPR 字段。这是最后一个未定位的 UI 开关。
+| 参数 | 当前 | 目标 |
+|---|---|---|
+| 治疗模式 | Auto-S | **切换到 CPAP 或 BiPAP** |
+| 智能启动 | 开启 | **关闭** |
+| 智能停止 | 开启 | **关闭** |
+
+预期：治疗模式变化可能多个 uint16 字节变化（offset 32 / 96）；智能启动/停止应各占 1 uint8 字节。
+
+### Round 9（可选）— 指示灯 / 屏保 / 低气道压力报警
+
+| 参数 | 当前 | 目标 |
+|---|---|---|
+| 指示灯 | 关闭 | **开启** |
+| 屏保 | 关闭 | **任一时长** |
+| 低气道压力报警 | 开启 | **关闭** |
 
 ---
 

@@ -7,6 +7,7 @@ import {
   CONFIG_V4_FIXTURE_BYTES,
   CONFIG_V5_FIXTURE_BYTES,
   CONFIG_V6_FIXTURE_BYTES,
+  CONFIG_V7_FIXTURE_BYTES,
 } from './configV1Fixtures';
 
 describe('CONFIG_V1_FIELDS', () => {
@@ -145,6 +146,7 @@ describe('summarizeLocked', () => {
       'timezone',
       'delay_time_minutes',
       'humidifier_level',
+      'epr_level',
       'ipap_sensitivity',
       'rise_rate',
       'fall_rate',
@@ -152,6 +154,7 @@ describe('summarizeLocked', () => {
       'epap_max',
       'epap_min',
       'pressure_support',
+      'ramp_start_pressure',
       'backlight_seconds',
       'payload_xor_checksum',
     ]);
@@ -203,8 +206,8 @@ describe('Round 2: v1 vs v2 diff verification', () => {
 });
 
 describe('Round 3: v2 vs v3 disambiguation', () => {
-  it('all six fixtures (v1..v6) pass the XOR checksum at offset 191', () => {
-    for (const fixture of [CONFIG_V1_FIXTURE_BYTES, CONFIG_V2_FIXTURE_BYTES, CONFIG_V3_FIXTURE_BYTES, CONFIG_V4_FIXTURE_BYTES, CONFIG_V5_FIXTURE_BYTES, CONFIG_V6_FIXTURE_BYTES]) {
+  it('all seven fixtures (v1..v7) pass the XOR checksum at offset 191', () => {
+    for (const fixture of [CONFIG_V1_FIXTURE_BYTES, CONFIG_V2_FIXTURE_BYTES, CONFIG_V3_FIXTURE_BYTES, CONFIG_V4_FIXTURE_BYTES, CONFIG_V5_FIXTURE_BYTES, CONFIG_V6_FIXTURE_BYTES, CONFIG_V7_FIXTURE_BYTES]) {
       let xor = 0;
       for (let i = 0; i < 191; i++) xor ^= fixture[i];
       expect(xor).toBe(fixture[191]);
@@ -323,9 +326,34 @@ describe('Round 6: v5 vs v6 delay time pinpoint', () => {
     expect(parseConfigV1(CONFIG_V6_FIXTURE_BYTES).byName.delay_time_minutes.value).toBe(10);
   });
 
-  it('offset 99 (previously suspected ramp_time) is constant 20 across all six versions', () => {
-    for (const fixture of [CONFIG_V1_FIXTURE_BYTES, CONFIG_V2_FIXTURE_BYTES, CONFIG_V3_FIXTURE_BYTES, CONFIG_V4_FIXTURE_BYTES, CONFIG_V5_FIXTURE_BYTES, CONFIG_V6_FIXTURE_BYTES]) {
+  it('offset 99 (previously suspected ramp_time) is constant 20 across all seven versions', () => {
+    for (const fixture of [CONFIG_V1_FIXTURE_BYTES, CONFIG_V2_FIXTURE_BYTES, CONFIG_V3_FIXTURE_BYTES, CONFIG_V4_FIXTURE_BYTES, CONFIG_V5_FIXTURE_BYTES, CONFIG_V6_FIXTURE_BYTES, CONFIG_V7_FIXTURE_BYTES]) {
       expect(parseConfigV1(fixture).byName.unknown_99.value).toBe(20);
     }
+  });
+});
+
+describe('Round 7: v6 vs v7 EPR + ramp_start_pressure', () => {
+  it('exactly 4 bytes differ between v6 and v7 (epr + 1 mantissa byte of float + checksum + side-effect on delay)', () => {
+    const diffOffsets: number[] = [];
+    for (let i = 0; i < 192; i++) {
+      if (CONFIG_V6_FIXTURE_BYTES[i] !== CONFIG_V7_FIXTURE_BYTES[i]) diffOffsets.push(i);
+    }
+    expect(diffOffsets).toEqual([97, 102, 146, 191]);
+  });
+
+  it('epr_level changes 0 -> 1 at offset 102 (matches UI 关闭 -> 1)', () => {
+    expect(parseConfigV1(CONFIG_V6_FIXTURE_BYTES).byName.epr_level.value).toBe(0);
+    expect(parseConfigV1(CONFIG_V7_FIXTURE_BYTES).byName.epr_level.value).toBe(1);
+  });
+
+  it('ramp_start_pressure changes 4.0 -> 6.0 at offset 144 (float32)', () => {
+    expect(parseConfigV1(CONFIG_V6_FIXTURE_BYTES).byName.ramp_start_pressure.value).toBeCloseTo(4.0, 5);
+    expect(parseConfigV1(CONFIG_V7_FIXTURE_BYTES).byName.ramp_start_pressure.value).toBeCloseTo(6.0, 5);
+  });
+
+  it('delay_time_minutes reverts 10 -> 0 in v7 (likely user side-effect, not parser issue)', () => {
+    expect(parseConfigV1(CONFIG_V6_FIXTURE_BYTES).byName.delay_time_minutes.value).toBe(10);
+    expect(parseConfigV1(CONFIG_V7_FIXTURE_BYTES).byName.delay_time_minutes.value).toBe(0);
   });
 });
