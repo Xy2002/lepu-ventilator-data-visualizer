@@ -1,5 +1,5 @@
 import { downloadCsv, exportEventsCsv, exportWaveformCsv } from '../data/csv';
-import { parseBa525Config, summarizeLocked } from '../parser/ba525ConfigParser';
+import { type Ba525ConfigRecord, parseBa525ConfigRecords } from '../parser/ba525ConfigParser';
 import type { EventRecord, ParsedVentilatorFile } from '../types';
 
 interface RawFileBrowserProps {
@@ -82,40 +82,60 @@ function exportFile(file: ParsedVentilatorFile) {
   }
 }
 
+function ConfigRecordTable({ record }: { record: Ba525ConfigRecord }) {
+  return (
+    <table className="config-table">
+      <thead>
+        <tr>
+          <th>参数</th>
+          <th>值</th>
+          <th>状态</th>
+        </tr>
+      </thead>
+      <tbody>
+        {record.locked.map((entry) => (
+          <tr key={entry.name}>
+            <td>{entry.label}</td>
+            <td>{entry.display}</td>
+            <td>
+              <span className={`config-status config-status--${entry.status}`}>
+                {entry.status === 'confirmed' ? '已确认' : '交叉验证'}
+              </span>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 function ConfigDetail({ file }: { file: ParsedVentilatorFile }) {
-  let parsed;
+  let records: Ba525ConfigRecord[];
   try {
-    parsed = parseBa525Config(file.rawPayload);
+    records = parseBa525ConfigRecords(file.rawPayload);
   } catch {
     return <p className="warning">无法解析 BA525 配置（payload 不是 192 字节或格式不匹配）</p>;
   }
 
-  const locked = summarizeLocked(parsed);
+  const multiple = records.length > 1;
 
   return (
     <div className="config-detail">
-      <table className="config-table">
-        <thead>
-          <tr>
-            <th>参数</th>
-            <th>值</th>
-            <th>状态</th>
-          </tr>
-        </thead>
-        <tbody>
-          {locked.map((entry) => (
-            <tr key={entry.name}>
-              <td>{entry.label}</td>
-              <td>{entry.display}</td>
-              <td>
-                <span className={`config-status config-status--${entry.status}`}>
-                  {entry.status === 'confirmed' ? '已确认' : '交叉验证'}
-                </span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {records.map((record) => (
+        <div key={record.index} className="config-record">
+          <div className="config-record-header">
+            <span className="config-record-index">#{record.index + 1}</span>
+            {record.timestamp ? (
+              <span className="config-record-time">{record.timestamp}</span>
+            ) : null}
+          </div>
+          {multiple && record.index > 0 && records[0].locked.every((e, i) => e.display === record.locked[i]?.display) ? (
+            <p className="config-record-same">配置与 #1 相同</p>
+          ) : (
+            <ConfigRecordTable record={record} />
+          )}
+        </div>
+      ))}
     </div>
   );
 }

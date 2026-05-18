@@ -253,3 +253,48 @@ export function summarizeLocked(parsed: Ba525Config): LockedSummaryEntry[] {
       status: f.spec.status as 'confirmed' | 'diff-verified',
     }));
 }
+
+const TIMESTAMP_BYTES = 8;
+
+function parseTimestamp(raw: Uint8Array): string | null {
+  if (raw.length < TIMESTAMP_BYTES) return null;
+  const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
+  const year = view.getUint16(0, true);
+  const month = raw[2];
+  const day = raw[3];
+  const hour = raw[5];
+  const minute = raw[6];
+  const second = raw[7];
+  if (year < 1900 || year > 2200 || month < 1 || month > 12 || day < 1 || day > 31) return null;
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`;
+}
+
+export interface Ba525ConfigRecord {
+  index: number;
+  timestamp: string | null;
+  config: Ba525Config;
+  locked: LockedSummaryEntry[];
+}
+
+const RECORD_BYTES = PAYLOAD_BYTES + TIMESTAMP_BYTES; // 192 + 8 = 200
+
+export function parseBa525ConfigRecords(payload: ArrayBuffer | Uint8Array): Ba525ConfigRecord[] {
+  const raw = toUint8Array(payload);
+  if (raw.byteLength < PAYLOAD_BYTES) {
+    throw new Error(`Config payload must be at least ${PAYLOAD_BYTES} bytes (got ${raw.byteLength})`);
+  }
+  const records: Ba525ConfigRecord[] = [];
+  for (let offset = 0; offset + PAYLOAD_BYTES <= raw.byteLength; offset += RECORD_BYTES) {
+    const config = parseBa525Config(raw.slice(offset, offset + PAYLOAD_BYTES));
+    const tsBytes = offset + RECORD_BYTES <= raw.byteLength
+      ? raw.slice(offset + PAYLOAD_BYTES, offset + RECORD_BYTES)
+      : null;
+    records.push({
+      index: records.length,
+      timestamp: tsBytes ? parseTimestamp(tsBytes) : null,
+      config,
+      locked: summarizeLocked(config),
+    });
+  }
+  return records;
+}

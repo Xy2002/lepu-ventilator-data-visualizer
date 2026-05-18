@@ -130,4 +130,51 @@ describe('RawFileBrowser', () => {
 
     expect(screen.queryByText('参数')).not.toBeTruthy();
   });
+
+  it('renders multiple config records with timestamps', () => {
+    // Build a 400-byte payload: config(192) + timestamp(8) + config(192) + timestamp(8)
+    const ts = new Uint8Array([
+      0xEA, 0x07, // year=2026
+      0x04,       // month=4
+      0x1C,       // day=28
+      0x00,       // padding
+      0x02,       // hour=2
+      0x17,       // min=23
+      0x33,       // sec=51
+    ]);
+    const ts2 = new Uint8Array([
+      0xEA, 0x07, 0x04, 0x1C, 0x00, 0x0D, 0x17, 0x0F,
+    ]);
+    const payload = new Uint8Array(400);
+    payload.set(BA525_SAMPLE_1_BYTES, 0);
+    payload.set(ts, 192);
+    payload.set(BA525_SAMPLE_1_BYTES, 200);
+    payload.set(ts2, 392);
+
+    const configFile: ParsedVentilatorFile = {
+      ...file,
+      fileName: '20260428_config.edf',
+      kind: 'raw_config',
+      header: { ...file.header, label: 'config', sampleIntervalMs: null, sampleRateHz: null },
+      values: new Uint8Array(),
+      records: [],
+      rawPayload: payload,
+    };
+
+    render(<RawFileBrowser files={[configFile]} />);
+
+    // Two record headers
+    expect(screen.getByText('#1')).toBeTruthy();
+    expect(screen.getByText('#2')).toBeTruthy();
+
+    // Timestamps displayed
+    expect(screen.getByText('2026-04-28 02:23:51')).toBeTruthy();
+    expect(screen.getByText('2026-04-28 13:23:15')).toBeTruthy();
+
+    // Record #2 is identical to #1 → shows "配置与 #1 相同"
+    expect(screen.getByText('配置与 #1 相同')).toBeTruthy();
+
+    // Record #1 still shows the table
+    expect(screen.getByText('Auto-S')).toBeTruthy();
+  });
 });

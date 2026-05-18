@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BA525_CONFIG_FIELDS, parseBa525Config, summarizeLocked } from './ba525ConfigParser';
+import { BA525_CONFIG_FIELDS, parseBa525Config, parseBa525ConfigRecords, summarizeLocked } from './ba525ConfigParser';
 import {
   BA525_SAMPLE_1_BYTES,
   BA525_SAMPLE_2_BYTES,
@@ -585,5 +585,41 @@ describe('summarizeLocked exposes display strings', () => {
     expect(byName.timezone.display).toBe('UTC+8');
     expect(byName.epap_max.display).toBe('14.0 cmH2O');
     expect(byName.ipap_sensitivity.display).toBe('高');
+  });
+});
+
+describe('parseBa525ConfigRecords', () => {
+  it('parses single 192-byte payload as one record without timestamp', () => {
+    const records = parseBa525ConfigRecords(BA525_SAMPLE_1_BYTES);
+    expect(records).toHaveLength(1);
+    expect(records[0].index).toBe(0);
+    expect(records[0].timestamp).toBeNull();
+    expect(records[0].locked.length).toBeGreaterThan(0);
+  });
+
+  it('parses multi-record payload with interleaved timestamps', () => {
+    const ts1 = new Uint8Array([0xEA, 0x07, 0x04, 0x1C, 0x00, 0x02, 0x17, 0x33]);
+    const ts2 = new Uint8Array([0xEA, 0x07, 0x04, 0x1C, 0x00, 0x0D, 0x17, 0x0F]);
+    const payload = new Uint8Array(400);
+    payload.set(BA525_SAMPLE_1_BYTES, 0);
+    payload.set(ts1, 192);
+    payload.set(BA525_SAMPLE_2_BYTES, 200);
+    payload.set(ts2, 392);
+
+    const records = parseBa525ConfigRecords(payload);
+    expect(records).toHaveLength(2);
+
+    expect(records[0].index).toBe(0);
+    expect(records[0].timestamp).toBe('2026-04-28 02:23:51');
+    expect(records[0].config.byName.therapy_mode.display).toBe('Auto-S');
+
+    expect(records[1].index).toBe(1);
+    expect(records[1].timestamp).toBe('2026-04-28 13:23:15');
+    expect(records[1].config.byName.therapy_mode.display).toBe('Auto-S');
+    expect(records[1].config.byName.humidifier_level.display).toBe('3档');
+  });
+
+  it('throws on payload shorter than 192 bytes', () => {
+    expect(() => parseBa525ConfigRecords(new Uint8Array(100))).toThrow('at least 192');
   });
 });
