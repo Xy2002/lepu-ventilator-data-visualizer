@@ -734,6 +734,113 @@ th {
   box-shadow: none;
 }
 
+.event-filter-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.event-filter-tab {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--muted);
+  background: transparent;
+  box-shadow: none;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.event-filter-tab:hover {
+  color: var(--text);
+  background: var(--surface-subtle);
+}
+
+.event-filter-tab.active {
+  color: var(--text);
+  background: var(--surface-subtle);
+  box-shadow: var(--line-light);
+}
+
+.event-filter-count {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--muted);
+  font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 18px;
+  text-align: center;
+}
+
+.event-filter-tab.active .event-filter-count {
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--text);
+}
+
+.event-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.event-badge--ai {
+  color: #c2410c;
+  background: #fff7ed;
+}
+
+.event-badge--hi {
+  color: #7c3aed;
+  background: #f5f3ff;
+}
+
+.event-badge--ascp {
+  color: #0369a1;
+  background: #f0f9ff;
+}
+
+.event-badge--usetime {
+  color: #15803d;
+  background: #f0fdf4;
+}
+
+.event-time {
+  font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+}
+
+.event-value {
+  font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+}
+
+.event-unit {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.event-locate-btn {
+  min-height: 26px !important;
+  padding: 0 10px !important;
+  font-size: 12px !important;
+}
+
 .raw-browser details {
   padding: 10px 0;
   box-shadow: rgba(0, 0, 0, 0.08) 0 1px 0;

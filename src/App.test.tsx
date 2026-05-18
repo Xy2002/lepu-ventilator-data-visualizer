@@ -135,7 +135,7 @@ describe('App', () => {
       }),
       true,
     );
-    expect(await screen.findByRole('button', { name: 'hi' })).toBeInTheDocument();
+    expect((await screen.findAllByText('定位')).length).toBeGreaterThan(0);
     expect(importCacheMock.saveImportedFiles).toHaveBeenCalledWith(
       expect.arrayContaining([expect.objectContaining({ name: '20260429_flow.edf' })]),
     );
