@@ -1,5 +1,6 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
+import { BA525_SAMPLE_1_BYTES } from '../parser/ba525ConfigFixtures';
 import type { ParsedVentilatorFile } from '../types';
 import { RawFileBrowser } from './RawFileBrowser';
 
@@ -82,5 +83,51 @@ describe('RawFileBrowser', () => {
     expect(screen.getAllByText('ASCP 压力状态：Auto-S 模式下的 IPAP/EPAP 记录，二者差值对应设置的压力支撑。')).toHaveLength(2);
     expect(screen.getAllByText('配置快照：记录治疗模式、压力支撑、EPAP/IPAP、湿化和延时升压等设备设置。')).toHaveLength(2);
     expect(screen.getAllByText('说明')).toHaveLength(files.length);
+  });
+
+  it('renders BA525 config table for raw_config files with valid payload', () => {
+    const configFile: ParsedVentilatorFile = {
+      ...file,
+      fileName: '20260429_config.edf',
+      kind: 'raw_config',
+      header: { ...file.header, label: 'config', sampleIntervalMs: null, sampleRateHz: null },
+      values: new Uint8Array(),
+      records: [],
+      rawPayload: BA525_SAMPLE_1_BYTES,
+    };
+
+    render(<RawFileBrowser files={[configFile]} />);
+
+    // Config table is present
+    const table = document.querySelector('.config-table');
+    expect(table).toBeTruthy();
+
+    // Check some known locked fields from v1 fixture
+    expect(screen.getByText('语言')).toBeTruthy();
+    expect(screen.getByText('简体中文')).toBeTruthy();
+    expect(screen.getByText('治疗模式')).toBeTruthy();
+    expect(screen.getByText('Auto-S')).toBeTruthy();
+    expect(screen.getByText('高吸气压力报警')).toBeTruthy();
+    expect(screen.getByText('25.0 cmH2O')).toBeTruthy();
+
+    // Status badges — multiple fields share each status
+    expect(screen.getAllByText('已确认').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('交叉验证').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('falls back gracefully for short raw_config payload', () => {
+    const shortConfig: ParsedVentilatorFile = {
+      ...file,
+      fileName: '20260429_config.edf',
+      kind: 'raw_config',
+      header: { ...file.header, label: 'config', sampleIntervalMs: null, sampleRateHz: null },
+      values: new Uint8Array(),
+      records: [],
+      rawPayload: new Uint8Array(100),
+    };
+
+    render(<RawFileBrowser files={[shortConfig]} />);
+
+    expect(screen.queryByText('参数')).not.toBeTruthy();
   });
 });

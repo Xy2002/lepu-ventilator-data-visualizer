@@ -1,4 +1,5 @@
 import { downloadCsv, exportEventsCsv, exportWaveformCsv } from '../data/csv';
+import { parseBa525Config, summarizeLocked } from '../parser/ba525ConfigParser';
 import type { EventRecord, ParsedVentilatorFile } from '../types';
 
 interface RawFileBrowserProps {
@@ -81,6 +82,44 @@ function exportFile(file: ParsedVentilatorFile) {
   }
 }
 
+function ConfigDetail({ file }: { file: ParsedVentilatorFile }) {
+  let parsed;
+  try {
+    parsed = parseBa525Config(file.rawPayload);
+  } catch {
+    return <p className="warning">无法解析 BA525 配置（payload 不是 192 字节或格式不匹配）</p>;
+  }
+
+  const locked = summarizeLocked(parsed);
+
+  return (
+    <div className="config-detail">
+      <table className="config-table">
+        <thead>
+          <tr>
+            <th>参数</th>
+            <th>值</th>
+            <th>状态</th>
+          </tr>
+        </thead>
+        <tbody>
+          {locked.map((entry) => (
+            <tr key={entry.name}>
+              <td>{entry.label}</td>
+              <td>{entry.display}</td>
+              <td>
+                <span className={`config-status config-status--${entry.status}`}>
+                  {entry.status === 'confirmed' ? '已确认' : '交叉验证'}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function RawFileBrowser({ files }: RawFileBrowserProps) {
   return (
     <section className="raw-browser">
@@ -88,6 +127,7 @@ export function RawFileBrowser({ files }: RawFileBrowserProps) {
       <div className="raw-file-list">
         {files.map((file) => {
           const description = describeRawFile(file);
+          const isBa525Config = file.kind === 'raw_config' && file.rawPayload.length >= 192;
 
           return (
             <details key={file.fileName}>
@@ -98,6 +138,7 @@ export function RawFileBrowser({ files }: RawFileBrowserProps) {
                 </span>
                 <span className="raw-file-kind">{file.kind}</span>
               </summary>
+              {isBa525Config ? <ConfigDetail file={file} /> : null}
               <dl>
                 <div>
                   <dt>说明</dt>
