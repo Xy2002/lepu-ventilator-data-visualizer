@@ -521,35 +521,31 @@ label:focus-within {
 
 .day-charts {
   display: grid;
-  gap: 16px;
+  gap: 0;
   margin-top: 16px;
 }
 
-.chart-panel + .chart-panel {
-  margin-top: 4px;
-}
-
-.chart-panel .waveform-panel {
-  border: 0;
-  border-radius: 8px;
-  background: var(--surface);
-  box-shadow: var(--card-shadow);
-}
-
 .chart-events {
-  margin-top: 8px;
-  padding: 10px 12px;
+  margin-top: 12px;
+  padding: 12px 14px;
   border-radius: 8px;
   background: var(--surface);
   box-shadow: var(--card-shadow);
-  max-height: 200px;
+  max-height: 220px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
+.chart-events-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
 .chart-events h4 {
-  margin: 0 0 8px;
+  margin: 0;
   font-size: 13px;
   font-weight: 600;
   color: var(--text);
@@ -594,13 +590,21 @@ label:focus-within {
   color: var(--text);
 }
 
+.chart-event-row {
+  cursor: pointer;
+  transition: background 100ms ease;
+}
+
+.chart-event-row:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
 .chart-event-active {
   background: #eff6ff;
 }
 
-.chart-secondary {
-  display: grid;
-  gap: 0;
+.chart-event-active:hover {
+  background: #dbeafe;
 }
 
 .chart-tabs {
@@ -724,7 +728,7 @@ label:focus-within {
 .waveform-chart {
   display: block;
   width: 100%;
-  min-height: 220px;
+  min-height: 340px;
   overscroll-behavior: contain;
   background:
     linear-gradient(#fafafa 1px, transparent 1px),
@@ -841,12 +845,6 @@ th {
 .event-unit {
   color: var(--muted);
   font-size: 11px;
-}
-
-.event-locate-btn {
-  min-height: 26px !important;
-  padding: 0 10px !important;
-  font-size: 12px !important;
 }
 
 .raw-browser details {
