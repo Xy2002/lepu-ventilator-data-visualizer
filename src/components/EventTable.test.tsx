@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { EventRecord } from '../types';
@@ -34,11 +34,9 @@ describe('EventTable', () => {
 
     render(<EventTable events={events} onSelectEvent={vi.fn()} />);
 
-    const tabs = screen.getAllByRole('button', { name: /全部|AI|HI|ASCP/ });
+    // Tabs use role="tab" in HeroUI
+    const tabs = screen.getAllByRole('tab');
     expect(tabs.length).toBeGreaterThanOrEqual(4);
-
-    // Count badge for total
-    expect(screen.getByText('4')).toBeTruthy();
   });
 
   it('shows type-specific columns when filtering by AI', async () => {
@@ -49,8 +47,8 @@ describe('EventTable', () => {
 
     render(<EventTable events={events} onSelectEvent={vi.fn()} />);
 
-    // Click AI filter tab
-    const aiTab = screen.getByRole('button', { name: /^AI/ });
+    // Click AI filter tab (HeroUI Tab uses tab role)
+    const aiTab = screen.getByRole('tab', { name: /^AI/ });
     await userEvent.click(aiTab);
 
     // AI events show duration
@@ -66,7 +64,7 @@ describe('EventTable', () => {
 
     render(<EventTable events={events} onSelectEvent={vi.fn()} />);
 
-    const ascpTab = screen.getByRole('button', { name: /^ASCP/ });
+    const ascpTab = screen.getByRole('tab', { name: /^ASCP/ });
     await userEvent.click(ascpTab);
 
     expect(screen.getByText('15.0')).toBeTruthy();

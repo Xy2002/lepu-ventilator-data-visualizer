@@ -20,33 +20,33 @@ function duration(seconds: number | null) {
 
 export function SummaryCards({ summary }: SummaryCardsProps) {
   return (
-    <section className="summary-grid">
-      <CardRoot>
-        <CardContent>
-          <span className="summary-label">使用时长</span>
-          <strong className="summary-value">{duration(summary.useDurationSeconds)}</strong>
+    <section className="grid grid-cols-4 gap-3 mt-4 max-md:grid-cols-2 max-sm:grid-cols-1">
+      <CardRoot variant="secondary">
+        <CardContent className="p-3.5">
+          <span className="block text-sm font-medium text-muted">使用时长</span>
+          <strong className="block mt-2 text-2xl font-medium text-foreground font-mono leading-tight">{duration(summary.useDurationSeconds)}</strong>
         </CardContent>
       </CardRoot>
-      <CardRoot>
-        <CardContent>
-          <span className="summary-label">AI / HI</span>
-          <strong className="summary-value">
+      <CardRoot variant="secondary">
+        <CardContent className="p-3.5">
+          <span className="block text-sm font-medium text-muted">AI / HI</span>
+          <strong className="block mt-2 text-2xl font-medium text-foreground font-mono leading-tight">
             {summary.eventCounts.ai ?? 0} / {summary.eventCounts.hi ?? 0}
           </strong>
         </CardContent>
       </CardRoot>
-      <CardRoot>
-        <CardContent>
-          <span className="summary-label">压力范围</span>
-          <strong className="summary-value">
+      <CardRoot variant="secondary">
+        <CardContent className="p-3.5">
+          <span className="block text-sm font-medium text-muted">压力范围</span>
+          <strong className="block mt-2 text-2xl font-medium text-foreground font-mono leading-tight">
             {summary.pressureRange ? `${summary.pressureRange.min} - ${summary.pressureRange.max}` : '-'}
           </strong>
         </CardContent>
       </CardRoot>
-      <CardRoot>
-        <CardContent>
-          <span className="summary-label">缺失文件</span>
-          <strong className="summary-value">{summary.missingFiles.length}</strong>
+      <CardRoot variant="secondary">
+        <CardContent className="p-3.5">
+          <span className="block text-sm font-medium text-muted">缺失文件</span>
+          <strong className="block mt-2 text-2xl font-medium text-foreground font-mono leading-tight">{summary.missingFiles.length}</strong>
         </CardContent>
       </CardRoot>
     </section>

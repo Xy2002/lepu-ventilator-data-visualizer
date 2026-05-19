@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DayDetail, EventRecord, ParsedVentilatorFile } from '../types';
@@ -120,13 +120,13 @@ describe('DayCharts', () => {
     );
 
     const row = screen.getByText('22秒').closest('tr')!;
-    expect(row.className).not.toContain('chart-event-active');
+    expect(row.className).not.toContain('bg-accent-soft');
 
     await userEvent.click(row);
-    expect(row.className).toContain('chart-event-active');
+    expect(row.className).toContain('bg-accent-soft');
 
     await userEvent.click(row);
-    expect(row.className).not.toContain('chart-event-active');
+    expect(row.className).not.toContain('bg-accent-soft');
   });
 
   it('shows empty message when no signals', () => {

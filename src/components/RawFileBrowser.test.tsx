@@ -98,9 +98,8 @@ describe('RawFileBrowser', () => {
 
     render(<RawFileBrowser files={[configFile]} />);
 
-    // Config table is present
-    const table = document.querySelector('.config-table');
-    expect(table).toBeTruthy();
+    // Config table is present (check for parameter header)
+    expect(screen.getByText('参数')).toBeTruthy();
 
     // Check some known locked fields from v1 fixture
     expect(screen.getByText('语言')).toBeTruthy();

@@ -1,5 +1,3 @@
-/// <reference types="node" />
-
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -26,12 +24,16 @@ function ruleFor(selector: string) {
   return declarations.join('\n');
 }
 
-describe('RawFileBrowser layout CSS', () => {
-  it('raw-browser scrolls internally with a constrained height', () => {
-    expect(ruleFor('.raw-browser')).toContain('display: flex');
-    expect(ruleFor('.raw-browser')).toContain('flex-direction: column');
-    expect(ruleFor('.raw-browser')).toContain('height: clamp(');
-    expect(ruleFor('.raw-file-list')).toContain('flex: 1');
-    expect(ruleFor('.raw-file-list')).toContain('overflow: auto');
+describe('App.css structure', () => {
+  it('imports HeroUI styles and Geist font', () => {
+    expect(css).toContain('@import "@heroui/styles"');
+    expect(css).toContain('@fontsource-variable/geist');
+  });
+
+  it('does not contain component-specific CSS classes', () => {
+    expect(ruleFor('.raw-browser')).toBe('');
+    expect(ruleFor('.app-shell')).toBe('');
+    expect(ruleFor('.top-bar')).toBe('');
+    expect(ruleFor('.notice')).toBe('');
   });
 });

@@ -10,6 +10,7 @@ import * as echarts from 'echarts/core';
 import type { ECharts } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { useEffect, useMemo, useRef } from 'react';
+import { Button, SurfaceRoot } from '@heroui/react';
 import type { UseSession } from '../types';
 import { buildEChartsWaveformOption, parseEdfTimestampMs } from './echartsWaveformOptions';
 import type { WaveformValues } from './waveformData';
@@ -141,26 +142,31 @@ export function WaveformChart({
   }, [focusedTimestamp, sampleRateHz, startTime, useSessions, values.length]);
 
   return (
-    <section className="waveform-panel">
-      <div className="chart-header">
+    <SurfaceRoot variant="secondary" className="mt-2">
+      <div className="flex items-center justify-between gap-3 p-3 border-b border-border">
         <div>
-          <h3>{label}</h3>
-          <span>
+          <h3 className="m-0 text-base font-semibold text-foreground">{label}</h3>
+          <span className="text-muted font-mono text-xs leading-relaxed">
             {values.length} 采样 · {sampleRateHz ?? '-'} Hz
             {useSessions.length > 0 ? ` · ${useSessions.length} 次会话` : startTime ? ` · ${startTime}` : ''}
           </span>
         </div>
-        <button type="button" onClick={resetZoom}>
+        <Button size="sm" variant="ghost" onPress={resetZoom}>
           重置缩放
-        </button>
+        </Button>
       </div>
       <div
         ref={containerRef}
-        className="waveform-chart"
+        className="block w-full min-h-[440px] overscroll-contain"
+        style={{
+          background:
+            'linear-gradient(var(--color-surface-secondary) 1px, transparent 1px), linear-gradient(90deg, var(--color-surface-secondary) 1px, transparent 1px), var(--color-surface)',
+          backgroundSize: '100% 44px, 64px 100%',
+        }}
         role="img"
         aria-label={`${label} ECharts waveform chart`}
       />
-      <div className="chart-readout">
+      <div className="flex justify-between gap-3 p-2 px-3 text-muted font-mono text-xs leading-relaxed border-t border-border">
         <span>滚轮缩放 · 拖动平移</span>
         {focusedTimestamp ? (
           <span>焦点：{focusedTimestamp}</span>
@@ -168,6 +174,6 @@ export function WaveformChart({
           <span>焦点：{focusedSecond.toFixed(2)}s</span>
         )}
       </div>
-    </section>
+    </SurfaceRoot>
   );
 }

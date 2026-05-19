@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { TabsRoot, TabListContainer, TabList, Tab, TabPanel, ChipRoot, ChipLabel } from '@heroui/react';
+import { ChipRoot, ChipLabel, SurfaceRoot, Spinner, TabsRoot, TabListContainer, TabList, Tab, TabPanel } from '@heroui/react';
 import { WaveformChart } from '../charts/WaveformChart';
 import type { DayDetail } from '../types';
 
@@ -72,8 +72,8 @@ export function DayCharts({ detail }: DayChartsProps) {
   const isAscp = activeLabel === 'pressure';
 
   return (
-    <section className="day-charts">
-      {detail.signals.length === 0 ? <p>当前日期没有可显示的波形文件。</p> : null}
+    <section className="mt-4">
+      {detail.signals.length === 0 ? <p className="text-sm text-muted">当前日期没有可显示的波形文件。</p> : null}
       {detail.signals.length > 0 ? (
         <TabsRoot
           selectedKey={selectedSignal?.fileName ?? ''}
@@ -89,7 +89,7 @@ export function DayCharts({ detail }: DayChartsProps) {
             </TabList>
           </TabListContainer>
           <TabPanel id={selectedSignal?.fileName ?? ''}>
-            <div className="chart-panel-stage">
+            <div className="relative">
               {renderedSignal ? (
                 <WaveformChart
                   key={renderedSignal.fileName}
@@ -106,12 +106,12 @@ export function DayCharts({ detail }: DayChartsProps) {
               ) : null}
               {isSwitching && selectedSignal ? (
                 <div
-                  className="chart-loading"
+                  className="absolute inset-0 z-2 grid place-items-center rounded-lg bg-surface/72 backdrop-blur-sm pointer-events-none"
                   role="progressbar"
                   aria-label={`正在加载 ${selectedSignal.header.label} 图表`}
                 >
-                  <div className="chart-loading-card">
-                    <div className="chart-loading-track" />
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-surface/94 shadow-md text-sm text-muted">
+                    <Spinner size="sm" />
                     <span>正在加载 {selectedSignal.header.label} 图表...</span>
                   </div>
                 </div>
@@ -122,61 +122,61 @@ export function DayCharts({ detail }: DayChartsProps) {
       ) : null}
 
       {activeEvents.length > 0 ? (
-        <div className="chart-events">
-          <div className="chart-events-header">
-            <h4>
+        <SurfaceRoot variant="secondary" className="mt-3 p-3 max-h-[220px] overflow-hidden flex flex-col">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="m-0 text-sm font-semibold text-foreground flex items-center gap-2">
               {isAscp ? 'ASCP 压力记录' : 'AI/HI 事件'}
               <ChipRoot variant="soft" size="sm">
                 <ChipLabel>{activeEvents.length}</ChipLabel>
               </ChipRoot>
             </h4>
           </div>
-          <div className="chart-events-scroll">
-            <table>
+          <div className="flex-1 overflow-auto">
+            <table className="w-full border-collapse text-xs">
               <thead>
                 <tr>
-                  <th>类型</th>
-                  <th>时间</th>
-                  {isAscp ? <th>IPAP</th> : null}
-                  {isAscp ? <th>EPAP</th> : null}
-                  {!isAscp ? <th>持续</th> : null}
+                  <th className="p-1.5 text-left text-muted font-medium">类型</th>
+                  <th className="p-1.5 text-left text-muted font-medium">时间</th>
+                  {isAscp ? <th className="p-1.5 text-left text-muted font-medium">IPAP</th> : null}
+                  {isAscp ? <th className="p-1.5 text-left text-muted font-medium">EPAP</th> : null}
+                  {!isAscp ? <th className="p-1.5 text-left text-muted font-medium">持续</th> : null}
                 </tr>
               </thead>
               <tbody>
                 {activeEvents.map((event, i) => (
                   <tr
                     key={`${event.sourceLabel}-${event.timestamp}-${i}`}
-                    className={`chart-event-row${focusedIndex === i ? ' chart-event-active' : ''}`}
+                    className={`cursor-pointer transition-colors ${focusedIndex === i ? 'bg-accent-soft' : 'hover:bg-surface-secondary'}`}
                     onClick={() => {
                       if (typeof event.secondsFromDayStart === 'number') {
                         setFocusedIndex(i === focusedIndex ? null : i);
                       }
                     }}
                   >
-                    <td>
+                    <td className="p-1.5">
                       <ChipRoot variant="soft" size="sm" className={`event-badge--${event.sourceLabel}`}>
                         <ChipLabel>{event.sourceLabel.toUpperCase()}</ChipLabel>
                       </ChipRoot>
                     </td>
-                    <td className="event-time">{event.timestamp ?? '-'}</td>
+                    <td className="p-1.5 font-mono text-xs">{event.timestamp ?? '-'}</td>
                     {isAscp ? (
                       <>
-                        <td className="event-value">
-                          {(event.value1 / 10).toFixed(1)} <span className="event-unit">cmH2O</span>
+                        <td className="p-1.5 font-mono text-xs">
+                          {(event.value1 / 10).toFixed(1)} <span className="text-muted text-[11px]">cmH2O</span>
                         </td>
-                        <td className="event-value">
-                          {(event.value2 / 10).toFixed(1)} <span className="event-unit">cmH2O</span>
+                        <td className="p-1.5 font-mono text-xs">
+                          {(event.value2 / 10).toFixed(1)} <span className="text-muted text-[11px]">cmH2O</span>
                         </td>
                       </>
                     ) : (
-                      <td className="event-value">{event.value2}秒</td>
+                      <td className="p-1.5 font-mono text-xs">{event.value2}秒</td>
                     )}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </div>
+        </SurfaceRoot>
       ) : null}
     </section>
   );

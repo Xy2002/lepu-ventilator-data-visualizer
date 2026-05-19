@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { ButtonRoot } from '@heroui/react';
+import { Button } from '@heroui/react';
 import type { ImportedFileRef } from '../types';
 
 interface ImportPanelProps {
@@ -25,15 +25,15 @@ export function ImportPanel({ disabled, onImport }: ImportPanelProps) {
   }
 
   return (
-    <div className="import-panel">
-      <ButtonRoot
+    <div className="flex items-center gap-2 max-sm:flex-col max-sm:w-full">
+      <Button
         variant="primary"
         size="sm"
         isDisabled={disabled}
         onPress={() => folderRef.current?.click()}
       >
         选择 DATAFILE 文件夹
-      </ButtonRoot>
+      </Button>
       <input
         ref={folderRef}
         type="file"
@@ -43,14 +43,14 @@ export function ImportPanel({ disabled, onImport }: ImportPanelProps) {
         className="sr-only"
         {...({ webkitdirectory: 'true', directory: 'true' } as Record<string, string>)}
       />
-      <ButtonRoot
+      <Button
         variant="outline"
         size="sm"
         isDisabled={disabled}
         onPress={() => filesRef.current?.click()}
       >
         选择 EDF 文件
-      </ButtonRoot>
+      </Button>
       <input
         ref={filesRef}
         aria-label="选择 EDF 文件"

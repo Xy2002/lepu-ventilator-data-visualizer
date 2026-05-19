@@ -1,4 +1,4 @@
-import { ChipRoot, ChipLabel } from '@heroui/react';
+import { ChipRoot, ChipLabel, DisclosureRoot, DisclosureTrigger, DisclosureContent, DisclosureIndicator, DisclosureGroupRoot, Button, SurfaceRoot, ScrollShadowRoot } from '@heroui/react';
 import { downloadCsv, exportEventsCsv, exportWaveformCsv } from '../data/csv';
 import { type Ba525ConfigRecord, parseBa525ConfigRecords } from '../parser/ba525ConfigParser';
 import type { EventRecord, ParsedVentilatorFile } from '../types';
@@ -85,20 +85,20 @@ function exportFile(file: ParsedVentilatorFile) {
 
 function ConfigRecordTable({ record }: { record: Ba525ConfigRecord }) {
   return (
-    <table className="config-table">
+    <table className="w-full border-collapse text-sm">
       <thead>
         <tr>
-          <th>参数</th>
-          <th>值</th>
-          <th>状态</th>
+          <th className="p-1.5 text-left text-foreground font-medium text-xs">参数</th>
+          <th className="p-1.5 text-left text-foreground font-medium text-xs">值</th>
+          <th className="p-1.5 text-left text-foreground font-medium text-xs">状态</th>
         </tr>
       </thead>
       <tbody>
         {record.locked.map((entry) => (
           <tr key={entry.name}>
-            <td>{entry.label}</td>
-            <td>{entry.display}</td>
-            <td>
+            <td className="p-1.5 text-xs">{entry.label}</td>
+            <td className="p-1.5 font-mono text-xs text-foreground">{entry.display}</td>
+            <td className="p-1.5">
               <ChipRoot variant="soft" size="sm" className={entry.status === 'confirmed' ? 'config-status--confirmed' : 'config-status--diff'}>
                 <ChipLabel>{entry.status === 'confirmed' ? '已确认' : '交叉验证'}</ChipLabel>
               </ChipRoot>
@@ -115,23 +115,23 @@ function ConfigDetail({ file }: { file: ParsedVentilatorFile }) {
   try {
     records = parseBa525ConfigRecords(file.rawPayload);
   } catch {
-    return <p className="warning">无法解析 BA525 配置（payload 不是 192 字节或格式不匹配）</p>;
+    return <p className="text-sm text-danger">无法解析 BA525 配置（payload 不是 192 字节或格式不匹配）</p>;
   }
 
   const multiple = records.length > 1;
 
   return (
-    <div className="config-detail">
+    <div className="mt-2 overflow-x-auto">
       {records.map((record) => (
-        <div key={record.index} className="config-record">
-          <div className="config-record-header">
-            <span className="config-record-index">#{record.index + 1}</span>
+        <div key={record.index} className={record.index > 0 ? 'mt-3 pt-3 border-t border-border' : ''}>
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="font-semibold text-sm text-foreground">#{record.index + 1}</span>
             {record.timestamp ? (
-              <span className="config-record-time">{record.timestamp}</span>
+              <span className="font-mono text-xs text-muted">{record.timestamp}</span>
             ) : null}
           </div>
           {multiple && record.index > 0 && records[0].locked.every((e, i) => e.display === record.locked[i]?.display) ? (
-            <p className="config-record-same">配置与 #1 相同</p>
+            <p className="text-xs text-muted">配置与 #1 相同</p>
           ) : (
             <ConfigRecordTable record={record} />
           )}
@@ -143,67 +143,70 @@ function ConfigDetail({ file }: { file: ParsedVentilatorFile }) {
 
 export function RawFileBrowser({ files }: RawFileBrowserProps) {
   return (
-    <section className="raw-browser">
-      <h3>原始文件</h3>
-      <div className="raw-file-list">
-        {files.map((file) => {
-          const description = describeRawFile(file);
-          const isBa525Config = file.kind === 'raw_config' && file.rawPayload.length >= 192;
+    <SurfaceRoot variant="secondary" className="flex flex-col h-[clamp(380px,46vh,520px)] min-h-0 mt-4 p-3.5">
+      <h3 className="m-0 mb-3 text-lg font-semibold text-foreground">原始文件</h3>
+      <ScrollShadowRoot orientation="vertical" className="flex-1 min-h-0 overflow-auto">
+        <DisclosureGroupRoot>
+          {files.map((file) => {
+            const description = describeRawFile(file);
+            const isBa525Config = file.kind === 'raw_config' && file.rawPayload.length >= 192;
 
-          return (
-            <details key={file.fileName}>
-              <summary>
-                <span className="raw-file-summary-main">
-                  <strong>{file.fileName}</strong>
-                  <span className="raw-file-description">{description}</span>
-                </span>
-                <span className="raw-file-kind">{file.kind}</span>
-              </summary>
-              {isBa525Config ? <ConfigDetail file={file} /> : null}
-              <dl>
-                <div>
-                  <dt>说明</dt>
-                  <dd className="raw-file-description-detail">{description}</dd>
-                </div>
-                <div>
-                  <dt>Label</dt>
-                  <dd>{file.header.label}</dd>
-                </div>
-                <div>
-                  <dt>Header</dt>
-                  <dd>{file.header.headerBytes} bytes</dd>
-                </div>
-                <div>
-                  <dt>Payload</dt>
-                  <dd>{file.payloadBytes} bytes</dd>
-                </div>
-                <div>
-                  <dt>Start</dt>
-                  <dd>{file.header.startTime ?? '-'}</dd>
-                </div>
-                <div>
-                  <dt>End</dt>
-                  <dd>{file.header.endTime ?? '-'}</dd>
-                </div>
-                <div>
-                  <dt>Preview</dt>
-                  <dd>{preview(file)}</dd>
-                </div>
-              </dl>
-              {file.warnings.map((warning) => (
-                <p className="warning" key={warning}>
-                  {warning}
-                </p>
-              ))}
-              {file.values.length > 0 || file.kind === 'events16' ? (
-                <button type="button" className="raw-export-btn" onClick={() => exportFile(file)}>
-                  导出 CSV
-                </button>
-              ) : null}
-            </details>
-          );
-        })}
-      </div>
-    </section>
+            return (
+              <DisclosureRoot key={file.fileName}>
+                <DisclosureTrigger className="flex items-start justify-between gap-3 py-2.5 border-b border-border w-full">
+                  <DisclosureIndicator />
+                  <div className="grid min-w-0 gap-1 flex-1">
+                    <strong className="text-foreground text-sm">{file.fileName}</strong>
+                    <span className="text-muted text-xs leading-relaxed">{description}</span>
+                  </div>
+                  <span className="text-muted font-mono text-xs shrink-0">{file.kind}</span>
+                </DisclosureTrigger>
+                <DisclosureContent>
+                  {isBa525Config ? <ConfigDetail file={file} /> : null}
+                  <dl className="grid gap-2 my-3">
+                    <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-2">
+                      <dt className="text-muted text-sm">说明</dt>
+                      <dd className="m-0 text-muted text-xs leading-relaxed">{description}</dd>
+                    </div>
+                    <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-2">
+                      <dt className="text-muted text-sm">Label</dt>
+                      <dd className="m-0 text-foreground font-mono text-xs">{file.header.label}</dd>
+                    </div>
+                    <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-2">
+                      <dt className="text-muted text-sm">Header</dt>
+                      <dd className="m-0 text-foreground font-mono text-xs">{file.header.headerBytes} bytes</dd>
+                    </div>
+                    <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-2">
+                      <dt className="text-muted text-sm">Payload</dt>
+                      <dd className="m-0 text-foreground font-mono text-xs">{file.payloadBytes} bytes</dd>
+                    </div>
+                    <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-2">
+                      <dt className="text-muted text-sm">Start</dt>
+                      <dd className="m-0 text-foreground font-mono text-xs">{file.header.startTime ?? '-'}</dd>
+                    </div>
+                    <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-2">
+                      <dt className="text-muted text-sm">End</dt>
+                      <dd className="m-0 text-foreground font-mono text-xs">{file.header.endTime ?? '-'}</dd>
+                    </div>
+                    <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-2">
+                      <dt className="text-muted text-sm">Preview</dt>
+                      <dd className="m-0 text-foreground font-mono text-xs break-all">{preview(file)}</dd>
+                    </div>
+                  </dl>
+                  {file.warnings.map((warning) => (
+                    <p key={warning} className="text-sm text-danger">{warning}</p>
+                  ))}
+                  {file.values.length > 0 || file.kind === 'events16' ? (
+                    <Button size="sm" variant="outline" onPress={() => exportFile(file)}>
+                      导出 CSV
+                    </Button>
+                  ) : null}
+                </DisclosureContent>
+              </DisclosureRoot>
+            );
+          })}
+        </DisclosureGroupRoot>
+      </ScrollShadowRoot>
+    </SurfaceRoot>
   );
 }

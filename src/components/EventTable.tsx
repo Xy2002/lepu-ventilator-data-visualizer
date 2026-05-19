@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Button, ChipRoot, ChipLabel, SurfaceRoot, TabsRoot, TabListContainer, TabList, Tab } from '@heroui/react';
 import type { EventRecord } from '../types';
 
 interface EventTableProps {
@@ -41,7 +42,11 @@ function eventDetail(event: EventRecord): string {
 function TypeBadge({ sourceLabel }: { sourceLabel: string }) {
   const meta = CATEGORY_META[sourceLabel];
   if (!meta) return <span>{sourceLabel}</span>;
-  return <span className={`event-badge event-badge--${meta.color}`}>{sourceLabel.toUpperCase()}</span>;
+  return (
+    <ChipRoot variant="soft" size="sm" className={`event-badge--${meta.color}`}>
+      <ChipLabel>{sourceLabel.toUpperCase()}</ChipLabel>
+    </ChipRoot>
+  );
 }
 
 export function EventTable({ events, onSelectEvent }: EventTableProps) {
@@ -59,42 +64,37 @@ export function EventTable({ events, onSelectEvent }: EventTableProps) {
   const isFiltered = activeFilter !== 'all';
 
   return (
-    <section className="event-table">
-      <h3>事件</h3>
-      {events.length === 0 ? <p>当前日期没有事件记录。</p> : null}
+    <SurfaceRoot variant="secondary" className="p-4">
+      <h3 className="m-0 text-lg font-semibold text-foreground">事件</h3>
+      {events.length === 0 ? <p className="text-sm text-muted">当前日期没有事件记录。</p> : null}
       {categories.length > 0 ? (
-        <div className="event-filter-tabs">
-          <button
-            type="button"
-            className={`event-filter-tab ${activeFilter === 'all' ? 'active' : ''}`}
-            onClick={() => setActiveFilter('all')}
-          >
-            全部 <span className="event-filter-count">{events.length}</span>
-          </button>
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              type="button"
-              className={`event-filter-tab ${activeFilter === cat ? 'active' : ''}`}
-              onClick={() => setActiveFilter(cat)}
-            >
-              {cat.toUpperCase()} <span className="event-filter-count">{counts[cat]}</span>
-            </button>
-          ))}
-        </div>
+        <TabsRoot
+          selectedKey={activeFilter}
+          onSelectionChange={(key) => setActiveFilter(key as EventCategory)}
+          className="mt-3"
+        >
+          <TabListContainer>
+            <TabList>
+              <Tab id="all">全部 {events.length}</Tab>
+              {categories.map((cat) => (
+                <Tab key={cat} id={cat}>{cat.toUpperCase()} {counts[cat]}</Tab>
+              ))}
+            </TabList>
+          </TabListContainer>
+        </TabsRoot>
       ) : null}
-      <div className="table-scroll">
-        <table>
+      <div className="mt-3 overflow-auto max-h-[400px]">
+        <table className="w-full border-collapse text-sm">
           <thead>
             <tr>
-              <th>类型</th>
-              <th>时间</th>
-              {activeFilter === 'ascp' ? <th>IPAP</th> : null}
-              {activeFilter === 'ascp' ? <th>EPAP</th> : null}
-              {(activeFilter === 'ai' || activeFilter === 'hi') ? <th>持续</th> : null}
-              {activeFilter === 'usetime' ? <th>时长</th> : null}
-              {isFiltered ? null : <th>详情</th>}
-              <th />
+              <th className="p-2 text-left text-foreground font-medium border-b border-border">类型</th>
+              <th className="p-2 text-left text-foreground font-medium border-b border-border">时间</th>
+              {activeFilter === 'ascp' ? <th className="p-2 text-left text-foreground font-medium border-b border-border">IPAP</th> : null}
+              {activeFilter === 'ascp' ? <th className="p-2 text-left text-foreground font-medium border-b border-border">EPAP</th> : null}
+              {(activeFilter === 'ai' || activeFilter === 'hi') ? <th className="p-2 text-left text-foreground font-medium border-b border-border">持续</th> : null}
+              {activeFilter === 'usetime' ? <th className="p-2 text-left text-foreground font-medium border-b border-border">时长</th> : null}
+              {isFiltered ? null : <th className="p-2 text-left text-foreground font-medium border-b border-border">详情</th>}
+              <th className="p-2 border-b border-border" />
             </tr>
           </thead>
           <tbody>
@@ -107,50 +107,50 @@ export function EventTable({ events, onSelectEvent }: EventTableProps) {
 
               if (activeFilter === 'ascp') {
                 return (
-                  <tr key={`${event.sourceLabel}-${event.timestamp}-${index}`}>
-                    <td><TypeBadge sourceLabel={event.sourceLabel} /></td>
-                    <td className="event-time">{event.timestamp ?? '-'}</td>
-                    <td className="event-value">{(event.value1 / 10).toFixed(1)} <span className="event-unit">cmH2O</span></td>
-                    <td className="event-value">{(event.value2 / 10).toFixed(1)} <span className="event-unit">cmH2O</span></td>
-                    <td><button type="button" className="event-locate-btn" onClick={handleSelect}>定位</button></td>
+                  <tr key={`${event.sourceLabel}-${event.timestamp}-${index}`} className="hover:bg-surface-secondary">
+                    <td className="p-2 border-b border-border"><TypeBadge sourceLabel={event.sourceLabel} /></td>
+                    <td className="p-2 font-mono text-xs border-b border-border">{event.timestamp ?? '-'}</td>
+                    <td className="p-2 font-mono text-xs border-b border-border">{(event.value1 / 10).toFixed(1)} <span className="text-muted text-[11px]">cmH2O</span></td>
+                    <td className="p-2 font-mono text-xs border-b border-border">{(event.value2 / 10).toFixed(1)} <span className="text-muted text-[11px]">cmH2O</span></td>
+                    <td className="p-2 border-b border-border"><Button size="sm" variant="ghost" onPress={handleSelect}>定位</Button></td>
                   </tr>
                 );
               }
 
               if (activeFilter === 'ai' || activeFilter === 'hi') {
                 return (
-                  <tr key={`${event.sourceLabel}-${event.timestamp}-${index}`}>
-                    <td><TypeBadge sourceLabel={event.sourceLabel} /></td>
-                    <td className="event-time">{event.timestamp ?? '-'}</td>
-                    <td className="event-value">{event.value2}秒</td>
-                    <td><button type="button" className="event-locate-btn" onClick={handleSelect}>定位</button></td>
+                  <tr key={`${event.sourceLabel}-${event.timestamp}-${index}`} className="hover:bg-surface-secondary">
+                    <td className="p-2 border-b border-border"><TypeBadge sourceLabel={event.sourceLabel} /></td>
+                    <td className="p-2 font-mono text-xs border-b border-border">{event.timestamp ?? '-'}</td>
+                    <td className="p-2 font-mono text-xs border-b border-border">{event.value2}秒</td>
+                    <td className="p-2 border-b border-border"><Button size="sm" variant="ghost" onPress={handleSelect}>定位</Button></td>
                   </tr>
                 );
               }
 
               if (activeFilter === 'usetime') {
                 return (
-                  <tr key={`${event.sourceLabel}-${event.timestamp}-${index}`}>
-                    <td><TypeBadge sourceLabel={event.sourceLabel} /></td>
-                    <td className="event-time">{event.timestamp ?? '-'}</td>
-                    <td className="event-value">{formatDuration(event.value1)}</td>
-                    <td><button type="button" className="event-locate-btn" onClick={handleSelect}>定位</button></td>
+                  <tr key={`${event.sourceLabel}-${event.timestamp}-${index}`} className="hover:bg-surface-secondary">
+                    <td className="p-2 border-b border-border"><TypeBadge sourceLabel={event.sourceLabel} /></td>
+                    <td className="p-2 font-mono text-xs border-b border-border">{event.timestamp ?? '-'}</td>
+                    <td className="p-2 font-mono text-xs border-b border-border">{formatDuration(event.value1)}</td>
+                    <td className="p-2 border-b border-border"><Button size="sm" variant="ghost" onPress={handleSelect}>定位</Button></td>
                   </tr>
                 );
               }
 
               return (
-                <tr key={`${event.sourceLabel}-${event.timestamp}-${index}`}>
-                  <td><TypeBadge sourceLabel={event.sourceLabel} /></td>
-                  <td className="event-time">{event.timestamp ?? '-'}</td>
-                  <td className="event-value">{eventDetail(event)}</td>
-                  <td><button type="button" className="event-locate-btn" onClick={handleSelect}>定位</button></td>
+                <tr key={`${event.sourceLabel}-${event.timestamp}-${index}`} className="hover:bg-surface-secondary">
+                  <td className="p-2 border-b border-border"><TypeBadge sourceLabel={event.sourceLabel} /></td>
+                  <td className="p-2 font-mono text-xs border-b border-border">{event.timestamp ?? '-'}</td>
+                  <td className="p-2 font-mono text-xs border-b border-border">{eventDetail(event)}</td>
+                  <td className="p-2 border-b border-border"><Button size="sm" variant="ghost" onPress={handleSelect}>定位</Button></td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
-    </section>
+    </SurfaceRoot>
   );
 }

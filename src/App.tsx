@@ -1,5 +1,18 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { CardDescription } from '@heroui/react';
+import {
+  Alert,
+  AlertContent,
+  AlertDescription,
+  AlertTitle,
+  CardDescription,
+
+  ChipLabel,
+  ChipRoot,
+  EmptyState,
+  Header,
+  Spinner,
+  SurfaceRoot,
+} from '@heroui/react';
 import './App.css';
 import { DateNavigator } from './components/DateNavigator';
 import { ImportPanel } from './components/ImportPanel';
@@ -17,9 +30,9 @@ function usageWindow(summary: DaySummary) {
   }
 
   return (
-    <div className="session-summary" aria-label="使用会话">
-      <p>{summary.useSessions.length} 个使用会话</p>
-      <ul>
+    <div className="text-right text-xs text-muted font-mono leading-relaxed" aria-label="使用会话">
+      <p className="text-foreground font-medium">{summary.useSessions.length} 个使用会话</p>
+      <ul className="space-y-0.5 mt-1">
         {summary.useSessions.map((session) => (
           <li key={`${session.startTime}-${session.endTime}`}>
             {session.startTime} 至 {session.endTime}
@@ -28,10 +41,6 @@ function usageWindow(summary: DaySummary) {
       </ul>
     </div>
   );
-}
-
-function Notice({ children }: { children: React.ReactNode }) {
-  return <div className="notice">{children}</div>;
 }
 
 export function App() {
@@ -123,45 +132,89 @@ export function App() {
   const summary = dataset && selectedDate ? dataset.summariesByDay[selectedDate] : null;
 
   return (
-    <main className="app-shell">
-      <header className="top-bar">
-        <div>
-          <h1>呼吸机数据可视化</h1>
-          <p>浏览器本地解析，不上传原始数据</p>
+    <main className="min-h-screen bg-background">
+      <Header className="sticky top-0 z-10 flex items-center justify-between gap-8 min-h-[72px] px-8 py-2.5 bg-surface/88 backdrop-blur-xl border-b border-border">
+        <div className="grid gap-0.5">
+          <h1 className="m-0 text-foreground text-lg font-semibold leading-tight">呼吸机数据可视化</h1>
+          <p className="m-0 text-muted text-sm leading-relaxed">浏览器本地解析，不上传原始数据</p>
         </div>
         <ImportPanel onImport={handleImport} disabled={isIndexing} />
-      </header>
+      </Header>
 
-      <div className="notice-stack">
-        {error ? <Notice>{error}</Notice> : null}
-        {cacheNotice ? <Notice>{cacheNotice}</Notice> : null}
-        {isRestoringImport ? <Notice>正在恢复上次导入...</Notice> : null}
-        {isIndexing ? <Notice>正在索引文件...</Notice> : null}
+      <div className="fixed top-[72px] left-0 right-0 z-20 flex flex-col items-center gap-2 p-2 px-4 pointer-events-none">
+        {error ? (
+          <Alert status="danger" className="pointer-events-auto">
+            <AlertContent>
+              <AlertTitle>错误</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </AlertContent>
+          </Alert>
+        ) : null}
+        {cacheNotice ? (
+          <Alert status="accent" className="pointer-events-auto">
+            <AlertContent>
+              <AlertDescription>{cacheNotice}</AlertDescription>
+            </AlertContent>
+          </Alert>
+        ) : null}
+        {isRestoringImport ? (
+          <Alert status="accent" className="pointer-events-auto">
+            <AlertContent className="flex items-center gap-2">
+              <Spinner size="sm" />
+              <AlertDescription>正在恢复上次导入...</AlertDescription>
+            </AlertContent>
+          </Alert>
+        ) : null}
+        {isIndexing ? (
+          <Alert status="accent" className="pointer-events-auto">
+            <AlertContent className="flex items-center gap-2">
+              <Spinner size="sm" />
+              <AlertDescription>正在索引文件...</AlertDescription>
+            </AlertContent>
+          </Alert>
+        ) : null}
       </div>
 
       {dataset && selectedDate && summary ? (
-        <div className="workbench">
+        <div className="grid grid-cols-[304px_minmax(0,1fr)] gap-4 w-full max-w-[1440px] mx-auto px-8 py-8 pb-10 max-lg:grid-cols-1 max-md:w-[calc(100%-32px)] max-md:px-0">
           <DateNavigator dataset={dataset} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
-          <section className="main-panel">
-            <div className="selected-day-header">
-              <h2>{selectedDate}</h2>
+          <SurfaceRoot variant="secondary" className="min-w-0 p-5">
+            <div className="flex items-start justify-between gap-4 pb-4 border-b border-border">
+              <h2 className="m-0 text-2xl font-semibold text-foreground leading-tight">{selectedDate}</h2>
               {usageWindow(summary)}
             </div>
             <SummaryCards summary={summary} />
-            {isLoadingDay ? <Notice>正在解析当前日期...</Notice> : null}
+            {isLoadingDay ? (
+              <div className="flex items-center gap-2 mt-4 p-3 rounded-lg bg-surface-secondary text-muted text-sm">
+                <Spinner size="sm" />
+                <span>正在解析当前日期...</span>
+              </div>
+            ) : null}
             {dayDetail ? (
-              <Suspense fallback={<Notice>正在加载专业图表...</Notice>}>
+              <Suspense
+                fallback={
+                  <div className="flex items-center gap-2 mt-4 p-3 rounded-lg bg-surface-secondary text-muted text-sm">
+                    <Spinner size="sm" />
+                    <span>正在加载专业图表...</span>
+                  </div>
+                }
+              >
                 <DayCharts detail={dayDetail} />
               </Suspense>
             ) : null}
             {dayDetail ? <RawFileBrowser files={dayDetail.rawFiles} /> : null}
-          </section>
+          </SurfaceRoot>
         </div>
       ) : (
-        <section className="empty-state">
-          <h2>导入 DATAFILE 开始查看</h2>
-          <p>支持选择日期目录中的 EDF-like 文件，并按日期生成摘要和图表。</p>
-        </section>
+        <EmptyState className="w-full max-w-[880px] min-h-[calc(100vh-72px)] mx-auto px-8 py-24">
+          <ChipRoot variant="soft" size="sm" className="mb-3 w-fit">
+            <ChipLabel>LOCAL EDF WORKBENCH</ChipLabel>
+          </ChipRoot>
+          <h2 className="m-0 text-foreground font-semibold leading-none text-5xl max-sm:text-4xl">导入 DATAFILE 开始查看</h2>
+          <p className="mt-5 text-muted text-lg leading-relaxed max-w-[620px]">
+            支持选择日期目录中的 EDF-like 文件，并按日期生成摘要和图表。
+          </p>
+        </EmptyState>
       )}
     </main>
   );
