@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { AlertRoot, AlertContent, AlertDescription, CardDescription } from '@heroui/react';
+import { CardDescription } from '@heroui/react';
 import './App.css';
 import { DateNavigator } from './components/DateNavigator';
 import { ImportPanel } from './components/ImportPanel';
@@ -31,13 +31,7 @@ function usageWindow(summary: DaySummary) {
 }
 
 function Notice({ children }: { children: React.ReactNode }) {
-  return (
-    <AlertRoot>
-      <AlertContent>
-        <AlertDescription>{children}</AlertDescription>
-      </AlertContent>
-    </AlertRoot>
-  );
+  return <div className="notice">{children}</div>;
 }
 
 export function App() {
