@@ -68,19 +68,24 @@ function fromCachedFile(cachedFile: CachedImportedFile): ImportedFileRef {
 }
 
 export async function saveImportedFiles(files: ImportedFileRef[]) {
-  const cachedFiles = await Promise.all(files.map(toCachedFile));
   const database = await openDatabase();
 
   try {
-    const transaction = database.transaction(FILE_STORE, 'readwrite');
-    const store = transaction.objectStore(FILE_STORE);
-    store.clear();
+    const BATCH_SIZE = 20;
+    for (let i = 0; i < files.length; i += BATCH_SIZE) {
+      const batch = files.slice(i, i + BATCH_SIZE);
+      const cachedFiles = await Promise.all(batch.map(toCachedFile));
 
-    for (const cachedFile of cachedFiles) {
-      store.put(cachedFile);
+      const transaction = database.transaction(FILE_STORE, 'readwrite');
+      const store = transaction.objectStore(FILE_STORE);
+      if (i === 0) store.clear();
+
+      for (const cachedFile of cachedFiles) {
+        store.put(cachedFile);
+      }
+
+      await transactionDone(transaction);
     }
-
-    await transactionDone(transaction);
   } finally {
     database.close();
   }

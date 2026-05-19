@@ -5,7 +5,7 @@ import { DateNavigator } from './components/DateNavigator';
 import { ImportPanel } from './components/ImportPanel';
 import { RawFileBrowser } from './components/RawFileBrowser';
 import { SummaryCards } from './components/SummaryCards';
-import { buildDatasetIndex, loadDayDetail } from './data/dataset';
+import { buildDatasetIndex, type IndexProgress, loadDayDetail } from './data/dataset';
 import { loadImportedFiles, saveImportedFiles } from './data/importCache';
 import type { DatasetIndex, DayDetail, DaySummary, ImportedFileRef } from './types';
 
@@ -43,6 +43,7 @@ export function App() {
   const [isRestoringImport, setIsRestoringImport] = useState(false);
   const [cacheNotice, setCacheNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [indexProgress, setIndexProgress] = useState<IndexProgress | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -103,9 +104,10 @@ export function App() {
     setIsIndexing(true);
     setError(null);
     setCacheNotice(null);
+    setIndexProgress(null);
 
     try {
-      const nextDataset = await buildDatasetIndex(files);
+      const nextDataset = await buildDatasetIndex(files, setIndexProgress);
       try {
         await saveImportedFiles(files);
       } catch {
@@ -117,6 +119,7 @@ export function App() {
       setError(caught instanceof Error ? caught.message : '导入失败');
     } finally {
       setIsIndexing(false);
+      setIndexProgress(null);
     }
   }
 
@@ -136,7 +139,7 @@ export function App() {
         {error ? <Notice>{error}</Notice> : null}
         {cacheNotice ? <Notice>{cacheNotice}</Notice> : null}
         {isRestoringImport ? <Notice>正在恢复上次导入...</Notice> : null}
-        {isIndexing ? <Notice>正在索引文件...</Notice> : null}
+        {isIndexing ? <Notice>正在索引文件...{indexProgress ? ` (${indexProgress.completed}/${indexProgress.total})` : null}</Notice> : null}
       </div>
 
       {dataset && selectedDate && summary ? (

@@ -85,6 +85,7 @@ export interface DatasetIndex {
   dateRange: { start: string | null; end: string | null };
   filesByDay: Record<string, ImportedFileRef[]>;
   summariesByDay: Record<string, DaySummary>;
+  parsedFilesByDay: Record<string, ParsedVentilatorFile[]>;
   warnings: string[];
 }
 

@@ -140,13 +140,11 @@ function addPressureValue(summary: DaySummary, value: number) {
   summary.pressureRange = { min: value, max: value };
 }
 
-async function summarizeDay(date: string, fileRefs: ImportedFileRef[]) {
+async function summarizeDay(date: string, fileRefs: ImportedFileRef[], skipPressureScan: boolean) {
   const summary = makeEmptySummary(date);
-  const files: ParsedVentilatorFile[] = [];
+  const files = await Promise.all(fileRefs.map(parseImportedFile));
 
-  for (const fileRef of fileRefs) {
-    const parsed = await parseImportedFile(fileRef);
-    files.push(parsed);
+  for (const parsed of files) {
     const label = parsed.header.label;
 
     summary.warnings.push(...parsed.warnings);
@@ -163,7 +161,7 @@ async function summarizeDay(date: string, fileRefs: ImportedFileRef[]) {
       summary.signalPresence[label] = true;
       summary.sampleCounts[label] = (summary.sampleCounts[label] ?? 0) + parsed.values.length;
 
-      if (label === 'pressure') {
+      if (!skipPressureScan && label === 'pressure') {
         for (const value of parsed.values) {
           addPressureValue(summary, value);
         }
@@ -186,10 +184,15 @@ async function summarizeDay(date: string, fileRefs: ImportedFileRef[]) {
   }
   summary.missingFiles = expectedSignalLabels.filter((label) => !summary.signalPresence[label]);
 
-  return summary;
+  return { summary, files };
 }
 
-export async function buildDatasetIndex(importedFiles: ImportedFileRef[]): Promise<DatasetIndex> {
+export type IndexProgress = { completed: number; total: number };
+
+export async function buildDatasetIndex(
+  importedFiles: ImportedFileRef[],
+  onProgress?: (progress: IndexProgress) => void,
+): Promise<DatasetIndex> {
   const filesByDay: Record<string, ImportedFileRef[]> = {};
   const warnings: string[] = [];
 
@@ -207,9 +210,17 @@ export async function buildDatasetIndex(importedFiles: ImportedFileRef[]): Promi
 
   const days = Object.keys(filesByDay).sort();
   const summariesByDay: Record<string, DaySummary> = {};
+  const parsedFilesByDay: Record<string, ParsedVentilatorFile[]> = {};
 
-  for (const day of days) {
-    summariesByDay[day] = await summarizeDay(day, filesByDay[day]);
+  const results = await Promise.all(
+    days.map((day) => summarizeDay(day, filesByDay[day], true)),
+  );
+
+  for (let i = 0; i < days.length; i++) {
+    const { summary, files } = results[i];
+    summariesByDay[days[i]] = summary;
+    parsedFilesByDay[days[i]] = files;
+    onProgress?.({ completed: i + 1, total: days.length });
   }
 
   return {
@@ -220,6 +231,7 @@ export async function buildDatasetIndex(importedFiles: ImportedFileRef[]): Promi
     },
     filesByDay,
     summariesByDay,
+    parsedFilesByDay,
     warnings,
   };
 }
@@ -247,14 +259,25 @@ function withSecondsFromDayStart(record: EventRecord, startTime: string | null):
 }
 
 export async function loadDayDetail(index: DatasetIndex, date: string): Promise<DayDetail> {
-  const fileRefs = index.filesByDay[date] ?? [];
-  const files = await Promise.all(fileRefs.map(parseImportedFile));
-  const summary = index.summariesByDay[date] ?? (await summarizeDay(date, fileRefs));
+  const cached = index.parsedFilesByDay[date];
+  const files = cached ?? await Promise.all((index.filesByDay[date] ?? []).map(parseImportedFile));
+  const summary = index.summariesByDay[date];
   const signals = files.filter(isSignal);
   const useSessions = buildUseSessions(files);
   const events = files.flatMap((file) =>
     file.records.filter(isEventRecord).map((record) => withSecondsFromDayStart(record, summary.startTime)),
   );
+
+  // Compute pressure range on demand if not available
+  if (summary && !summary.pressureRange) {
+    for (const signal of signals) {
+      if (signal.header.label === 'pressure') {
+        for (const value of signal.values) {
+          addPressureValue(summary, value);
+        }
+      }
+    }
+  }
 
   return {
     summary,
