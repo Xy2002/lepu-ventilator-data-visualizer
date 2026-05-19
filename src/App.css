@@ -609,15 +609,15 @@ label:focus-within {
 
 .chart-tabs {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   overflow-x: auto;
-  padding-bottom: 2px;
+  padding-bottom: 12px;
 }
 
 .chart-tabs button {
   flex: 0 0 auto;
-  min-height: 34px;
-  padding: 0 12px;
+  min-height: 36px;
+  padding: 0 16px;
   border: 0;
   border-radius: 6px;
   color: var(--muted);
@@ -728,7 +728,7 @@ label:focus-within {
 .waveform-chart {
   display: block;
   width: 100%;
-  min-height: 340px;
+  min-height: 440px;
   overscroll-behavior: contain;
   background:
     linear-gradient(#fafafa 1px, transparent 1px),

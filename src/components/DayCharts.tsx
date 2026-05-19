@@ -10,6 +10,14 @@ const EVENT_SIGNAL_MAP: Record<string, string> = {
   ascp: 'pressure',
 };
 
+const LABEL_NAMES: Record<string, string> = {
+  flow: '气流',
+  pressure: '压力',
+  real_pres: '实际压力',
+  real_flow: '实际气流',
+  difleak: '漏气',
+};
+
 interface DayChartsProps {
   detail: DayDetail;
 }
@@ -85,7 +93,7 @@ export function DayCharts({ detail }: DayChartsProps) {
                 tabIndex={selected ? 0 : -1}
                 onClick={() => setSelectedFileName(signal.fileName)}
               >
-                {signal.header.label}
+                {LABEL_NAMES[signal.header.label] ?? signal.header.label}
               </button>
             );
           })}

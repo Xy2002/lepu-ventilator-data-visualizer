@@ -89,12 +89,12 @@ describe('DayCharts', () => {
     );
 
     expect(screen.getByRole('tablist', { name: '波形图表' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'flow' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: '气流' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('img', { name: 'flow ECharts waveform chart' })).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('tab', { name: 'pressure' }));
+    await userEvent.click(screen.getByRole('tab', { name: '压力' }));
 
-    expect(screen.getByRole('tab', { name: 'pressure' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: '压力' })).toHaveAttribute('aria-selected', 'true');
     expect(await screen.findByRole('img', { name: 'pressure ECharts waveform chart' })).toBeInTheDocument();
     expect(screen.queryByRole('img', { name: 'flow ECharts waveform chart' })).not.toBeInTheDocument();
   });
@@ -105,7 +105,7 @@ describe('DayCharts', () => {
       <DayCharts detail={detail([signal('flow.edf', 'flow'), signal('pressure.edf', 'pressure')])} />,
     );
 
-    fireEvent.click(screen.getByRole('tab', { name: 'pressure' }));
+    fireEvent.click(screen.getByRole('tab', { name: '压力' }));
 
     const panel = screen.getByRole('tabpanel');
     expect(panel).toHaveAttribute('aria-busy', 'true');
@@ -149,7 +149,7 @@ describe('DayCharts', () => {
       <DayCharts detail={detail([signal('flow.edf', 'flow'), signal('pressure.edf', 'pressure')], events)} />,
     );
 
-    await userEvent.click(screen.getByRole('tab', { name: 'pressure' }));
+    await userEvent.click(screen.getByRole('tab', { name: '压力' }));
 
     expect(screen.getByText('ASCP 压力记录')).toBeTruthy();
     expect(screen.getByText(/14\.1/)).toBeTruthy();

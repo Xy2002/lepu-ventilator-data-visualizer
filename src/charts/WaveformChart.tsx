@@ -146,8 +146,8 @@ export function WaveformChart({
         <div>
           <h3>{label}</h3>
           <span>
-            {values.length} samples · {sampleRateHz ?? '-'} Hz
-            {useSessions.length > 0 ? ` · ${useSessions.length} sessions` : startTime ? ` · ${startTime}` : ''}
+            {values.length} 采样 · {sampleRateHz ?? '-'} Hz
+            {useSessions.length > 0 ? ` · ${useSessions.length} 次会话` : startTime ? ` · ${startTime}` : ''}
           </span>
         </div>
         <button type="button" onClick={resetZoom}>
@@ -161,11 +161,11 @@ export function WaveformChart({
         aria-label={`${label} ECharts waveform chart`}
       />
       <div className="chart-readout">
-        <span>滚轮缩放，拖动平移；十字准线显示现实时间和采样值</span>
+        <span>滚轮缩放 · 拖动平移</span>
         {focusedTimestamp ? (
-          <span>事件焦点：{focusedTimestamp}</span>
+          <span>焦点：{focusedTimestamp}</span>
         ) : focusedSecond === null ? null : (
-          <span>事件焦点：{focusedSecond.toFixed(2)}s</span>
+          <span>焦点：{focusedSecond.toFixed(2)}s</span>
         )}
       </div>
     </section>

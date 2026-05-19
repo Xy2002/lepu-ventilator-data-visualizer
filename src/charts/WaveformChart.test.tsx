@@ -53,7 +53,7 @@ describe('WaveformChart', () => {
     );
 
     expect(screen.getByRole('img', { name: 'flow ECharts waveform chart' })).toBeInTheDocument();
-    expect(screen.getByText('3 samples · 80 Hz · 2026-04-29 03:03:12.57')).toBeInTheDocument();
+    expect(screen.getByText('3 采样 · 80 Hz · 2026-04-29 03:03:12.57')).toBeInTheDocument();
     expect(echartsCoreMock.init).toHaveBeenCalledWith(expect.any(HTMLDivElement), null, { renderer: 'canvas' });
     expect(chartMock.setOption).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -77,7 +77,7 @@ describe('WaveformChart', () => {
       />,
     );
 
-    expect(screen.getByText('事件焦点：2.00s')).toBeInTheDocument();
+    expect(screen.getByText('焦点：2.00s')).toBeInTheDocument();
     expect(chartMock.dispatchAction).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'dataZoom',
@@ -100,7 +100,7 @@ describe('WaveformChart', () => {
       />,
     );
 
-    expect(screen.getByText('事件焦点：2026-04-29 03:03:14.57')).toBeInTheDocument();
+    expect(screen.getByText('焦点：2026-04-29 03:03:14.57')).toBeInTheDocument();
     expect(chartMock.dispatchAction).toHaveBeenCalledTimes(1);
     expect(chartMock.dispatchAction).toHaveBeenCalledWith({
       type: 'dataZoom',
