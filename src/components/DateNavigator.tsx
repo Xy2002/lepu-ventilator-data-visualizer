@@ -8,6 +8,20 @@ interface DateNavigatorProps {
   onSelectDate: (date: string) => void;
 }
 
+function heatCellClass(date: string, selectedDate: string, dataset: DatasetIndex) {
+  const base = date === selectedDate ? 'heat-cell active' : 'heat-cell';
+  const summary = dataset.summariesByDay[date];
+  if (!summary) return base;
+  return summary.missingFiles.length === 0 ? `${base} complete` : `${base} partial`;
+}
+
+function heatCellTitle(date: string, dataset: DatasetIndex) {
+  const summary = dataset.summariesByDay[date];
+  if (!summary) return date;
+  const missing = summary.missingFiles.length;
+  return missing === 0 ? `${date} — 数据完整` : `${date} — 缺失 ${missing} 个文件`;
+}
+
 export function DateNavigator({ dataset, selectedDate, onSelectDate }: DateNavigatorProps) {
   const [jumpDate, setJumpDate] = useState(selectedDate);
   const [missingOnly, setMissingOnly] = useState(false);
@@ -54,16 +68,22 @@ export function DateNavigator({ dataset, selectedDate, onSelectDate }: DateNavig
         />
         只看缺失文件日期
       </label>
+      <span className="heatmap-label">数据概览（近90天）</span>
       <div className="heatmap" aria-label="日期热力图">
         {dataset.days.slice(-90).map((date) => (
           <button
             type="button"
             key={date}
-            className={date === selectedDate ? 'heat-cell active' : 'heat-cell'}
-            title={date}
+            className={heatCellClass(date, selectedDate, dataset)}
+            title={heatCellTitle(date, dataset)}
             onClick={() => onSelectDate(date)}
           />
         ))}
+      </div>
+      <div className="heatmap-legend">
+        <span className="legend-dot legend-complete" /> 完整
+        <span className="legend-dot legend-partial" /> 缺失
+        <span className="legend-dot legend-active" /> 选中
       </div>
       <div className="bounded-results">
         <h3>匹配结果</h3>
