@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { DayDetail, ParsedVentilatorFile } from '../types';
+import type { DayDetail, EventRecord, ParsedVentilatorFile } from '../types';
 import { DayCharts } from './DayCharts';
 
 vi.mock('../charts/WaveformChart', () => ({
@@ -44,7 +44,17 @@ function signal(fileName: string, label: string): ParsedVentilatorFile {
   };
 }
 
-function detail(signals: ParsedVentilatorFile[]): DayDetail {
+function makeEvent(sourceLabel: string, value2: number, timestamp: string): EventRecord {
+  return {
+    sourceLabel,
+    value1: sourceLabel === 'ascp' ? 141 : 1,
+    value2,
+    timestamp,
+    secondsFromDayStart: 60,
+  };
+}
+
+function detail(signals: ParsedVentilatorFile[], events: EventRecord[] = []): DayDetail {
   return {
     summary: {
       date: '2026-04-29',
@@ -61,7 +71,7 @@ function detail(signals: ParsedVentilatorFile[]): DayDetail {
     },
     files: signals,
     signals,
-    events: [],
+    events,
     useSessions: [],
     rawFiles: signals,
   };
@@ -73,53 +83,83 @@ describe('DayCharts', () => {
     vi.useRealTimers();
   });
 
-  it('mounts only the selected waveform chart and switches it with tabs', async () => {
+  it('shows flow and pressure charts simultaneously', () => {
+    render(
+      <DayCharts detail={detail([signal('flow.edf', 'flow'), signal('pressure.edf', 'pressure')])} />,
+    );
+
+    expect(screen.getByRole('img', { name: 'flow ECharts waveform chart' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'pressure ECharts waveform chart' })).toBeInTheDocument();
+  });
+
+  it('shows AI/HI events under flow chart and ASCP under pressure chart', () => {
+    const events = [
+      makeEvent('ai', 22, '2026-04-29 02:31:32'),
+      makeEvent('hi', 15, '2026-04-29 03:04:41'),
+      makeEvent('ascp', 101, '2026-04-29 02:32:00'),
+    ];
+
     render(
       <DayCharts
-        detail={detail([signal('flow.edf', 'flow'), signal('pressure.edf', 'pressure')])}
-        focusedEventSecond={null}
+        detail={detail([signal('flow.edf', 'flow'), signal('pressure.edf', 'pressure')], events)}
       />,
     );
 
-    expect(screen.getByRole('tablist', { name: '波形图表' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'flow' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tab', { name: 'pressure' })).toHaveAttribute('aria-selected', 'false');
-    expect(screen.getByRole('img', { name: 'flow ECharts waveform chart' })).toBeInTheDocument();
-    expect(screen.queryByRole('img', { name: 'pressure ECharts waveform chart' })).not.toBeInTheDocument();
+    // AI/HI section under flow
+    expect(screen.getByText('AI/HI 事件')).toBeTruthy();
+    expect(screen.getByText('22秒')).toBeTruthy();
+    expect(screen.getByText('15秒')).toBeTruthy();
 
-    await userEvent.click(screen.getByRole('tab', { name: 'pressure' }));
-
-    expect(screen.getByRole('tab', { name: 'flow' })).toHaveAttribute('aria-selected', 'false');
-    expect(screen.getByRole('tab', { name: 'pressure' })).toHaveAttribute('aria-selected', 'true');
-    expect(await screen.findByRole('img', { name: 'pressure ECharts waveform chart' })).toBeInTheDocument();
-    expect(screen.queryByRole('img', { name: 'flow ECharts waveform chart' })).not.toBeInTheDocument();
+    // ASCP section under pressure
+    expect(screen.getByText('ASCP 压力记录')).toBeTruthy();
+    expect(screen.getByText(/14\.1/)).toBeTruthy();
   });
 
-  it('shows a loading bar before mounting the newly selected chart', async () => {
+  it('shows secondary signals in tabs', async () => {
+    render(
+      <DayCharts
+        detail={detail([
+          signal('flow.edf', 'flow'),
+          signal('real_pres.edf', 'real_pres'),
+          signal('difleak.edf', 'difleak'),
+        ])}
+      />,
+    );
+
+    expect(screen.getByRole('tablist', { name: '其他波形' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'real_pres' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('img', { name: 'real_pres ECharts waveform chart' })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('tab', { name: 'difleak' }));
+
+    expect(screen.getByRole('tab', { name: 'difleak' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('shows a loading bar before mounting a secondary chart', async () => {
     vi.useFakeTimers();
     render(
       <DayCharts
-        detail={detail([signal('flow.edf', 'flow'), signal('pressure.edf', 'pressure')])}
-        focusedEventSecond={null}
+        detail={detail([signal('real_pres.edf', 'real_pres'), signal('difleak.edf', 'difleak')])}
       />,
     );
 
-    fireEvent.click(screen.getByRole('tab', { name: 'pressure' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'difleak' }));
 
-    expect(screen.getByRole('tab', { name: 'pressure' })).toHaveAttribute('aria-selected', 'true');
     const panel = screen.getByRole('tabpanel');
     expect(panel).toHaveAttribute('aria-busy', 'true');
-    expect(within(panel).getByRole('progressbar', { name: '正在加载 pressure 图表' })).toBeInTheDocument();
-    expect(within(panel).getByRole('img', { name: 'flow ECharts waveform chart' })).toBeInTheDocument();
-    expect(screen.queryByRole('img', { name: 'pressure ECharts waveform chart' })).not.toBeInTheDocument();
+    expect(within(panel).getByRole('progressbar', { name: '正在加载 difleak 图表' })).toBeInTheDocument();
 
     await act(async () => {
       vi.runOnlyPendingTimers();
     });
 
     expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-busy', 'false');
-    expect(screen.queryByRole('progressbar', { name: '正在加载 pressure 图表' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('img', { name: 'flow ECharts waveform chart' })).not.toBeInTheDocument();
-    expect(screen.getByRole('img', { name: 'pressure ECharts waveform chart' })).toBeInTheDocument();
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'difleak ECharts waveform chart' })).toBeInTheDocument();
+  });
+
+  it('shows empty message when no signals', () => {
+    render(<DayCharts detail={detail([])} />);
+    expect(screen.getByText('当前日期没有可显示的波形文件。')).toBeInTheDocument();
   });
 });

@@ -1,7 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import './App.css';
 import { DateNavigator } from './components/DateNavigator';
-import { EventTable } from './components/EventTable';
 import { ImportPanel } from './components/ImportPanel';
 import { RawFileBrowser } from './components/RawFileBrowser';
 import { SummaryCards } from './components/SummaryCards';
@@ -10,11 +9,6 @@ import { loadImportedFiles, saveImportedFiles } from './data/importCache';
 import type { DatasetIndex, DayDetail, DaySummary, ImportedFileRef } from './types';
 
 const DayCharts = lazy(() => import('./components/DayCharts').then((module) => ({ default: module.DayCharts })));
-
-interface FocusedEvent {
-  secondsFromDayStart: number;
-  timestamp: string | null;
-}
 
 function usageWindow(summary: DaySummary) {
   if (summary.useSessions.length === 0) {
@@ -43,7 +37,6 @@ export function App() {
   const [dataset, setDataset] = useState<DatasetIndex | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [dayDetail, setDayDetail] = useState<DayDetail | null>(null);
-  const [focusedEvent, setFocusedEvent] = useState<FocusedEvent | null>(null);
   const [isIndexing, setIsIndexing] = useState(false);
   const [isLoadingDay, setIsLoadingDay] = useState(false);
   const [isRestoringImport, setIsRestoringImport] = useState(false);
@@ -91,7 +84,6 @@ export function App() {
     }
 
     let cancelled = false;
-    setFocusedEvent(null);
     setIsLoadingDay(true);
     loadDayDetail(dataset, selectedDate)
       .then((detail) => {
@@ -156,29 +148,10 @@ export function App() {
             {isLoadingDay ? <div className="notice">正在解析当前日期...</div> : null}
             {dayDetail ? (
               <Suspense fallback={<div className="notice">正在加载专业图表...</div>}>
-                <DayCharts
-                  detail={dayDetail}
-                  focusedEventSecond={focusedEvent?.secondsFromDayStart ?? null}
-                  focusedEventTimestamp={focusedEvent?.timestamp ?? null}
-                />
+                <DayCharts detail={dayDetail} />
               </Suspense>
             ) : null}
-            {focusedEvent ? (
-              <div className="notice">
-                已定位事件：{focusedEvent.timestamp ?? `${focusedEvent.secondsFromDayStart.toFixed(2)} 秒`}
-              </div>
-            ) : null}
-            {dayDetail ? (
-              <div className="detail-grid">
-                <EventTable
-                  events={dayDetail.events}
-                  onSelectEvent={(secondsFromDayStart, timestamp) =>
-                    setFocusedEvent({ secondsFromDayStart, timestamp })
-                  }
-                />
-                <RawFileBrowser files={dayDetail.rawFiles} />
-              </div>
-            ) : null}
+            {dayDetail ? <RawFileBrowser files={dayDetail.rawFiles} /> : null}
           </section>
         </div>
       ) : (

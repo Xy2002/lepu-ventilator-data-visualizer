@@ -26,18 +26,12 @@ function ruleFor(selector: string) {
   return declarations.join('\n');
 }
 
-describe('EventTable layout CSS', () => {
-  it('keeps the event and raw-file panels aligned while their contents scroll internally', () => {
-    expect(ruleFor('.event-table')).toContain('display: flex');
-    expect(ruleFor('.event-table')).toContain('flex-direction: column');
-    expect(ruleFor('.event-table')).toContain('height: clamp(');
+describe('RawFileBrowser layout CSS', () => {
+  it('raw-browser scrolls internally with a constrained height', () => {
     expect(ruleFor('.raw-browser')).toContain('display: flex');
     expect(ruleFor('.raw-browser')).toContain('flex-direction: column');
     expect(ruleFor('.raw-browser')).toContain('height: clamp(');
-    expect(ruleFor('.table-scroll')).toContain('flex: 1');
-    expect(ruleFor('.table-scroll')).toContain('overflow: auto');
     expect(ruleFor('.raw-file-list')).toContain('flex: 1');
     expect(ruleFor('.raw-file-list')).toContain('overflow: auto');
-    expect(css).not.toMatch(/\.event-table\s+\.table-scroll\s*\{[\s\S]*?max-height:\s*none/);
   });
 });
