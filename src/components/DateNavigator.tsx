@@ -66,14 +66,14 @@ export function DateNavigator({ dataset, selectedDate, onSelectDate }: DateNavig
         ))}
       </div>
       <div className="bounded-results">
-        <h3>匹配结果</h3>
-        {filteredDays.slice(0, 20).map((date) => (
+        <h3>筛选日期{missingOnly ? '（仅缺失）' : ''}</h3>
+        <p className="results-hint">共 {filteredDays.length} 天，显示最近 20 天</p>
+        {filteredDays.slice(-20).reverse().map((date) => (
           <button type="button" key={date} className="result-row" onClick={() => onSelectDate(date)}>
             <strong>{date}</strong>
-            <span>HI {dataset.summariesByDay[date].eventCounts.hi ?? 0}</span>
+            <span>高压事件 {dataset.summariesByDay[date].eventCounts.hi ?? 0}</span>
           </button>
         ))}
-        {filteredDays.length > 20 ? <p>还有 {filteredDays.length - 20} 天未显示，请缩小筛选范围。</p> : null}
       </div>
     </aside>
   );
