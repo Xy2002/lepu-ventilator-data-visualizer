@@ -413,17 +413,27 @@ label:focus-within {
   content: "";
 }
 
+.heatmap-label {
+  display: block;
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
 .heatmap {
   display: grid;
-  grid-template-columns: repeat(15, 1fr);
-  gap: 4px;
-  margin-top: 16px;
+  grid-template-columns: repeat(15, minmax(0, 1fr));
+  gap: 3px;
+  margin-top: 8px;
+  overflow: hidden;
 }
 
 .heat-cell {
   aspect-ratio: 1;
+  padding: 0;
   border: 0;
-  border-radius: 2px;
+  border-radius: 3px;
   background: #ebebeb;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.04);
   cursor: pointer;
@@ -433,7 +443,59 @@ label:focus-within {
   background: #d9d9d9;
 }
 
+.heat-cell.complete {
+  background: #c8e6c9;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+
+.heat-cell.complete:hover {
+  background: #a5d6a7;
+}
+
+.heat-cell.partial {
+  background: #ffe0b2;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+
+.heat-cell.partial:hover {
+  background: #ffcc80;
+}
+
 .heat-cell.active {
+  background: var(--blue);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+.heat-cell.active:hover {
+  background: #0960ca;
+}
+
+.heatmap-legend {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.legend-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  vertical-align: middle;
+  margin-right: 2px;
+}
+
+.legend-complete {
+  background: #c8e6c9;
+}
+
+.legend-partial {
+  background: #ffe0b2;
+}
+
+.legend-active {
   background: var(--blue);
 }
 
@@ -1130,7 +1192,7 @@ th {
   }
 
   .heatmap {
-    grid-template-columns: repeat(10, 1fr);
+    grid-template-columns: repeat(10, minmax(0, 1fr));
   }
 
   .selected-day-header p,
