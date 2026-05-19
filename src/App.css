@@ -859,6 +859,28 @@ th {
   gap: 12px;
   color: var(--text);
   cursor: pointer;
+  list-style: none;
+}
+
+.raw-browser summary::-webkit-details-marker {
+  display: none;
+}
+
+.raw-browser summary::before {
+  content: "▸";
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+  transition: transform 120ms ease;
+}
+
+.raw-browser details[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.raw-browser summary:hover::before {
+  color: var(--text);
 }
 
 .raw-file-summary-main {
