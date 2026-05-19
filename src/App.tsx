@@ -178,7 +178,7 @@ export function App() {
       {dataset && selectedDate && summary ? (
         <div className="grid grid-cols-[304px_minmax(0,1fr)] gap-4 w-full max-w-[1440px] mx-auto px-8 py-8 pb-10 max-lg:grid-cols-1 max-md:w-[calc(100%-32px)] max-md:px-0">
           <DateNavigator dataset={dataset} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
-          <SurfaceRoot variant="secondary" className="min-w-0 p-5">
+          <SurfaceRoot className="min-w-0 p-5">
             <div className="flex items-start justify-between gap-4 pb-4 border-b border-border">
               <h2 className="m-0 text-2xl font-semibold text-foreground leading-tight">{selectedDate}</h2>
               {usageWindow(summary)}
