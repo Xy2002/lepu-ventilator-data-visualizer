@@ -1,3 +1,4 @@
+import { CardRoot, CardContent } from '@heroui/react';
 import type { DaySummary } from '../types';
 
 interface SummaryCardsProps {
@@ -20,26 +21,34 @@ function duration(seconds: number | null) {
 export function SummaryCards({ summary }: SummaryCardsProps) {
   return (
     <section className="summary-grid">
-      <article>
-        <span>使用时长</span>
-        <strong>{duration(summary.useDurationSeconds)}</strong>
-      </article>
-      <article>
-        <span>AI / HI</span>
-        <strong>
-          {summary.eventCounts.ai ?? 0} / {summary.eventCounts.hi ?? 0}
-        </strong>
-      </article>
-      <article>
-        <span>压力范围</span>
-        <strong>
-          {summary.pressureRange ? `${summary.pressureRange.min} - ${summary.pressureRange.max}` : '-'}
-        </strong>
-      </article>
-      <article>
-        <span>缺失文件</span>
-        <strong>{summary.missingFiles.length}</strong>
-      </article>
+      <CardRoot>
+        <CardContent>
+          <span className="summary-label">使用时长</span>
+          <strong className="summary-value">{duration(summary.useDurationSeconds)}</strong>
+        </CardContent>
+      </CardRoot>
+      <CardRoot>
+        <CardContent>
+          <span className="summary-label">AI / HI</span>
+          <strong className="summary-value">
+            {summary.eventCounts.ai ?? 0} / {summary.eventCounts.hi ?? 0}
+          </strong>
+        </CardContent>
+      </CardRoot>
+      <CardRoot>
+        <CardContent>
+          <span className="summary-label">压力范围</span>
+          <strong className="summary-value">
+            {summary.pressureRange ? `${summary.pressureRange.min} - ${summary.pressureRange.max}` : '-'}
+          </strong>
+        </CardContent>
+      </CardRoot>
+      <CardRoot>
+        <CardContent>
+          <span className="summary-label">缺失文件</span>
+          <strong className="summary-value">{summary.missingFiles.length}</strong>
+        </CardContent>
+      </CardRoot>
     </section>
   );
 }

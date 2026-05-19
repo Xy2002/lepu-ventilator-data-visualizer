@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import { TabsRoot, TabListContainer, TabList, Tab, TabPanel, ChipRoot, ChipLabel } from '@heroui/react';
 import { WaveformChart } from '../charts/WaveformChart';
-import type { DayDetail, EventRecord, ParsedVentilatorFile, UseSession } from '../types';
+import type { DayDetail } from '../types';
 
 const CHART_SWITCH_DELAY_MS = 200;
 
@@ -31,9 +32,6 @@ export function DayCharts({ detail }: DayChartsProps) {
     detail.signals.find((s) => s.fileName === selectedFileName) ?? defaultSignal;
   const renderedSignal =
     detail.signals.find((s) => s.fileName === renderedFileName) ?? defaultSignal;
-  const selectedIndex = selectedSignal
-    ? detail.signals.findIndex((s) => s.fileName === selectedSignal.fileName)
-    : -1;
   const isSwitching =
     selectedSignal && renderedSignal && selectedSignal.fileName !== renderedSignal.fileName;
 
@@ -57,7 +55,6 @@ export function DayCharts({ detail }: DayChartsProps) {
 
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
 
-  // Reset focus when switching charts
   useEffect(() => {
     setFocusedIndex(null);
   }, [activeLabel]);
@@ -72,66 +69,56 @@ export function DayCharts({ detail }: DayChartsProps) {
   );
 
   const focusedEvent = focusedIndex !== null ? activeEvents[focusedIndex] : null;
-
   const isAscp = activeLabel === 'pressure';
 
   return (
     <section className="day-charts">
       {detail.signals.length === 0 ? <p>当前日期没有可显示的波形文件。</p> : null}
       {detail.signals.length > 0 ? (
-        <div className="chart-tabs" role="tablist" aria-label="波形图表">
-          {detail.signals.map((signal, index) => {
-            const selected = signal.fileName === selectedSignal?.fileName;
-            return (
-              <button
-                key={signal.fileName}
-                id={`chart-tab-${index}`}
-                type="button"
-                role="tab"
-                aria-selected={selected}
-                aria-controls={selected ? 'active-waveform-panel' : undefined}
-                tabIndex={selected ? 0 : -1}
-                onClick={() => setSelectedFileName(signal.fileName)}
-              >
-                {LABEL_NAMES[signal.header.label] ?? signal.header.label}
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
-      {renderedSignal ? (
-        <div
-          id="active-waveform-panel"
-          className="chart-panel-stage"
-          role="tabpanel"
-          aria-labelledby={selectedIndex >= 0 ? `chart-tab-${selectedIndex}` : undefined}
-          aria-busy={isSwitching}
+        <TabsRoot
+          selectedKey={selectedSignal?.fileName ?? ''}
+          onSelectionChange={(key) => setSelectedFileName(String(key))}
         >
-          <WaveformChart
-            key={renderedSignal.fileName}
-            label={renderedSignal.header.label}
-            values={renderedSignal.values}
-            sampleRateHz={renderedSignal.header.sampleRateHz}
-            startTime={renderedSignal.header.startTime}
-            useSessions={detail.useSessions}
-            eventTimestamps={eventTimestamps}
-            eventSeconds={eventSeconds}
-            focusedSecond={focusedEvent?.secondsFromDayStart ?? null}
-            focusedTimestamp={focusedEvent?.timestamp ?? null}
-          />
-          {isSwitching && selectedSignal ? (
-            <div
-              className="chart-loading"
-              role="progressbar"
-              aria-label={`正在加载 ${selectedSignal.header.label} 图表`}
-            >
-              <div className="chart-loading-card">
-                <div className="chart-loading-track" />
-                <span>正在加载 {selectedSignal.header.label} 图表...</span>
-              </div>
+          <TabListContainer>
+            <TabList>
+              {detail.signals.map((signal) => (
+                <Tab key={signal.fileName} id={signal.fileName}>
+                  {LABEL_NAMES[signal.header.label] ?? signal.header.label}
+                </Tab>
+              ))}
+            </TabList>
+          </TabListContainer>
+          <TabPanel id={selectedSignal?.fileName ?? ''}>
+            <div className="chart-panel-stage">
+              {renderedSignal ? (
+                <WaveformChart
+                  key={renderedSignal.fileName}
+                  label={renderedSignal.header.label}
+                  values={renderedSignal.values}
+                  sampleRateHz={renderedSignal.header.sampleRateHz}
+                  startTime={renderedSignal.header.startTime}
+                  useSessions={detail.useSessions}
+                  eventTimestamps={eventTimestamps}
+                  eventSeconds={eventSeconds}
+                  focusedSecond={focusedEvent?.secondsFromDayStart ?? null}
+                  focusedTimestamp={focusedEvent?.timestamp ?? null}
+                />
+              ) : null}
+              {isSwitching && selectedSignal ? (
+                <div
+                  className="chart-loading"
+                  role="progressbar"
+                  aria-label={`正在加载 ${selectedSignal.header.label} 图表`}
+                >
+                  <div className="chart-loading-card">
+                    <div className="chart-loading-track" />
+                    <span>正在加载 {selectedSignal.header.label} 图表...</span>
+                  </div>
+                </div>
+              ) : null}
             </div>
-          ) : null}
-        </div>
+          </TabPanel>
+        </TabsRoot>
       ) : null}
 
       {activeEvents.length > 0 ? (
@@ -139,7 +126,9 @@ export function DayCharts({ detail }: DayChartsProps) {
           <div className="chart-events-header">
             <h4>
               {isAscp ? 'ASCP 压力记录' : 'AI/HI 事件'}
-              <span className="chart-events-count">{activeEvents.length}</span>
+              <ChipRoot variant="soft" size="sm">
+                <ChipLabel>{activeEvents.length}</ChipLabel>
+              </ChipRoot>
             </h4>
           </div>
           <div className="chart-events-scroll">
@@ -165,9 +154,9 @@ export function DayCharts({ detail }: DayChartsProps) {
                     }}
                   >
                     <td>
-                      <span className={`event-badge event-badge--${event.sourceLabel}`}>
-                        {event.sourceLabel.toUpperCase()}
-                      </span>
+                      <ChipRoot variant="soft" size="sm" className={`event-badge--${event.sourceLabel}`}>
+                        <ChipLabel>{event.sourceLabel.toUpperCase()}</ChipLabel>
+                      </ChipRoot>
                     </td>
                     <td className="event-time">{event.timestamp ?? '-'}</td>
                     {isAscp ? (

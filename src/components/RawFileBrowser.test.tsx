@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { BA525_SAMPLE_1_BYTES } from '../parser/ba525ConfigFixtures';
 import type { ParsedVentilatorFile } from '../types';

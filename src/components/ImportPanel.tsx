@@ -1,3 +1,4 @@
+import { ButtonRoot } from '@heroui/react';
 import type { ImportedFileRef } from '../types';
 
 interface ImportPanelProps {
@@ -21,26 +22,32 @@ export function ImportPanel({ disabled, onImport }: ImportPanelProps) {
 
   return (
     <div className="import-panel">
-      <label className="import-button">
-        选择 DATAFILE 文件夹
-        <input
-          type="file"
-          multiple
-          disabled={disabled}
-          onChange={handleChange}
-          {...({ webkitdirectory: 'true', directory: 'true' } as Record<string, string>)}
-        />
+      <label>
+        <ButtonRoot variant="primary" size="sm" isDisabled={disabled}>
+          选择 DATAFILE 文件夹
+          <input
+            type="file"
+            multiple
+            disabled={disabled}
+            onChange={handleChange}
+            className="sr-only"
+            {...({ webkitdirectory: 'true', directory: 'true' } as Record<string, string>)}
+          />
+        </ButtonRoot>
       </label>
-      <label className="secondary-button">
-        选择 EDF 文件
-        <input
-          aria-label="选择 EDF 文件"
-          type="file"
-          multiple
-          accept=".edf,.bin"
-          disabled={disabled}
-          onChange={handleChange}
-        />
+      <label>
+        <ButtonRoot variant="outline" size="sm" isDisabled={disabled}>
+          选择 EDF 文件
+          <input
+            aria-label="选择 EDF 文件"
+            type="file"
+            multiple
+            accept=".edf,.bin"
+            disabled={disabled}
+            onChange={handleChange}
+            className="sr-only"
+          />
+        </ButtonRoot>
       </label>
     </div>
   );

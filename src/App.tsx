@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
+import { AlertRoot, AlertContent, AlertDescription, CardDescription } from '@heroui/react';
 import './App.css';
 import { DateNavigator } from './components/DateNavigator';
 import { ImportPanel } from './components/ImportPanel';
@@ -12,11 +13,7 @@ const DayCharts = lazy(() => import('./components/DayCharts').then((module) => (
 
 function usageWindow(summary: DaySummary) {
   if (summary.useSessions.length === 0) {
-    return (
-      <p>
-        {summary.startTime ?? '-'} 至 {summary.endTime ?? '-'}
-      </p>
-    );
+    return <CardDescription>{summary.startTime ?? '-'} 至 {summary.endTime ?? '-'}</CardDescription>;
   }
 
   return (
@@ -30,6 +27,16 @@ function usageWindow(summary: DaySummary) {
         ))}
       </ul>
     </div>
+  );
+}
+
+function Notice({ children }: { children: React.ReactNode }) {
+  return (
+    <AlertRoot>
+      <AlertContent>
+        <AlertDescription>{children}</AlertDescription>
+      </AlertContent>
+    </AlertRoot>
   );
 }
 
@@ -131,10 +138,12 @@ export function App() {
         <ImportPanel onImport={handleImport} disabled={isIndexing} />
       </header>
 
-      {error ? <div className="notice error">{error}</div> : null}
-      {cacheNotice ? <div className="notice">{cacheNotice}</div> : null}
-      {isRestoringImport ? <div className="notice">正在恢复上次导入...</div> : null}
-      {isIndexing ? <div className="notice">正在索引文件...</div> : null}
+      <div className="notice-stack">
+        {error ? <Notice>{error}</Notice> : null}
+        {cacheNotice ? <Notice>{cacheNotice}</Notice> : null}
+        {isRestoringImport ? <Notice>正在恢复上次导入...</Notice> : null}
+        {isIndexing ? <Notice>正在索引文件...</Notice> : null}
+      </div>
 
       {dataset && selectedDate && summary ? (
         <div className="workbench">
@@ -145,9 +154,9 @@ export function App() {
               {usageWindow(summary)}
             </div>
             <SummaryCards summary={summary} />
-            {isLoadingDay ? <div className="notice">正在解析当前日期...</div> : null}
+            {isLoadingDay ? <Notice>正在解析当前日期...</Notice> : null}
             {dayDetail ? (
-              <Suspense fallback={<div className="notice">正在加载专业图表...</div>}>
+              <Suspense fallback={<Notice>正在加载专业图表...</Notice>}>
                 <DayCharts detail={dayDetail} />
               </Suspense>
             ) : null}

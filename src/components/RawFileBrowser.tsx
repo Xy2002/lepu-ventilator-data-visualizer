@@ -1,3 +1,4 @@
+import { DisclosureGroupRoot, DisclosureRoot, DisclosureTrigger, DisclosureHeading, DisclosureContent, DisclosureIndicator, ButtonRoot, ChipRoot, ChipLabel } from '@heroui/react';
 import { downloadCsv, exportEventsCsv, exportWaveformCsv } from '../data/csv';
 import { type Ba525ConfigRecord, parseBa525ConfigRecords } from '../parser/ba525ConfigParser';
 import type { EventRecord, ParsedVentilatorFile } from '../types';
@@ -98,9 +99,9 @@ function ConfigRecordTable({ record }: { record: Ba525ConfigRecord }) {
             <td>{entry.label}</td>
             <td>{entry.display}</td>
             <td>
-              <span className={`config-status config-status--${entry.status}`}>
-                {entry.status === 'confirmed' ? '已确认' : '交叉验证'}
-              </span>
+              <ChipRoot variant="soft" size="sm" className={entry.status === 'confirmed' ? 'config-status--confirmed' : 'config-status--diff'}>
+                <ChipLabel>{entry.status === 'confirmed' ? '已确认' : '交叉验证'}</ChipLabel>
+              </ChipRoot>
             </td>
           </tr>
         ))}
@@ -145,63 +146,72 @@ export function RawFileBrowser({ files }: RawFileBrowserProps) {
     <section className="raw-browser">
       <h3>原始文件</h3>
       <div className="raw-file-list">
-        {files.map((file) => {
-          const description = describeRawFile(file);
-          const isBa525Config = file.kind === 'raw_config' && file.rawPayload.length >= 192;
+        <DisclosureGroupRoot>
+          {files.map((file) => {
+            const description = describeRawFile(file);
+            const isBa525Config = file.kind === 'raw_config' && file.rawPayload.length >= 192;
 
-          return (
-            <details key={file.fileName}>
-              <summary>
-                <span className="raw-file-summary-main">
-                  <strong>{file.fileName}</strong>
-                  <span className="raw-file-description">{description}</span>
-                </span>
-                <span className="raw-file-kind">{file.kind}</span>
-              </summary>
-              {isBa525Config ? <ConfigDetail file={file} /> : null}
-              <dl>
-                <div>
-                  <dt>说明</dt>
-                  <dd className="raw-file-description-detail">{description}</dd>
-                </div>
-                <div>
-                  <dt>Label</dt>
-                  <dd>{file.header.label}</dd>
-                </div>
-                <div>
-                  <dt>Header</dt>
-                  <dd>{file.header.headerBytes} bytes</dd>
-                </div>
-                <div>
-                  <dt>Payload</dt>
-                  <dd>{file.payloadBytes} bytes</dd>
-                </div>
-                <div>
-                  <dt>Start</dt>
-                  <dd>{file.header.startTime ?? '-'}</dd>
-                </div>
-                <div>
-                  <dt>End</dt>
-                  <dd>{file.header.endTime ?? '-'}</dd>
-                </div>
-                <div>
-                  <dt>Preview</dt>
-                  <dd>{preview(file)}</dd>
-                </div>
-              </dl>
-              {file.warnings.map((warning) => (
-                <p className="warning" key={warning}>
-                  {warning}
-                </p>
-              ))}
-              {file.values.length > 0 || file.kind === 'events16' ? (
-                <button type="button" onClick={() => exportFile(file)}>
-                  导出 CSV
-                </button>
-              ) : null}
-            </details>
-          );
-        })}
+            return (
+              <DisclosureRoot key={file.fileName}>
+                <DisclosureTrigger>
+                  <DisclosureHeading>
+                    <span className="raw-file-summary-main">
+                      <strong>{file.fileName}</strong>
+                      <span className="raw-file-description">{description}</span>
+                    </span>
+                    <ChipRoot variant="soft" size="sm">
+                      <ChipLabel>{file.kind}</ChipLabel>
+                    </ChipRoot>
+                  </DisclosureHeading>
+                  <DisclosureIndicator />
+                </DisclosureTrigger>
+                <DisclosureContent>
+                  {isBa525Config ? <ConfigDetail file={file} /> : null}
+                  <dl>
+                    <div>
+                      <dt>说明</dt>
+                      <dd className="raw-file-description-detail">{description}</dd>
+                    </div>
+                    <div>
+                      <dt>Label</dt>
+                      <dd>{file.header.label}</dd>
+                    </div>
+                    <div>
+                      <dt>Header</dt>
+                      <dd>{file.header.headerBytes} bytes</dd>
+                    </div>
+                    <div>
+                      <dt>Payload</dt>
+                      <dd>{file.payloadBytes} bytes</dd>
+                    </div>
+                    <div>
+                      <dt>Start</dt>
+                      <dd>{file.header.startTime ?? '-'}</dd>
+                    </div>
+                    <div>
+                      <dt>End</dt>
+                      <dd>{file.header.endTime ?? '-'}</dd>
+                    </div>
+                    <div>
+                      <dt>Preview</dt>
+                      <dd>{preview(file)}</dd>
+                    </div>
+                  </dl>
+                  {file.warnings.map((warning) => (
+                    <p className="warning" key={warning}>
+                      {warning}
+                    </p>
+                  ))}
+                  {file.values.length > 0 || file.kind === 'events16' ? (
+                    <ButtonRoot variant="outline" size="sm" onPress={() => exportFile(file)}>
+                      导出 CSV
+                    </ButtonRoot>
+                  ) : null}
+                </DisclosureContent>
+              </DisclosureRoot>
+            );
+          })}
+        </DisclosureGroupRoot>
       </div>
     </section>
   );

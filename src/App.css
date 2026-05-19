@@ -1,6 +1,6 @@
 @import "tailwindcss";
+@import "@heroui/styles";
 @import "tw-animate-css";
-@import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
 
 @custom-variant dark (&:is(.dark *));
@@ -847,46 +847,11 @@ th {
   font-size: 11px;
 }
 
-.raw-browser details {
-  padding: 10px 0;
-  box-shadow: rgba(0, 0, 0, 0.08) 0 1px 0;
-}
-
-.raw-browser summary {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  color: var(--text);
-  cursor: pointer;
-  list-style: none;
-}
-
-.raw-browser summary::-webkit-details-marker {
-  display: none;
-}
-
-.raw-browser summary::before {
-  content: "▸";
-  flex: 0 0 auto;
-  margin-top: 2px;
-  color: var(--muted);
-  font-size: 12px;
-  transition: transform 120ms ease;
-}
-
-.raw-browser details[open] > summary::before {
-  transform: rotate(90deg);
-}
-
-.raw-browser summary:hover::before {
-  color: var(--text);
-}
-
-.raw-file-summary-main {
-  display: grid;
-  min-width: 0;
-  gap: 4px;
+.raw-browser .raw-file-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .raw-file-description,
