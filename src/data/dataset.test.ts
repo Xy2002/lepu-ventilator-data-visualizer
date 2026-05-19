@@ -47,7 +47,7 @@ describe('dataset indexing', () => {
     expect(index.summariesByDay['2026-04-29'].startTime).toBe('2026-04-29 08:28:00');
     expect(index.summariesByDay['2026-04-29'].endTime).toBe('2026-04-29 08:30:00');
     expect(index.summariesByDay['2026-04-29'].useDurationSeconds).toBe(120);
-    expect(index.summariesByDay['2026-04-29'].pressureRange).toEqual({ min: 1, max: 9 });
+    expect(index.summariesByDay['2026-04-29'].pressureRange).toBeNull();
   });
 
   it('filterDays filters by range, event presence, and missing files', async () => {
@@ -91,5 +91,6 @@ describe('dataset indexing', () => {
       'usetime',
       'mystery',
     ]);
+    expect(detail.summary.pressureRange).toEqual({ min: 1, max: 9 });
   });
 });
