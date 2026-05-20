@@ -156,48 +156,27 @@ label:focus-within {
   gap: 8px;
 }
 
-.import-button,
-.secondary-button {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.import-panel .button {
   min-height: 36px;
-  padding: 0 14px;
-  border: 0;
   border-radius: 6px;
-  color: var(--text);
-  background: var(--surface);
-  box-shadow: var(--line-light);
   font-size: 14px;
   font-weight: 500;
-  line-height: 1;
-  cursor: pointer;
-  transition:
-    background 140ms ease,
-    color 140ms ease,
-    box-shadow 140ms ease,
-    transform 140ms ease;
 }
 
-.import-button {
-  color: #ffffff;
-  background: var(--text);
+.import-panel .button--primary {
+  --button-bg: var(--text);
+  --button-bg-hover: #333;
+  --button-bg-pressed: #333;
+  --button-fg: #fff;
   box-shadow: var(--line), rgba(0, 0, 0, 0.12) 0 2px 6px -4px;
 }
 
-.import-button:hover,
-.secondary-button:hover {
-  transform: translateY(-1px);
-}
-
-.secondary-button:hover {
-  background: var(--surface-subtle);
-}
-
-.import-button input,
-.secondary-button input {
-  display: none;
+.import-panel .button--outline {
+  --button-bg: var(--surface);
+  --button-bg-hover: var(--surface-subtle);
+  --button-fg: var(--text);
+  border: 0;
+  box-shadow: var(--line-light);
 }
 
 .empty-state {
@@ -284,11 +263,16 @@ label:focus-within {
 .waveform-panel,
 .event-table,
 .raw-browser,
-.summary-grid article {
+.summary-grid .card {
   border: 0;
   border-radius: 8px;
   background: var(--surface);
   box-shadow: var(--card-shadow);
+}
+
+.summary-grid .card {
+  padding: 14px;
+  gap: 0;
 }
 
 .date-navigator {
@@ -706,37 +690,28 @@ label:focus-within {
   background: #dbeafe;
 }
 
-.chart-tabs {
-  display: flex;
+.day-charts .tabs__list {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
   gap: 8px;
-  overflow-x: auto;
-  padding-bottom: 12px;
+  box-shadow: none;
 }
 
-.chart-tabs button {
-  flex: 0 0 auto;
-  min-height: 36px;
-  padding: 0 16px;
-  border: 0;
+.day-charts .tabs__tab {
   border-radius: 6px;
   color: var(--muted);
   background: var(--surface);
   box-shadow: var(--line-light);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition:
-    background 140ms ease,
-    color 140ms ease,
-    box-shadow 140ms ease;
+  height: 36px;
 }
 
-.chart-tabs button:hover {
+.day-charts .tabs__tab:hover {
   color: var(--text);
   background: var(--surface-subtle);
 }
 
-.chart-tabs button[aria-selected="true"] {
+.day-charts .tabs__tab[data-selected="true"] {
   color: #ffffff;
   background: var(--text);
   box-shadow: var(--line), rgba(0, 0, 0, 0.12) 0 2px 6px -4px;
@@ -901,9 +876,9 @@ th {
   font-weight: 500;
 }
 
-.event-badge {
-  display: inline-block;
-  padding: 2px 7px;
+.event-badge,
+.chart-events .chip,
+.config-status {
   border-radius: 4px;
   font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 11px;
