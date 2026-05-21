@@ -43,6 +43,38 @@ npm run test:watch  # 监听模式运行测试
 
 需要 Node >= 20.19.0。
 
+## 部署
+
+### Docker
+
+使用多阶段构建（Node 构建 → nginx 静态服务）：
+
+```bash
+# 构建并启动
+docker compose up -d --build
+
+# 访问 http://localhost:3000
+```
+
+手动构建：
+
+```bash
+docker build -t ventilator-web .
+docker run -d -p 3000:80 ventilator-web
+```
+
+### Railway
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/deploy?ref=https://github.com/Xy2002/lepu-ventilator-data-visualizer)
+
+或手动：在 Railway 中连接 GitHub 仓库，Railway 会自动识别 `railway.toml` 并使用 Dockerfile 构建。
+
+### Vercel
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Xy2002/lepu-ventilator-data-visualizer)
+
+或手动：导入 GitHub 仓库到 Vercel，框架自动识别为 Vite，无需额外配置。
+
 ## 技术栈
 
 React 19 · TypeScript · Vite · Tailwind CSS 4 · ECharts 6 · HeroUI · Vitest + Testing Library
