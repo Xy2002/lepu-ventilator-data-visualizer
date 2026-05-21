@@ -926,11 +926,17 @@ th {
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
+  box-shadow: var(--line);
+  border-radius: 6px;
 }
 
 .raw-browser details {
-  padding: 10px 0;
+  padding: 10px 12px;
   box-shadow: rgba(0, 0, 0, 0.08) 0 1px 0;
+}
+
+.raw-browser details:last-child {
+  box-shadow: none;
 }
 
 .raw-browser summary {
