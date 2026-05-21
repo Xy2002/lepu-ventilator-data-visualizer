@@ -65,9 +65,7 @@ docker run -d -p 3000:80 ventilator-web
 
 ### Railway
 
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/deploy?ref=https://github.com/Xy2002/lepu-ventilator-data-visualizer)
-
-或手动：在 Railway 中连接 GitHub 仓库，Railway 会自动识别 `railway.toml` 并使用 Dockerfile 构建。
+在 Railway 中连接 GitHub 仓库，Railway 会自动识别 `railway.toml` 并使用 Dockerfile 构建。
 
 ### Vercel
 
