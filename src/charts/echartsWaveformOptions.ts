@@ -74,12 +74,10 @@ function buildTimestampMarkLineData(
   chartStartMs: number,
   chartEndMs: number,
   pixelWidth: number,
-  minPixelGap = 40,
 ): MarkLineItem[] {
   if (pixelWidth <= 0 || chartEndMs <= chartStartMs) return [];
 
   const visibleMs = chartEndMs - chartStartMs;
-  let previousPixel = Number.NEGATIVE_INFINITY;
   const markers: MarkLineItem[] = [];
 
   const sorted = [...eventMarkers]
@@ -90,12 +88,8 @@ function buildTimestampMarkLineData(
   for (const marker of sorted) {
     if (marker.ms < chartStartMs || marker.ms > chartStartMs + visibleMs) continue;
 
-    const pixel = ((marker.ms - chartStartMs) / Math.max(visibleMs, Number.EPSILON)) * pixelWidth;
-    if (pixel - previousPixel < minPixelGap) continue;
-
     const style = EVENT_STYLES[marker.sourceLabel] ?? { color: '#d92d20', label: marker.sourceLabel.toUpperCase() };
     markers.push({ xAxis: marker.ms, name: style.label, lineStyle: { color: style.color } });
-    previousPixel = pixel;
   }
 
   return markers;
@@ -106,12 +100,10 @@ function buildEventMarkLineData(
   sampleRateHz: number | null,
   valuesLength: number,
   pixelWidth: number,
-  minPixelGap = 40,
 ): MarkLineItem[] {
   if (!sampleRateHz || pixelWidth <= 0) return [];
 
   const visibleSeconds = valuesLength / sampleRateHz;
-  let previousPixel = Number.NEGATIVE_INFINITY;
   const markers: MarkLineItem[] = [];
 
   const sorted = [...eventMarkers]
@@ -122,12 +114,8 @@ function buildEventMarkLineData(
     const second = marker.secondsFromDayStart!;
     if (second < 0 || second > visibleSeconds) continue;
 
-    const pixel = (second / Math.max(visibleSeconds, Number.EPSILON)) * pixelWidth;
-    if (pixel - previousPixel < minPixelGap) continue;
-
     const style = EVENT_STYLES[marker.sourceLabel] ?? { color: '#d92d20', label: marker.sourceLabel.toUpperCase() };
     markers.push({ xAxis: second, name: style.label, lineStyle: { color: style.color } });
-    previousPixel = pixel;
   }
 
   return markers;
