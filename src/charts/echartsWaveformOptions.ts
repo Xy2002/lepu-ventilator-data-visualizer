@@ -4,14 +4,25 @@ import type { WaveformValues } from './waveformData';
 
 export type EChartsWaveformPoint = [secondsOrIndex: number, value: number | null];
 
+export interface EventMarkerInfo {
+  timestamp?: string;
+  secondsFromDayStart?: number;
+  sourceLabel: string;
+}
+
+export const EVENT_STYLES: Record<string, { color: string; label: string }> = {
+  ai: { color: '#d92d20', label: 'AI 呼吸暂停' },
+  hi: { color: '#f59e0b', label: 'HI 低通气' },
+  ascp: { color: '#6366f1', label: 'ASCP 压力调整' },
+};
+
 interface BuildEChartsWaveformOptionParams {
   label: string;
   values: WaveformValues;
   sampleRateHz: number | null;
   startTime?: string | null;
   useSessions?: UseSession[];
-  eventTimestamps?: string[];
-  eventSeconds?: number[];
+  eventMarkers?: EventMarkerInfo[];
   pixelWidth?: number;
 }
 
@@ -52,30 +63,38 @@ function formatAxisSecond(value: number): string {
   return `${value.toFixed(value >= 10 ? 0 : 1)}s`;
 }
 
+interface MarkLineItem {
+  xAxis: number;
+  name: string;
+  lineStyle: { color: string };
+}
+
 function buildTimestampMarkLineData(
-  eventTimestamps: string[],
+  eventMarkers: EventMarkerInfo[],
   chartStartMs: number,
   chartEndMs: number,
   pixelWidth: number,
-  minPixelGap = 8,
-): Array<{ xAxis: number }> {
+  minPixelGap = 40,
+): MarkLineItem[] {
   if (pixelWidth <= 0 || chartEndMs <= chartStartMs) return [];
 
   const visibleMs = chartEndMs - chartStartMs;
   let previousPixel = Number.NEGATIVE_INFINITY;
-  const markers: Array<{ xAxis: number }> = [];
+  const markers: MarkLineItem[] = [];
 
-  const eventTimestampMs = eventTimestamps
-    .map(parseEdfTimestampMs)
-    .filter((value): value is number => value !== null);
+  const sorted = [...eventMarkers]
+    .map((m) => ({ ...m, ms: parseEdfTimestampMs(m.timestamp) }))
+    .filter((m): m is EventMarkerInfo & { ms: number } => m.ms !== null)
+    .sort((a, b) => a.ms - b.ms);
 
-  for (const timestampMs of eventTimestampMs) {
-    if (timestampMs < chartStartMs || timestampMs > chartStartMs + visibleMs) continue;
+  for (const marker of sorted) {
+    if (marker.ms < chartStartMs || marker.ms > chartStartMs + visibleMs) continue;
 
-    const pixel = ((timestampMs - chartStartMs) / Math.max(visibleMs, Number.EPSILON)) * pixelWidth;
+    const pixel = ((marker.ms - chartStartMs) / Math.max(visibleMs, Number.EPSILON)) * pixelWidth;
     if (pixel - previousPixel < minPixelGap) continue;
 
-    markers.push({ xAxis: timestampMs });
+    const style = EVENT_STYLES[marker.sourceLabel] ?? { color: '#d92d20', label: marker.sourceLabel.toUpperCase() };
+    markers.push({ xAxis: marker.ms, name: style.label, lineStyle: { color: style.color } });
     previousPixel = pixel;
   }
 
@@ -83,25 +102,31 @@ function buildTimestampMarkLineData(
 }
 
 function buildEventMarkLineData(
-  eventSeconds: number[],
+  eventMarkers: EventMarkerInfo[],
   sampleRateHz: number | null,
   valuesLength: number,
   pixelWidth: number,
-  minPixelGap = 8,
-): Array<{ xAxis: number }> {
+  minPixelGap = 40,
+): MarkLineItem[] {
   if (!sampleRateHz || pixelWidth <= 0) return [];
 
   const visibleSeconds = valuesLength / sampleRateHz;
   let previousPixel = Number.NEGATIVE_INFINITY;
-  const markers: Array<{ xAxis: number }> = [];
+  const markers: MarkLineItem[] = [];
 
-  for (const second of [...eventSeconds].sort((a, b) => a - b)) {
+  const sorted = [...eventMarkers]
+    .filter((m) => typeof m.secondsFromDayStart === 'number')
+    .sort((a, b) => (a.secondsFromDayStart ?? 0) - (b.secondsFromDayStart ?? 0));
+
+  for (const marker of sorted) {
+    const second = marker.secondsFromDayStart!;
     if (second < 0 || second > visibleSeconds) continue;
 
     const pixel = (second / Math.max(visibleSeconds, Number.EPSILON)) * pixelWidth;
     if (pixel - previousPixel < minPixelGap) continue;
 
-    markers.push({ xAxis: second });
+    const style = EVENT_STYLES[marker.sourceLabel] ?? { color: '#d92d20', label: marker.sourceLabel.toUpperCase() };
+    markers.push({ xAxis: second, name: style.label, lineStyle: { color: style.color } });
     previousPixel = pixel;
   }
 
@@ -155,8 +180,7 @@ export function buildEChartsWaveformOption({
   sampleRateHz,
   startTime = null,
   useSessions = [],
-  eventTimestamps = [],
-  eventSeconds = [],
+  eventMarkers = [],
   pixelWidth = 1200,
 }: BuildEChartsWaveformOptionParams): EChartsOption {
   const startMs = parseEdfTimestampMs(startTime);
@@ -174,8 +198,8 @@ export function buildEChartsWaveformOption({
         : null;
   const markLineData =
     usesRealTime && chartStartMs !== null && chartEndMs !== null
-      ? buildTimestampMarkLineData(eventTimestamps, chartStartMs, chartEndMs, pixelWidth)
-      : buildEventMarkLineData(eventSeconds, sampleRateHz, values.length, pixelWidth);
+      ? buildTimestampMarkLineData(eventMarkers, chartStartMs, chartEndMs, pixelWidth)
+      : buildEventMarkLineData(eventMarkers, sampleRateHz, values.length, pixelWidth);
   const data = buildEChartsWaveformSeries(values, sampleRateHz, startTime, useSessions);
   const xAxisName = usesRealTime ? 'real time' : sampleRateHz ? 'seconds' : 'sample index';
 
@@ -203,12 +227,15 @@ export function buildEChartsWaveformOption({
       silent: true,
       symbol: 'none',
       lineStyle: {
-        color: '#d92d20',
-        opacity: 0.34,
+        opacity: 0.55,
         width: 1,
+        type: 'dashed',
       },
       label: {
-        show: false,
+        show: true,
+        position: 'insideStartTop',
+        fontSize: 10,
+        formatter: '{b}',
       },
       data: markLineData,
     };

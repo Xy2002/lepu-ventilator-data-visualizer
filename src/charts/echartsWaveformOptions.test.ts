@@ -58,7 +58,7 @@ describe('buildEChartsWaveformOption', () => {
       values: new Uint8Array([20, 19, 17]),
       sampleRateHz: 2,
       startTime: '2026-04-29 03:03:12.57',
-      eventTimestamps: ['2026-04-29 03:03:13.07'],
+      eventMarkers: [{ timestamp: '2026-04-29 03:03:13.07', sourceLabel: 'ai' }],
     });
 
     expect(option.useUTC).toBe(true);
@@ -71,7 +71,7 @@ describe('buildEChartsWaveformOption', () => {
           [1777431793570, 17],
         ],
         markLine: expect.objectContaining({
-          data: [{ xAxis: 1777431793070 }],
+          data: [expect.objectContaining({ xAxis: 1777431793070, name: 'AI 呼吸暂停' })],
         }),
       }),
     ]);
@@ -94,7 +94,7 @@ describe('buildEChartsWaveformOption', () => {
           durationSeconds: 2,
         },
       ],
-      eventTimestamps: ['2026-04-29 09:00:01'],
+      eventMarkers: [{ timestamp: '2026-04-29 09:00:01', sourceLabel: 'hi' }],
     });
 
     expect(option.xAxis).toMatchObject({ type: 'time', name: 'real time' });
@@ -108,7 +108,7 @@ describe('buildEChartsWaveformOption', () => {
           [Date.UTC(2026, 3, 29, 9, 0, 1), 16],
         ],
         markLine: expect.objectContaining({
-          data: [{ xAxis: Date.UTC(2026, 3, 29, 9, 0, 1) }],
+          data: [expect.objectContaining({ xAxis: Date.UTC(2026, 3, 29, 9, 0, 1), name: 'HI 低通气' })],
         }),
       }),
     ]);
@@ -119,7 +119,10 @@ describe('buildEChartsWaveformOption', () => {
       label: 'pressure',
       values: new Uint16Array([1, 2, 3, 4]),
       sampleRateHz: 2,
-      eventSeconds: [0.5, 1],
+      eventMarkers: [
+        { secondsFromDayStart: 0.5, sourceLabel: 'ascp' },
+        { secondsFromDayStart: 1, sourceLabel: 'ascp' },
+      ],
     });
 
     expect(option.tooltip).toMatchObject({
@@ -141,7 +144,10 @@ describe('buildEChartsWaveformOption', () => {
         symbol: 'none',
         sampling: 'lttb',
         markLine: expect.objectContaining({
-          data: [{ xAxis: 0.5 }, { xAxis: 1 }],
+          data: [
+            expect.objectContaining({ xAxis: 0.5, name: 'ASCP 压力调整' }),
+            expect.objectContaining({ xAxis: 1, name: 'ASCP 压力调整' }),
+          ],
         }),
       }),
     ]);
@@ -152,7 +158,10 @@ describe('buildEChartsWaveformOption', () => {
       label: 'difleak',
       values: new Uint8Array([1, 2, 3]),
       sampleRateHz: null,
-      eventSeconds: [1, 2],
+      eventMarkers: [
+        { secondsFromDayStart: 1, sourceLabel: 'ai' },
+        { secondsFromDayStart: 2, sourceLabel: 'ai' },
+      ],
     });
 
     const series = option.series as Array<Record<string, unknown>>;

@@ -48,7 +48,7 @@ describe('WaveformChart', () => {
         values={new Uint8Array([1, 2, 3])}
         sampleRateHz={80}
         startTime="2026-04-29 03:03:12.57"
-        eventTimestamps={['2026-04-29 03:03:13.57']}
+        eventMarkers={[{ timestamp: '2026-04-29 03:03:13.57', sourceLabel: 'ai' }]}
       />,
     );
 

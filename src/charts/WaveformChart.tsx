@@ -11,7 +11,8 @@ import type { ECharts } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { useEffect, useMemo, useRef } from 'react';
 import type { UseSession } from '../types';
-import { buildEChartsWaveformOption, parseEdfTimestampMs } from './echartsWaveformOptions';
+import { buildEChartsWaveformOption, EVENT_STYLES, parseEdfTimestampMs } from './echartsWaveformOptions';
+import type { EventMarkerInfo } from './echartsWaveformOptions';
 import type { WaveformValues } from './waveformData';
 
 echarts.use([
@@ -30,8 +31,7 @@ interface WaveformChartProps {
   sampleRateHz: number | null;
   startTime?: string | null;
   useSessions?: UseSession[];
-  eventTimestamps?: string[];
-  eventSeconds?: number[];
+  eventMarkers?: EventMarkerInfo[];
   focusedSecond?: number | null;
   focusedTimestamp?: string | null;
 }
@@ -42,8 +42,7 @@ export function WaveformChart({
   sampleRateHz,
   startTime = null,
   useSessions = [],
-  eventTimestamps = [],
-  eventSeconds = [],
+  eventMarkers = [],
   focusedSecond = null,
   focusedTimestamp = null,
 }: WaveformChartProps) {
@@ -58,11 +57,15 @@ export function WaveformChart({
         sampleRateHz,
         startTime,
         useSessions,
-        eventTimestamps,
-        eventSeconds,
+        eventMarkers,
         pixelWidth: Math.max(320, containerRef.current?.getBoundingClientRect().width ?? 1200),
       }),
-    [eventSeconds, eventTimestamps, label, sampleRateHz, startTime, useSessions, values],
+    [eventMarkers, label, sampleRateHz, startTime, useSessions, values],
+  );
+
+  const uniqueEventTypes = useMemo(
+    () => [...new Set(eventMarkers.map((m) => m.sourceLabel))],
+    [eventMarkers],
   );
 
   function resetZoom() {
@@ -154,6 +157,19 @@ export function WaveformChart({
           重置缩放
         </button>
       </div>
+      {uniqueEventTypes.length > 0 ? (
+        <div className="chart-legend">
+          {uniqueEventTypes.map((type) => {
+            const style = EVENT_STYLES[type];
+            return (
+              <span key={type} className="chart-legend-item">
+                <span className="chart-legend-line" style={{ backgroundColor: style?.color ?? '#d92d20' }} />
+                <span className="chart-legend-text">{style?.label ?? type.toUpperCase()}</span>
+              </span>
+            );
+          })}
+        </div>
+      ) : null}
       <div
         ref={containerRef}
         className="waveform-chart"

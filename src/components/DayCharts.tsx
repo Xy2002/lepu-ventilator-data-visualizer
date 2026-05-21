@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { TabsRoot, TabListContainer, TabList, Tab, TabPanel, ChipRoot, ChipLabel } from '@heroui/react';
 import { WaveformChart } from '../charts/WaveformChart';
+import type { EventMarkerInfo } from '../charts/echartsWaveformOptions';
 import type { DayDetail } from '../types';
 
 const CHART_SWITCH_DELAY_MS = 200;
@@ -59,12 +60,13 @@ export function DayCharts({ detail }: DayChartsProps) {
     setFocusedIndex(null);
   }, [activeLabel]);
 
-  const eventSeconds = useMemo(
-    () => activeEvents.map((e) => e.secondsFromDayStart).filter((v): v is number => typeof v === 'number'),
-    [activeEvents],
-  );
-  const eventTimestamps = useMemo(
-    () => activeEvents.map((e) => e.timestamp).filter((v): v is string => typeof v === 'string'),
+  const eventMarkers = useMemo<EventMarkerInfo[]>(
+    () =>
+      activeEvents.map((e) => ({
+        timestamp: e.timestamp ?? undefined,
+        secondsFromDayStart: e.secondsFromDayStart,
+        sourceLabel: e.sourceLabel,
+      })),
     [activeEvents],
   );
 
@@ -98,8 +100,7 @@ export function DayCharts({ detail }: DayChartsProps) {
                   sampleRateHz={renderedSignal.header.sampleRateHz}
                   startTime={renderedSignal.header.startTime}
                   useSessions={detail.useSessions}
-                  eventTimestamps={eventTimestamps}
-                  eventSeconds={eventSeconds}
+                  eventMarkers={eventMarkers}
                   focusedSecond={focusedEvent?.secondsFromDayStart ?? null}
                   focusedTimestamp={focusedEvent?.timestamp ?? null}
                 />
