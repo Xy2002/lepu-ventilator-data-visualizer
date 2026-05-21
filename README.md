@@ -84,7 +84,3 @@ src/
 ## 辅助工具
 
 `read_ventilator_data.py` — Python 脚本，用于在命令行中快速验证和解析呼吸机数据文件。
-
-## License
-
-Private
