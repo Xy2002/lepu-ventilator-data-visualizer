@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { CardDescription } from '@heroui/react';
 import './App.css';
+import { AiAnalysisPanel } from './components/AiAnalysisPanel';
 import { DateNavigator } from './components/DateNavigator';
 import { ImportPanel } from './components/ImportPanel';
 import { RawFileBrowser } from './components/RawFileBrowser';
@@ -44,6 +45,7 @@ export function App() {
   const [cacheNotice, setCacheNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [indexProgress, setIndexProgress] = useState<IndexProgress | null>(null);
+  const [aiPanelOpen, setAiPanelOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -132,7 +134,18 @@ export function App() {
           <h1>呼吸机数据可视化</h1>
           <p>浏览器本地解析，不上传原始数据</p>
         </div>
-        <ImportPanel onImport={handleImport} disabled={isIndexing} />
+        <div className="header-actions">
+          {dataset && summary ? (
+            <button
+              type="button"
+              className={`ai-toggle-btn${aiPanelOpen ? ' ai-toggle-btn-active' : ''}`}
+              onClick={() => setAiPanelOpen((o) => !o)}
+            >
+              AI 分析
+            </button>
+          ) : null}
+          <ImportPanel onImport={handleImport} disabled={isIndexing} />
+        </div>
       </header>
 
       <div className="notice-stack">
@@ -143,7 +156,7 @@ export function App() {
       </div>
 
       {dataset && selectedDate && summary ? (
-        <div className="workbench">
+        <div className={`workbench${aiPanelOpen ? ' workbench--with-ai' : ''}`}>
           <DateNavigator dataset={dataset} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
           <section className="main-panel">
             <div className="selected-day-header">
@@ -159,6 +172,12 @@ export function App() {
             ) : null}
             {dayDetail ? <RawFileBrowser files={dayDetail.rawFiles} /> : null}
           </section>
+          <AiAnalysisPanel
+            summary={summary}
+            selectedDate={selectedDate}
+            open={aiPanelOpen}
+            onClose={() => setAiPanelOpen(false)}
+          />
         </div>
       ) : (
         <section className="empty-state">

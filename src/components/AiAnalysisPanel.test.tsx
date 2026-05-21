@@ -1,0 +1,70 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, cleanup } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { AiAnalysisPanel } from './AiAnalysisPanel';
+import type { DaySummary } from '../types';
+
+const mockSummary: DaySummary = {
+  date: '2026-05-21',
+  startTime: '2026-05-20 22:30:00',
+  endTime: '2026-05-21 06:15:00',
+  useDurationSeconds: 27900,
+  useSessions: [
+    { startTime: '2026-05-20 22:30:00', endTime: '2026-05-21 02:00:00', durationSeconds: 12600 },
+  ],
+  eventCounts: { ai: 3, hi: 5 },
+  signalPresence: { flow: true, pressure: true, real_pres: true, real_flow: true },
+  sampleCounts: { flow: 1000 },
+  pressureRange: { min: 4, max: 15 },
+  missingFiles: [],
+  warnings: [],
+};
+
+describe('AiAnalysisPanel', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('renders nothing when closed', () => {
+    const { container } = render(
+      <AiAnalysisPanel summary={mockSummary} selectedDate="2026-05-21" open={false} onClose={() => {}} />,
+    );
+    expect(container.innerHTML).toBe('');
+  });
+
+  it('renders the panel with header when open', () => {
+    render(
+      <AiAnalysisPanel summary={mockSummary} selectedDate="2026-05-21" open={true} onClose={() => {}} />,
+    );
+    expect(screen.getByText('AI 分析')).toBeTruthy();
+    expect(screen.getByText('生成分析')).toBeTruthy();
+  });
+
+  it('calls onClose when close button clicked', async () => {
+    const onClose = vi.fn();
+    render(
+      <AiAnalysisPanel summary={mockSummary} selectedDate="2026-05-21" open={true} onClose={onClose} />,
+    );
+    await userEvent.click(screen.getByLabelText('关闭面板'));
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('shows settings warning when API key not configured', () => {
+    render(
+      <AiAnalysisPanel summary={mockSummary} selectedDate="2026-05-21" open={true} onClose={() => {}} />,
+    );
+    expect(screen.getByText('（未配置）')).toBeTruthy();
+  });
+
+  it('disables generate button when API key is empty', () => {
+    render(
+      <AiAnalysisPanel summary={mockSummary} selectedDate="2026-05-21" open={true} onClose={() => {}} />,
+    );
+    expect(screen.getByText('生成分析').closest('button')?.disabled).toBe(true);
+  });
+});
