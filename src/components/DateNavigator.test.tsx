@@ -8,6 +8,7 @@ const index: DatasetIndex = {
   days: ['2026-04-27', '2026-04-28', '2026-04-29'],
   dateRange: { start: '2026-04-27', end: '2026-04-29' },
   filesByDay: {},
+  parsedFilesByDay: {},
   warnings: [],
   summariesByDay: {
     '2026-04-27': {
