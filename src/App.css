@@ -972,6 +972,7 @@ th {
 
 .raw-file-summary-main {
   display: grid;
+  flex: 1;
   min-width: 0;
   gap: 4px;
 }
