@@ -94,4 +94,51 @@ describe('streamChat', () => {
       for await (const _ of streamChat(request)) { /* consume */ }
     }).rejects.toThrow('API request failed (401): Unauthorized');
   });
+
+  it('passes signal to fetch', async () => {
+    const mockFetch = mockFetchWithSSE([
+      'data: {"choices":[{"delta":{"content":"ok"}}]}',
+      'data: [DONE]',
+    ]);
+    vi.stubGlobal('fetch', mockFetch);
+
+    const controller = new AbortController();
+    const request = buildOpenAIRequest(baseConfig, 'test', 'system');
+    const chunks: string[] = [];
+    for await (const chunk of streamChat(request, controller.signal)) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks).toEqual(['ok']);
+    expect(mockFetch).toHaveBeenCalledWith(request.url, {
+      method: 'POST',
+      headers: request.headers,
+      body: JSON.stringify(request.body),
+      signal: controller.signal,
+    });
+  });
+
+  it('throws on SSE error payload', async () => {
+    const mockFetch = mockFetchWithSSE([
+      'data: {"error":{"message":"Rate limited","type":"rate_limit"}}',
+    ]);
+    vi.stubGlobal('fetch', mockFetch);
+
+    const request = buildOpenAIRequest(baseConfig, 'test', 'system');
+    await expect(async () => {
+      for await (const _ of streamChat(request)) { /* consume */ }
+    }).rejects.toThrow('Rate limited');
+  });
+
+  it('throws on OpenAI finish_reason=error', async () => {
+    const mockFetch = mockFetchWithSSE([
+      'data: {"choices":[{"delta":{"content":"partial"},"finish_reason":"error"}]}',
+    ]);
+    vi.stubGlobal('fetch', mockFetch);
+
+    const request = buildOpenAIRequest(baseConfig, 'test', 'system');
+    await expect(async () => {
+      for await (const _ of streamChat(request)) { /* consume */ }
+    }).rejects.toThrow('Stream ended with error (finish_reason=error)');
+  });
 });

@@ -82,7 +82,7 @@ export function AiAnalysisPanel({ summary, selectedDate, open, onClose }: AiAnal
 
     try {
       let fullText = '';
-      for await (const chunk of streamChat(request)) {
+      for await (const chunk of streamChat(request, abortRef.current.signal)) {
         fullText += chunk;
         setReport(fullText);
       }
