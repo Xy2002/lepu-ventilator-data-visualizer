@@ -156,7 +156,7 @@ export function App() {
       </div>
 
       {dataset && selectedDate && summary ? (
-        <div className={`workbench${aiPanelOpen ? ' workbench--with-ai' : ''}`}>
+        <div className="workbench">
           <DateNavigator dataset={dataset} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
           <section className="main-panel">
             <div className="selected-day-header">
@@ -170,14 +170,16 @@ export function App() {
                 <DayCharts detail={dayDetail} />
               </Suspense>
             ) : null}
+            {dayDetail ? (
+              <AiAnalysisPanel
+                summary={summary}
+                selectedDate={selectedDate}
+                open={aiPanelOpen}
+                onToggle={() => setAiPanelOpen((o) => !o)}
+              />
+            ) : null}
             {dayDetail ? <RawFileBrowser files={dayDetail.rawFiles} /> : null}
           </section>
-          <AiAnalysisPanel
-            summary={summary}
-            selectedDate={selectedDate}
-            open={aiPanelOpen}
-            onClose={() => setAiPanelOpen(false)}
-          />
         </div>
       ) : (
         <section className="empty-state">

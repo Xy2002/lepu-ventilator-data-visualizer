@@ -1359,23 +1359,12 @@ th {
   background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
 }
 
-.workbench--with-ai {
-  grid-template-columns: 304px minmax(0, 1fr) 400px;
-}
-
 .ai-panel {
-  position: sticky;
-  top: 88px;
-  z-index: 5;
-  align-self: start;
-  max-height: calc(100vh - 104px);
-  display: flex;
-  flex-direction: column;
+  margin-top: 16px;
   padding: 16px;
   border-radius: 8px;
   background: var(--surface);
   box-shadow: var(--card-shadow);
-  overflow: hidden;
 }
 
 .ai-panel-header {
@@ -1682,15 +1671,4 @@ th {
   padding: 8px 12px;
   border-left: 3px solid var(--blue);
   color: var(--muted);
-}
-
-@media (max-width: 1200px) {
-  .workbench--with-ai {
-    grid-template-columns: 1fr;
-  }
-
-  .ai-panel {
-    position: static;
-    max-height: none;
-  }
 }

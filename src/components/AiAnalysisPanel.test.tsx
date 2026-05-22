@@ -32,38 +32,38 @@ describe('AiAnalysisPanel', () => {
 
   it('renders nothing when closed', () => {
     const { container } = render(
-      <AiAnalysisPanel summary={mockSummary} selectedDate="2026-05-21" open={false} onClose={() => {}} />,
+      <AiAnalysisPanel summary={mockSummary} selectedDate="2026-05-21" open={false} onToggle={() => {}} />,
     );
     expect(container.innerHTML).toBe('');
   });
 
   it('renders the panel with header when open', () => {
     render(
-      <AiAnalysisPanel summary={mockSummary} selectedDate="2026-05-21" open={true} onClose={() => {}} />,
+      <AiAnalysisPanel summary={mockSummary} selectedDate="2026-05-21" open={true} onToggle={() => {}} />,
     );
     expect(screen.getByText('AI 分析')).toBeTruthy();
     expect(screen.getByText('生成分析')).toBeTruthy();
   });
 
-  it('calls onClose when close button clicked', async () => {
-    const onClose = vi.fn();
+  it('calls onToggle when close button clicked', async () => {
+    const onToggle = vi.fn();
     render(
-      <AiAnalysisPanel summary={mockSummary} selectedDate="2026-05-21" open={true} onClose={onClose} />,
+      <AiAnalysisPanel summary={mockSummary} selectedDate="2026-05-21" open={true} onToggle={onToggle} />,
     );
-    await userEvent.click(screen.getByLabelText('关闭面板'));
-    expect(onClose).toHaveBeenCalled();
+    await userEvent.click(screen.getByLabelText('收起面板'));
+    expect(onToggle).toHaveBeenCalled();
   });
 
   it('shows settings warning when API key not configured', () => {
     render(
-      <AiAnalysisPanel summary={mockSummary} selectedDate="2026-05-21" open={true} onClose={() => {}} />,
+      <AiAnalysisPanel summary={mockSummary} selectedDate="2026-05-21" open={true} onToggle={() => {}} />,
     );
     expect(screen.getByText('（未配置）')).toBeTruthy();
   });
 
   it('disables generate button when API key is empty', () => {
     render(
-      <AiAnalysisPanel summary={mockSummary} selectedDate="2026-05-21" open={true} onClose={() => {}} />,
+      <AiAnalysisPanel summary={mockSummary} selectedDate="2026-05-21" open={true} onToggle={() => {}} />,
     );
     expect(screen.getByText('生成分析').closest('button')?.disabled).toBe(true);
   });

@@ -12,7 +12,7 @@ interface AiAnalysisPanelProps {
   summary: DaySummary | null;
   selectedDate: string | null;
   open: boolean;
-  onClose: () => void;
+  onToggle: () => void;
 }
 
 const PROVIDER_DEFAULTS: Record<ProviderType, { endpoint: string; model: string }> = {
@@ -22,7 +22,7 @@ const PROVIDER_DEFAULTS: Record<ProviderType, { endpoint: string; model: string 
 
 type PanelStatus = 'idle' | 'streaming' | 'error';
 
-export function AiAnalysisPanel({ summary, selectedDate, open, onClose }: AiAnalysisPanelProps) {
+export function AiAnalysisPanel({ summary, selectedDate, open, onToggle }: AiAnalysisPanelProps) {
   const [settings, setSettings] = useState<AiSettings>(loadSettings);
   const [status, setStatus] = useState<PanelStatus>('idle');
   const [report, setReport] = useState('');
@@ -130,10 +130,10 @@ export function AiAnalysisPanel({ summary, selectedDate, open, onClose }: AiAnal
   if (!open) return null;
 
   return (
-    <aside className="ai-panel">
+    <section className="ai-panel">
       <div className="ai-panel-header">
         <h3>AI 分析</h3>
-        <button type="button" className="ai-panel-close" onClick={onClose} aria-label="关闭面板">✕</button>
+        <button type="button" className="ai-panel-close" onClick={onToggle} aria-label="收起面板">✕</button>
       </div>
 
       <button
@@ -249,6 +249,6 @@ export function AiAnalysisPanel({ summary, selectedDate, open, onClose }: AiAnal
           <p className="ai-empty">点击「生成分析」查看当日数据的 AI 分析报告。</p>
         )}
       </div>
-    </aside>
+    </section>
   );
 }
