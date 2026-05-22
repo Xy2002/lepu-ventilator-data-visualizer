@@ -160,7 +160,7 @@ describe('parsedCache', () => {
       expect(parsed[0].values).toBeInstanceOf(Uint8Array);
       expect(Array.from(parsed[0].values as Uint8Array)).toEqual([20, 19, 17]);
       expect(parsed[0].rawPayload).toBeInstanceOf(Uint8Array);
-      expect(Array.from(parsed[0].rawPayload)).toEqual([20, 19, 17]);
+      expect(parsed[0].rawPayload.length).toBe(0);
     });
 
     it('returns null when no cache exists', async () => {

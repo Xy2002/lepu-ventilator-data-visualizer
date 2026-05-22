@@ -71,14 +71,15 @@ export function App() {
         if (!nextDataset) {
           nextDataset = await buildDatasetIndex(cachedFiles);
           if (cancelled) return;
-          try { await saveParsedDataset(cachedFiles, nextDataset); } catch { /* best effort */ }
+          try { await saveParsedDataset(cachedFiles, nextDataset); } catch (e) { console.error("[App] saveParsedDataset failed (restore):", e); }
         }
         if (cancelled) return;
 
         setDataset(nextDataset);
         setSelectedDate(nextDataset.days[nextDataset.days.length - 1] ?? null);
         setCacheNotice('已恢复上次导入的文件。');
-      } catch {
+      } catch (e) {
+        console.error("[App] cache save failed:", e);
         if (!cancelled) setCacheNotice('无法恢复上次导入的文件，请重新选择 DATAFILE 文件夹。');
       } finally {
         if (!cancelled) setIsRestoringImport(false);
@@ -128,7 +129,8 @@ export function App() {
       try {
         await saveImportedFiles(files);
         await saveParsedDataset(files, nextDataset);
-      } catch {
+      } catch (e) {
+        console.error("[App] cache save failed:", e);
         setCacheNotice('已导入，但浏览器无法缓存这些文件；刷新后需要重新选择。');
       }
       setDataset(nextDataset);

@@ -28,7 +28,6 @@ interface SerializedParsedFile {
   valuesData: ArrayBuffer;
   valuesType: 'Uint8Array' | 'Uint16Array' | 'Int16Array';
   records: ParsedVentilatorFile['records'];
-  rawPayloadData: ArrayBuffer;
   warnings: string[];
 }
 
@@ -89,7 +88,6 @@ function serializeFile(file: ParsedVentilatorFile): SerializedParsedFile {
     valuesData: bufferOf(file.values),
     valuesType: typedArrayType(file.values),
     records: file.records,
-    rawPayloadData: bufferOf(file.rawPayload),
     warnings: file.warnings,
   };
 }
@@ -108,7 +106,7 @@ function deserializeFile(sf: SerializedParsedFile): ParsedVentilatorFile {
     payloadBytes: sf.payloadBytes,
     values: makeTypedArray(sf.valuesType, sf.valuesData),
     records: sf.records,
-    rawPayload: new Uint8Array(sf.rawPayloadData),
+    rawPayload: new Uint8Array(0),
     warnings: sf.warnings,
   };
 }
@@ -157,12 +155,18 @@ export async function saveParsedDataset(
       warnings: index.warnings,
     });
 
+    await transactionDone(tx);
+
     for (const day of index.days) {
       const serialized = index.parsedFilesByDay[day].map(serializeFile);
-      store.put({ id: `parsed:${day}`, files: serialized });
+      const dayTx = db.transaction(STORE, 'readwrite');
+      const dayStore = dayTx.objectStore(STORE);
+      dayStore.put({ id: `parsed:${day}`, files: serialized });
+      await transactionDone(dayTx);
     }
-
-    await transactionDone(tx);
+  } catch (err) {
+    console.error('[parsedCache] saveParsedDataset failed:', err);
+    throw err;
   } finally {
     db.close();
   }
