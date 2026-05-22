@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
+import remarkGfm from 'remark-gfm';
 import { streamChat } from '../ai/client';
 import { buildDataSummary, buildSystemPrompt } from '../ai/dataSummary';
 import { buildOpenAIRequest, buildAnthropicRequest, type ProviderType } from '../ai/providers';
@@ -250,7 +251,7 @@ export function AiAnalysisPanel({ summary, selectedDate, open, onToggle }: AiAna
         )}
         {report && (
           <div className="ai-report-content">
-            <Markdown rehypePlugins={[rehypeHighlight]}>{report}</Markdown>
+            <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>{report}</Markdown>
           </div>
         )}
         {!report && status === 'idle' && !error && (
