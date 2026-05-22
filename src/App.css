@@ -1366,6 +1366,7 @@ th {
 .ai-panel {
   position: sticky;
   top: 88px;
+  z-index: 5;
   align-self: start;
   max-height: calc(100vh - 104px);
   display: flex;
