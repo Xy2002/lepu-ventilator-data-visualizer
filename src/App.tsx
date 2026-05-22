@@ -8,6 +8,7 @@ import { RawFileBrowser } from './components/RawFileBrowser';
 import { SummaryCards } from './components/SummaryCards';
 import { buildDatasetIndex, type IndexProgress, loadDayDetail } from './data/dataset';
 import { loadImportedFiles, saveImportedFiles } from './data/importCache';
+import { loadParsedDatasetDirect, loadParsedDataset, saveParsedDataset } from './data/parsedCache';
 import type { DatasetIndex, DayDetail, DaySummary, ImportedFileRef } from './types';
 
 const DayCharts = lazy(() => import('./components/DayCharts').then((module) => ({ default: module.DayCharts })));
@@ -54,10 +55,24 @@ export function App() {
       setIsRestoringImport(true);
 
       try {
+        let nextDataset = await loadParsedDatasetDirect();
+        if (nextDataset) {
+          if (cancelled) return;
+          setDataset(nextDataset);
+          setSelectedDate(nextDataset.days[nextDataset.days.length - 1] ?? null);
+          setCacheNotice('已从缓存恢复上次导入的文件。');
+          return;
+        }
+
         const cachedFiles = await loadImportedFiles();
         if (cancelled || cachedFiles.length === 0) return;
 
-        const nextDataset = await buildDatasetIndex(cachedFiles);
+        nextDataset = await loadParsedDataset(cachedFiles);
+        if (!nextDataset) {
+          nextDataset = await buildDatasetIndex(cachedFiles);
+          if (cancelled) return;
+          try { await saveParsedDataset(cachedFiles, nextDataset); } catch { /* best effort */ }
+        }
         if (cancelled) return;
 
         setDataset(nextDataset);
@@ -112,6 +127,7 @@ export function App() {
       const nextDataset = await buildDatasetIndex(files, setIndexProgress);
       try {
         await saveImportedFiles(files);
+        await saveParsedDataset(files, nextDataset);
       } catch {
         setCacheNotice('已导入，但浏览器无法缓存这些文件；刷新后需要重新选择。');
       }
