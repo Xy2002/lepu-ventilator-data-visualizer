@@ -168,6 +168,47 @@ export async function saveParsedDataset(
   }
 }
 
+export async function loadParsedDatasetDirect(): Promise<DatasetIndex | null> {
+  if (typeof indexedDB === 'undefined') return null;
+
+  const db = await openDatabase();
+
+  try {
+    const tx = db.transaction(STORE, 'readonly');
+    const store = tx.objectStore(STORE);
+
+    const manifest = await requestResult<CacheManifest | undefined>(store.get('manifest'));
+    if (!manifest || manifest.files.length === 0) return null;
+
+    const meta = await requestResult<CacheMeta | undefined>(store.get('meta'));
+    if (!meta) return null;
+
+    const parsedFilesByDay: Record<string, ParsedVentilatorFile[]> = {};
+    for (const day of meta.days) {
+      const cached = await requestResult<CachedParsedDay | undefined>(
+        store.get(`parsed:${day}`),
+      );
+      if (!cached) return null;
+      parsedFilesByDay[day] = cached.files.map(deserializeFile);
+    }
+
+    await transactionDone(tx);
+
+    return {
+      days: meta.days,
+      dateRange: meta.dateRange,
+      filesByDay: {},
+      summariesByDay: meta.summariesByDay,
+      parsedFilesByDay,
+      warnings: meta.warnings,
+    };
+  } catch {
+    return null;
+  } finally {
+    db.close();
+  }
+}
+
 export async function loadParsedDataset(
   files: ImportedFileRef[],
 ): Promise<DatasetIndex | null> {

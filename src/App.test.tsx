@@ -21,6 +21,7 @@ const importCacheMock = vi.hoisted(() => ({
 
 const parsedCacheMock = vi.hoisted(() => ({
   loadParsedDataset: vi.fn(),
+  loadParsedDatasetDirect: vi.fn(),
   saveParsedDataset: vi.fn(),
 }));
 
@@ -83,6 +84,7 @@ describe('App', () => {
     importCacheMock.loadImportedFiles.mockResolvedValue([]);
     importCacheMock.saveImportedFiles.mockResolvedValue(undefined);
     parsedCacheMock.loadParsedDataset.mockResolvedValue(null);
+    parsedCacheMock.loadParsedDatasetDirect.mockResolvedValue(null);
     parsedCacheMock.saveParsedDataset.mockResolvedValue(undefined);
     vi.stubGlobal('ResizeObserver', ResizeObserverMock);
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
