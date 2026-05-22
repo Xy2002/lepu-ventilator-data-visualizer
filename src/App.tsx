@@ -134,18 +134,7 @@ export function App() {
           <h1>呼吸机数据可视化</h1>
           <p>浏览器本地解析，不上传原始数据</p>
         </div>
-        <div className="header-actions">
-          {dataset && summary ? (
-            <button
-              type="button"
-              className={`ai-toggle-btn${aiPanelOpen ? ' ai-toggle-btn-active' : ''}`}
-              onClick={() => setAiPanelOpen((o) => !o)}
-            >
-              AI 分析
-            </button>
-          ) : null}
-          <ImportPanel onImport={handleImport} disabled={isIndexing} />
-        </div>
+        <ImportPanel onImport={handleImport} disabled={isIndexing} />
       </header>
 
       <div className="notice-stack">

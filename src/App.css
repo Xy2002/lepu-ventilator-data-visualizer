@@ -1330,33 +1330,38 @@ th {
 }
 
 /* AI Analysis Panel */
-.header-actions {
+.ai-collapsed-trigger {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.ai-toggle-btn {
-  min-height: 36px;
-  padding: 0 16px;
+  width: 100%;
+  margin-top: 16px;
+  padding: 12px 16px;
   border: 0;
-  border-radius: 6px;
-  color: #ffffff;
+  border-radius: 8px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   box-shadow: rgba(0, 0, 0, 0.12) 0 2px 6px -4px;
+  color: #ffffff;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   transition: opacity 140ms ease, transform 140ms ease;
 }
 
-.ai-toggle-btn:hover {
+.ai-collapsed-trigger:hover {
   opacity: 0.92;
   transform: translateY(-1px);
 }
 
-.ai-toggle-btn-active {
-  background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+.ai-collapsed-icon {
+  font-size: 18px;
+}
+
+.ai-collapsed-hint {
+  margin-left: auto;
+  opacity: 0.7;
+  font-size: 12px;
+  font-weight: 400;
 }
 
 .ai-panel {

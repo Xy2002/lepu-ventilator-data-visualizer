@@ -30,18 +30,28 @@ describe('AiAnalysisPanel', () => {
     cleanup();
   });
 
-  it('renders nothing when closed', () => {
-    const { container } = render(
+  it('renders collapsed trigger when closed', () => {
+    render(
       <AiAnalysisPanel summary={mockSummary} selectedDate="2026-05-21" open={false} onToggle={() => {}} />,
     );
-    expect(container.innerHTML).toBe('');
+    expect(screen.getByRole('button', { name: /AI 分析/ })).toBeTruthy();
+    expect(screen.getByText('点击展开')).toBeTruthy();
+  });
+
+  it('calls onToggle when collapsed trigger clicked', async () => {
+    const onToggle = vi.fn();
+    render(
+      <AiAnalysisPanel summary={mockSummary} selectedDate="2026-05-21" open={false} onToggle={onToggle} />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: /AI 分析/ }));
+    expect(onToggle).toHaveBeenCalled();
   });
 
   it('renders the panel with header when open', () => {
     render(
       <AiAnalysisPanel summary={mockSummary} selectedDate="2026-05-21" open={true} onToggle={() => {}} />,
     );
-    expect(screen.getByText('AI 分析')).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 3, name: /AI 分析/ })).toBeTruthy();
     expect(screen.getByText('生成分析')).toBeTruthy();
   });
 

@@ -127,12 +127,20 @@ export function AiAnalysisPanel({ summary, selectedDate, open, onToggle }: AiAna
     });
   }, [updateSettings]);
 
-  if (!open) return null;
+  if (!open) {
+    return (
+      <button type="button" className="ai-collapsed-trigger" onClick={onToggle}>
+        <span className="ai-collapsed-icon">🤖</span>
+        AI 分析
+        <span className="ai-collapsed-hint">点击展开</span>
+      </button>
+    );
+  }
 
   return (
     <section className="ai-panel">
       <div className="ai-panel-header">
-        <h3>AI 分析</h3>
+        <h3>🤖 AI 分析</h3>
         <button type="button" className="ai-panel-close" onClick={onToggle} aria-label="收起面板">✕</button>
       </div>
 
