@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { CardDescription } from '@heroui/react';
 import './App.css';
+import { AiAnalysisPanel } from './components/AiAnalysisPanel';
 import { DateNavigator } from './components/DateNavigator';
 import { ImportPanel } from './components/ImportPanel';
 import { RawFileBrowser } from './components/RawFileBrowser';
@@ -45,6 +46,7 @@ export function App() {
   const [cacheNotice, setCacheNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [indexProgress, setIndexProgress] = useState<IndexProgress | null>(null);
+  const [aiPanelOpen, setAiPanelOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -172,6 +174,14 @@ export function App() {
               <Suspense fallback={<Notice>正在加载专业图表...</Notice>}>
                 <DayCharts detail={dayDetail} />
               </Suspense>
+            ) : null}
+            {dayDetail ? (
+              <AiAnalysisPanel
+                summary={summary}
+                selectedDate={selectedDate}
+                open={aiPanelOpen}
+                onToggle={() => setAiPanelOpen((o) => !o)}
+              />
             ) : null}
             {dayDetail ? <RawFileBrowser files={dayDetail.rawFiles} /> : null}
           </section>
