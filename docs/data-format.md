@@ -74,7 +74,7 @@ DATAFILE/
 
 - `field244` 存储的是**采样间隔（毫秒）**，仅当文件 label 属于采样类型时才解读为数值
 - 采样型 label：`flow`、`pressure`、`real_pres`、`real_flow`、`difleak`、`mvtvbr`
-- 波形采样率计算：`sampleRateHz = 1000 / field244`，仅对 `flow`、`pressure`、`real_pres`、`real_flow`、`difleak` 生效
+- 波形采样率计算：`sampleRateHz = 1000 / field244`，仅对 `flow`、`pressure`、`real_pres`、`real_flow`、`difleak` 生效（`mvtvbr` 虽属采样型但不计算 sampleRateHz）
 - 测试用例中 `field244 = 80` → `sampleRateHz = 12.5 Hz`
 
 ### Payload 区域
@@ -121,10 +121,10 @@ DATAFILE/
 | 8 | 8 | 时间戳 | 事件发生时间 |
 
 - **value1 / value2 的含义因 label 而异**：
-  - `ai`（呼吸暂停事件）：value1 = 持续秒数
-  - `hi`（低通气事件）：value1 = 持续秒数
-  - `ascp`（中枢性睡眠呼吸暂停）：value1 = 持续秒数
-  - `usetime`（使用时长）：value1 = 使用秒数，timestamp 为结束时间，可据此推算起始时间
+  - `ai`（呼吸暂停事件）：value2 = 持续秒数
+  - `hi`（低通气事件）：value2 = 持续秒数
+  - `ascp`（Auto-S 压力调整）：value1 = IPAP × 10（单位 0.1 cmH₂O），value2 = EPAP × 10（单位 0.1 cmH₂O）
+  - `usetime`（使用时长）：value1 = 使用秒数，timestamp 为结束时间，可据此推算起始时间（`startTime = timestamp - value1 秒`）
 
 - 尾部不足 16 字节的部分会被忽略并产生警告
 
@@ -142,6 +142,7 @@ DATAFILE/
 | 2 | 2 | uint16LE | value2 |
 | 4 | 2 | uint16LE | value3 |
 
+- 用于记录分钟通气量、潮气量和呼吸频率等趋势数据
 - 尾部不足 6 字节的部分会被忽略并产生警告
 
 #### config — 设备配置
