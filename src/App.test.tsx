@@ -19,6 +19,11 @@ const importCacheMock = vi.hoisted(() => ({
   saveImportedFiles: vi.fn(),
 }));
 
+const parsedCacheMock = vi.hoisted(() => ({
+  loadParsedDataset: vi.fn(),
+  saveParsedDataset: vi.fn(),
+}));
+
 vi.mock('echarts/core', () => echartsCoreMock);
 vi.mock('echarts/charts', () => ({ LineChart: {} }));
 vi.mock('echarts/components', () => ({
@@ -30,6 +35,7 @@ vi.mock('echarts/components', () => ({
 }));
 vi.mock('echarts/renderers', () => ({ CanvasRenderer: {} }));
 vi.mock('./data/importCache', () => importCacheMock);
+vi.mock('./data/parsedCache', () => parsedCacheMock);
 
 import { App } from './App';
 import { makeEdfLikeFile, makeEventPayload, makeEventPayloadAt } from './parser/fixtures';
@@ -76,6 +82,8 @@ describe('App', () => {
   beforeEach(() => {
     importCacheMock.loadImportedFiles.mockResolvedValue([]);
     importCacheMock.saveImportedFiles.mockResolvedValue(undefined);
+    parsedCacheMock.loadParsedDataset.mockResolvedValue(null);
+    parsedCacheMock.saveParsedDataset.mockResolvedValue(undefined);
     vi.stubGlobal('ResizeObserver', ResizeObserverMock);
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
       x: 0,
