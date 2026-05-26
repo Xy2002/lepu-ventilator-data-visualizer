@@ -1,184 +1,254 @@
 # UI 组件文档
 
-## 组件总览
+本文档描述呼吸机数据可视化工具的各 UI 组件、它们的层级关系、核心 props 以及用户交互流程。
 
-| 组件 | 文件 | 职责 |
-|------|------|------|
-| `App` | `src/App.tsx` | 应用壳，管理全局状态和数据流 |
-| `ImportPanel` | `src/components/ImportPanel.tsx` | 文件/文件夹导入入口 |
-| `DateNavigator` | `src/components/DateNavigator.tsx` | 日期选择与热力图导航 |
-| `SummaryCards` | `src/components/SummaryCards.tsx` | 当日数据摘要卡片 |
-| `DayCharts` | `src/components/DayCharts.tsx` | 波形图表与内嵌事件列表 |
-| `EventTable` | `src/components/EventTable.tsx` | 事件表格（含分类筛选和定位） |
-| `RawFileBrowser` | `src/components/RawFileBrowser.tsx` | 原始文件浏览器与 CSV 导出 |
-| `AiAnalysisPanel` | `src/components/AiAnalysisPanel.tsx` | AI 分析面板（OpenAI/Anthropic 流式生成） |
-
-## 组件层级与数据流
+## 组件层级
 
 ```
 App
-├── ImportPanel              ← onImport 回调
-├── DateNavigator            ← dataset, selectedDate, onSelectDate
-└── main-panel
-    ├── SummaryCards         ← summary (DaySummary)
-    ├── DayCharts (lazy)     ← dayDetail (DayDetail)
-    │   └── WaveformChart    ← label, values, sampleRateHz, startTime, useSessions, eventMarkers, focusedSecond/Timestamp
-    ├── AiAnalysisPanel      ← summary, selectedDate, open, onToggle
-    └── RawFileBrowser       ← rawFiles (ParsedVentilatorFile[])
+├── ImportPanel            （顶部栏，文件导入）
+├── DateNavigator          （左侧栏，日期选择与导航）
+└── main-panel             （右侧主内容区）
+    ├── SummaryCards       （摘要卡片）
+    ├── DayCharts          （波形图表 + 事件列表，懒加载）
+    │   └── WaveformChart  （ECharts 波形渲染）
+    ├── AiAnalysisPanel    （AI 分析面板）
+    └── RawFileBrowser     （原始文件浏览 + CSV 导出）
 ```
 
-数据从 `App` 单向流下。`App` 维护三个核心状态：
+所有状态集中在 `App` 中管理（`useState`），通过 props 向下传递。没有使用 Context 或状态管理库。
 
-- **`dataset: DatasetIndex | null`** — 导入后构建的全局索引，包含按日期分组的文件、摘要、解析结果。
-- **`selectedDate: string | null`** — 当前选中日期（`YYYY-MM-DD`）。
-- **`dayDetail: DayDetail | null`** — 选中日期的详细数据（信号、事件、原始文件），由 `loadDayDetail()` 异步加载。
-
-`App` 启动时尝试从 IndexedDB 缓存恢复上次的导入数据；导入或恢复后自动选中最后一天。
+---
 
 ## 各组件说明
 
-### ImportPanel
+### App（`src/App.tsx`）
 
-文件导入入口。提供两种选择方式：
+应用根组件。负责全局状态管理和数据生命周期：
 
-- **选择 DATAFILE 文件夹** — 使用 `webkitdirectory` 属性，递归选中整个目录。
-- **选择 EDF 文件** — 手动选择 `.edf` / `.bin` 文件。
+- **dataset**：`DatasetIndex | null` — 导入后的全部数据索引
+- **selectedDate**：当前选中日期
+- **dayDetail**：选中日期的完整解析数据（含波形、事件、原始文件）
+- **aiPanelOpen**：AI 分析面板展开状态
 
-Props：
-- `disabled: boolean` — 索引进行中时禁用按钮
-- `onImport: (files: ImportedFileRef[]) => void` — 选择完成回调
+启动时自动尝试从 IndexedDB 缓存恢复上次导入（`loadParsedDatasetDirect` → `loadImportedFiles` → `buildDatasetIndex`）。选中日期变化时自动调用 `loadDayDetail` 加载当天详情。
 
-用户选择的文件通过 `onImport(files)` 回调传回 `App`，由 `App` 调用 `buildDatasetIndex()` 构建索引。
+`DayCharts` 通过 `React.lazy` 懒加载，减少首屏包体积。
 
-### DateNavigator
+---
 
-侧栏日期导航，接收完整 `dataset` 和当前 `selectedDate`。
+### ImportPanel（`src/components/ImportPanel.tsx`）
 
-Props：
-- `dataset: DatasetIndex` — 全局数据索引
-- `selectedDate: string` — 当前选中日期
-- `onSelectDate: (date: string) => void` — 日期变更回调
+文件导入入口。提供两个按钮：
 
-功能：
+| 按钮 | 行为 |
+|------|------|
+| 选择 DATAFILE 文件夹 | 打开文件夹选择器（`webkitdirectory`），接收整个 DATAFILE 目录 |
+| 选择 EDF 文件 | 打开多文件选择器（`.edf`, `.bin`） |
 
-- **跳转日期** — 日期输入框 + 跳转按钮
-- **上一天 / 下一天** — 在有序日期列表中前后移动
-- **只看缺失文件日期** — 复选框过滤，通过 `filterDays()` 筛选
-- **热力图** — 近 90 天的色块网格，按数据完整性着色（完整 = 绿色，缺失 = 黄色，选中 = 高亮）
-- **筛选日期列表** — 显示最近 20 天及每天的高压事件数
+将选中的文件转为 `ImportedFileRef[]` 后通过 `onImport` 回调交给 `App.handleImport`。
 
-### SummaryCards
+核心 props：
 
-四张摘要卡片，展示当前选中日期的关键指标：
+- **disabled**：索引进行中时禁用按钮
+- **onImport(files)**：用户选择文件后触发
+
+---
+
+### DateNavigator（`src/components/DateNavigator.tsx`）
+
+左侧栏日期导航组件。提供三种导航方式：
+
+1. **日期跳转**：`<input type="date">` 输入框 + "跳转"按钮
+2. **前后翻页**："上一天" / "下一天" 按钮
+3. **热力图**：近 90 天的可视化热力图，颜色区分"完整"和"缺失文件"状态，点击直接跳转
+
+筛选功能：勾选"只看缺失文件日期"可过滤出数据不完整的日期，下方列表显示最近 20 天及高压事件计数。
+
+核心 props：
+
+- **dataset**：`DatasetIndex`，提供全部日期、摘要和日期范围
+- **selectedDate**：当前选中日期
+- **onSelectDate(date)**：日期变更回调
+
+---
+
+### SummaryCards（`src/components/SummaryCards.tsx`）
+
+4 张摘要卡片，展示当日关键指标：
 
 | 卡片 | 数据来源 |
-|------|----------|
-| 使用时长 | `summary.useDurationSeconds`（格式化为 `Xh XXm` 或 `M:SS`） |
-| AI / HI 事件数 | `summary.eventCounts.ai` / `.hi` |
-| 压力范围 | `summary.pressureRange.min` - `.max` |
-| 缺失文件数 | `summary.missingFiles.length` |
+|------|---------|
+| 使用时长 | `summary.useDurationSeconds`，格式化为 `Xh XXm` |
+| AI / HI | `summary.eventCounts` 中的计数 |
+| 压力范围 | `summary.pressureRange`（`min - max`），仅当波形含压力信号时可用 |
+| 缺失文件 | `summary.missingFiles.length` |
 
-Props：
-- `summary: DaySummary` — 当日摘要
+核心 props：
 
-### DayCharts
+- **summary**：`DaySummary`，当日汇总数据
 
-波形图表区，使用 `React.lazy` + `Suspense` 延迟加载以优化首屏性能。
+---
 
-Props：
-- `detail: DayDetail` — 当日完整详情
+### DayCharts（`src/components/DayCharts.tsx`）
 
-核心逻辑：
+**懒加载组件**。显示选中日期的波形信号和关联事件，是交互最丰富的区域。
 
-- **信号选择** — Tab 切换不同信号（flow=气流、pressure=压力、real_pres=实际压力、real_flow=实际气流、difleak=漏气），切换有 200ms 延迟渲染以避免频繁重建 ECharts 实例
-- **事件匹配** — 根据当前信号的 label 匹配事件类型：`ai`/`hi` → `flow`，`ascp` → `pressure`
-- **事件标记** — 匹配的事件作为标记线（markLine）渲染在波形图上，样式由 `EVENT_STYLES` 定义
-- **事件聚焦** — 点击内嵌事件表中的行可触发波形图滚动到对应时间位置（通过 `focusedSecond` / `focusedTimestamp` 控制 dataZoom）
-- **内嵌事件表** — 图表下方展示当前信号相关的事件，按类型显示不同列（ASCP: IPAP/EPAP，AI/HI: 持续秒数）
+#### 波形 Tab 切换
 
-### EventTable
+按信号类型（气流、压力、实际压力、实际气流、漏气）分 Tab 展示。切换时有 200ms 延迟，避免快速切换时的闪烁。
 
-独立事件表格组件，支持按类型筛选和定位到波形图上的具体时间点。
+每个 Tab 渲染一个 `WaveformChart`，传入该信号的采样值、采样率、时间戳、使用会话和事件标记。
 
-Props：
-- `events: EventRecord[]` — 事件记录列表
-- `onSelectEvent: (seconds: number, timestamp: string | null) => void` — 定位回调
+#### 事件列表
+
+根据当前选中的信号类型，筛选关联事件：
+- 气流类信号 → AI/HI 事件
+- 压力类信号 → ASCP 压力记录
+
+点击事件行可将图表缩放定位到对应时间点（通过 `focusedIndex` → `focusedSecond`/`focusedTimestamp` 传递给 `WaveformChart`）。
+
+核心 props：
+
+- **detail**：`DayDetail`，含 `signals`、`events`、`useSessions` 等
+
+---
+
+### WaveformChart（`src/charts/WaveformChart.tsx`）
+
+基于 ECharts 的波形图渲染组件。核心功能：
+
+- **降采样渲染**：配合 `downsampleMinMax` 按像素宽度降采样，支持百万级数据点流畅显示
+- **事件标记线**：通过 `markLine` 在图表上标注 AI/HI/ASCP 事件位置，带颜色区分
+- **缩放与平移**：ECharts 内置 `dataZoom`，滚轮缩放、拖动平移，"重置缩放"按钮恢复全量视图
+- **事件定位**：接收 `focusedSecond` 或 `focusedTimestamp`，自动将视窗缩放到该时间点附近（±10~20 秒窗口）
+- **自适应容器**：通过 `ResizeObserver` 监听容器尺寸变化自动 resize
+
+核心 props：
+
+- **label**：信号标识（如 `flow`、`pressure`），用于图表标题
+- **values**：采样数据（`Uint8Array | Uint16Array | Int16Array`）
+- **sampleRateHz**：采样率，用于计算时间轴
+- **startTime**：起始时间戳，用于生成真实时间轴
+- **useSessions**：使用会话，用于对齐时间轴跨度
+- **eventMarkers**：事件标记信息数组
+- **focusedSecond / focusedTimestamp**：当前聚焦的事件时间点
+
+---
+
+### EventTable（`src/components/EventTable.tsx`）
+
+独立的事件表格组件，支持按事件类型筛选（全部 / AI / HI / ASCP / usetime）。每种类型有不同列：
+- AI/HI → 持续时间
+- ASCP → IPAP / EPAP 压力值
+- usetime → 时长
+
+每行有"定位"按钮，通过 `onSelectEvent(seconds, timestamp)` 回调将父组件定位到对应时间点。
+
+> 注：当前 `App` 中未直接使用此组件，`DayCharts` 内部有独立的事件列表实现。`EventTable` 作为通用组件可供未来复用。
+
+核心 props：
+
+- **events**：`EventRecord[]`
+- **onSelectEvent(seconds, timestamp)**：定位回调
+
+---
+
+### AiAnalysisPanel（`src/components/AiAnalysisPanel.tsx`）
+
+AI 分析面板，可折叠。将当日数据摘要发送给大语言模型生成分析报告。
 
 功能：
-- 筛选标签自动根据当前日期存在的事件类型生成（AI、HI、ASCP、usetime）
-- 不同事件类型显示不同的参数列（ASCP → IPAP/EPAP，AI/HI → 持续秒数，usetime → 时长）
-- 点击「定位」按钮触发 `onSelectEvent`
 
-> 注意：当前 `App.tsx` 中 `EventTable` 未直接使用（事件表格功能已内嵌在 `DayCharts` 中），但组件仍保留以供复用。
+- **Provider 配置**：支持 OpenAI 兼容和 Anthropic 兼容两种 API，可自定义 Endpoint、模型、API Key
+- **流式生成**：通过 `streamChat` 逐 chunk 渲染报告，支持中途停止
+- **报告缓存**：生成的报告按日期 + provider + model + prompt 组合存入 IndexedDB，重复查看直接加载缓存
+- **自定义 Prompt**：用户可追加额外分析要求
+- **Markdown 渲染**：使用 `react-markdown` + `remark-gfm` + `rehype-highlight` 渲染报告
 
-### RawFileBrowser
+API Key 存储在 `localStorage`，面板内有安全提示。
 
-原始文件浏览器，展示当天所有解析后的文件。
+核心 props：
 
-Props：
-- `files: ParsedVentilatorFile[]` — 当日所有解析文件
+- **summary**：`DaySummary | null`，用于构建数据摘要
+- **selectedDate**：当前日期，用于报告缓存 key
+- **open**：面板展开状态
+- **onToggle**：展开/折叠回调
 
-每个文件以 `<details>` 折叠面板展示：
+---
 
-- **文件描述** — 根据文件 label 和 kind 自动生成中文说明（如"气流波形""AI 事件""配置快照"等）
-- **元数据** — Label、Header 大小、Payload 大小、起止时间、数据预览（前 12 个采样值或前 3 条事件）
-- **BA525 配置解析** — 对 `raw_config` 类型且 payload ≥ 192 字节的文件，解析为配置记录表格，显示已确认/交叉验证字段的参数、值和状态
-- **CSV 导出** — 对波形数据导出 `index,seconds,value` 格式，对事件数据导出 `index,source,value1,value2,timestamp,secondsFromDayStart` 格式
+### RawFileBrowser（`src/components/RawFileBrowser.tsx`）
 
-### AiAnalysisPanel
+原始文件浏览器。以 `<details>` 折叠列表展示当天所有解析文件的元信息：
 
-AI 分析面板，支持调用 OpenAI 或 Anthropic 兼容 API 流式生成当日数据分析报告。
+- 文件名、类型（`kind`）、Label、Header/Payload 大小、起止时间
+- 前 12 个采样值或前 3 条事件记录的预览
+- 每种文件类型有中文功能说明
+- **BA525 配置**：对 `raw_config` 类型文件（payload ≥ 192 字节）自动解析并展示配置参数表（含字段验证状态）
+- **CSV 导出**：波形文件和事件文件可点击"导出 CSV"，生成带 index/seconds/value 的 CSV 并触发浏览器下载（Blob URL 下载后自动 revoke）
 
-Props：
-- `summary: DaySummary | null` — 当日摘要
-- `selectedDate: string | null` — 当前选中日期
-- `open: boolean` — 面板展开状态
-- `onToggle: () => void` — 展开/收起切换
+核心 props：
 
-核心逻辑：
+- **files**：`ParsedVentilatorFile[]`，当天的全部解析文件
 
-- **折叠/展开** — 折叠时显示为带 🤖 图标的触发按钮
-- **API 设置** — 支持 OpenAI 兼容和 Anthropic 兼容两种 provider，可配置 endpoint、API Key、模型名称。设置存储在 localStorage
-- **自定义 Prompt** — 支持附加用户自定义 prompt，与数据摘要拼接发送
-- **报告生成** — 调用 `streamChat()` SSE 流式生成，实时更新报告内容
-- **报告缓存** — 以日期 + provider + model + customPrompt 组合为 key 缓存到 IndexedDB，避免重复调用 API
-- **缓存恢复** — 切换日期或修改设置时自动加载已有缓存报告
+---
+
+## 数据传递方式
+
+所有数据通过 props 自上而下流动，没有 Context 或全局状态：
+
+```
+App (dataset, selectedDate, dayDetail)
+ │
+ ├─→ ImportPanel.onImport → App.handleImport → buildDatasetIndex → dataset
+ │
+ ├─→ DateNavigator(dataset, selectedDate) → onSelectDate → selectedDate
+ │
+ ├─→ SummaryCards(summary)          ← dataset.summariesByDay[selectedDate]
+ ├─→ DayCharts(detail)              ← dayDetail (从 loadDayDetail 异步获取)
+ ├─→ AiAnalysisPanel(summary, date) ← summary + selectedDate
+ └─→ RawFileBrowser(files)          ← dayDetail.rawFiles
+```
+
+`DayCharts` 内部的数据流：
+
+```
+DayCharts(detail)
+ ├─→ detail.signals → Tab 切换 → WaveformChart(selectedSignal + filtered events)
+ └─→ detail.events → 按信号类型筛选 → 内联事件表格
+       └─→ 点击事件 → focusedIndex → focusedSecond → WaveformChart 自动缩放定位
+```
+
+---
 
 ## 用户交互流程
 
-```
-1. 导入数据
-   ImportPanel → 选择文件夹/文件 → handleImport()
-   → buildDatasetIndex() 解析并索引
-   → saveImportedFiles() + saveParsedDataset() 缓存到 IndexedDB
+### 1. 导入数据
 
-2. 浏览日期
-   DateNavigator 热力图/列表 → 点击日期
-   → App 切换 selectedDate
-   → loadDayDetail() 异步加载该日详情
+用户点击「选择 DATAFILE 文件夹」或「选择 EDF 文件」→ 文件解析为 `ImportedFileRef[]` → `App.handleImport` 调用 `buildDatasetIndex` 建立索引（显示进度） → 自动选中最后一天 → 数据缓存到 IndexedDB。
 
-3. 查看波形与事件
-   SummaryCards → 当日概要
-   DayCharts → Tab 切换信号 → WaveformChart 渲染
-   事件标记线叠加在波形图上，点击内嵌事件表中的行聚焦定位
+刷新页面时自动从缓存恢复，无需重新选择文件。
 
-4. AI 分析
-   AiAnalysisPanel → 配置 API 设置 → 点击「生成分析」
-   → 流式接收报告 → 自动缓存
+### 2. 浏览日期
 
-5. 导出数据
-   RawFileBrowser → 展开目标文件 → 点击"导出 CSV"
-   → downloadCsv() 触发浏览器下载
-```
+左侧 DateNavigator 提供日期跳转、前后翻页和热力图点击三种方式切换日期。切换后右侧主面板自动加载该天的详情。
 
-## 关键数据类型
+### 3. 查看摘要
 
-| 类型 | 用途 |
-|------|------|
-| `ImportedFileRef` | 用户选择的原始文件引用（name + path + File 对象） |
-| `DatasetIndex` | 全局索引：按日期分组的文件、摘要、解析结果 |
-| `DaySummary` | 单日摘要：使用时长、事件计数、信号存在、压力范围、缺失文件 |
-| `DayDetail` | 单日详情：信号、事件、使用会话、原始文件列表 |
-| `ParsedVentilatorFile` | 单文件解析结果：header + payload + values/records |
-| `EventRecord` | 事件记录：sourceLabel、value1、value2、timestamp、secondsFromDayStart |
-| `UseSession` | 使用会话：startTime、endTime、durationSeconds |
+四张 SummaryCards 实时显示当前日期的使用时长、AI/HI 事件数、压力范围和缺失文件数。
+
+### 4. 查看波形和事件
+
+DayCharts 以 Tab 形式展示各信号波形。点击事件列表中的某条事件，波形图会自动缩放到该时间点附近。可通过滚轮缩放和拖动进一步探索波形细节。
+
+### 5. AI 分析
+
+点击「AI 分析」展开面板（首次需配置 API Key 和模型）。点击「生成分析」将当日数据摘要发送给选定模型，流式返回分析报告。报告自动缓存，切换日期后可再次查看。
+
+### 6. 查看原始文件
+
+RawFileBrowser 展示当天所有原始文件的元信息和预览。BA525 配置文件会自动解析展示参数表。
+
+### 7. 导出 CSV
+
+在 RawFileBrowser 中，波形文件和事件文件均有「导出 CSV」按钮，点击后生成对应 CSV 文件并触发浏览器下载。
