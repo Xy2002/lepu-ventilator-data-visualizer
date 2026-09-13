@@ -1,8 +1,9 @@
-import type { ImportedFileRef } from '../types';
+import type { ImportedFileRef } from "../types";
+import { openDatabase, requestResult, transactionDone } from "./idb";
 
-const DB_NAME = 'ventilator-web-visualizer-import-cache';
+const DB_NAME = "ventilator-web-visualizer-import-cache";
 const DB_VERSION = 1;
-const FILE_STORE = 'files';
+const FILE_STORE = "files";
 
 interface CachedImportedFile {
   path: string;
@@ -12,41 +13,9 @@ interface CachedImportedFile {
   data: ArrayBuffer;
 }
 
-function openDatabase() {
-  if (typeof indexedDB === 'undefined') {
-    return Promise.reject(new Error('IndexedDB is not available'));
-  }
-
-  return new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-    request.onupgradeneeded = () => {
-      const database = request.result;
-      if (!database.objectStoreNames.contains(FILE_STORE)) {
-        database.createObjectStore(FILE_STORE, { keyPath: 'path' });
-      }
-    };
-    request.onerror = () => reject(request.error ?? new Error('Failed to open import cache'));
-    request.onsuccess = () => resolve(request.result);
-  });
-}
-
-function requestResult<T>(request: IDBRequest<T>) {
-  return new Promise<T>((resolve, reject) => {
-    request.onerror = () => reject(request.error ?? new Error('IndexedDB request failed'));
-    request.onsuccess = () => resolve(request.result);
-  });
-}
-
-function transactionDone(transaction: IDBTransaction) {
-  return new Promise<void>((resolve, reject) => {
-    transaction.onabort = () => reject(transaction.error ?? new Error('IndexedDB transaction aborted'));
-    transaction.onerror = () => reject(transaction.error ?? new Error('IndexedDB transaction failed'));
-    transaction.oncomplete = () => resolve();
-  });
-}
-
-async function toCachedFile(fileRef: ImportedFileRef): Promise<CachedImportedFile> {
+async function toCachedFile(
+  fileRef: ImportedFileRef
+): Promise<CachedImportedFile> {
   return {
     path: fileRef.path || fileRef.name,
     name: fileRef.name,
@@ -68,7 +37,7 @@ function fromCachedFile(cachedFile: CachedImportedFile): ImportedFileRef {
 }
 
 export async function saveImportedFiles(files: ImportedFileRef[]) {
-  const database = await openDatabase();
+  const database = await openDatabase(DB_NAME, DB_VERSION, FILE_STORE, "path");
 
   try {
     const BATCH_SIZE = 20;
@@ -76,7 +45,7 @@ export async function saveImportedFiles(files: ImportedFileRef[]) {
       const batch = files.slice(i, i + BATCH_SIZE);
       const cachedFiles = await Promise.all(batch.map(toCachedFile));
 
-      const transaction = database.transaction(FILE_STORE, 'readwrite');
+      const transaction = database.transaction(FILE_STORE, "readwrite");
       const store = transaction.objectStore(FILE_STORE);
       if (i === 0) store.clear();
 
@@ -92,14 +61,16 @@ export async function saveImportedFiles(files: ImportedFileRef[]) {
 }
 
 export async function loadImportedFiles(): Promise<ImportedFileRef[]> {
-  if (typeof indexedDB === 'undefined') return [];
+  if (typeof indexedDB === "undefined") return [];
 
-  const database = await openDatabase();
+  const database = await openDatabase(DB_NAME, DB_VERSION, FILE_STORE, "path");
 
   try {
-    const transaction = database.transaction(FILE_STORE, 'readonly');
+    const transaction = database.transaction(FILE_STORE, "readonly");
     const store = transaction.objectStore(FILE_STORE);
-    const cachedFiles = await requestResult<CachedImportedFile[]>(store.getAll());
+    const cachedFiles = await requestResult<CachedImportedFile[]>(
+      store.getAll()
+    );
     await transactionDone(transaction);
 
     return cachedFiles.map(fromCachedFile);
