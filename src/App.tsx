@@ -5,6 +5,7 @@ import { AiAnalysisPanel } from "./components/AiAnalysisPanel";
 import { DateNavigator } from "./components/DateNavigator";
 import { ImportPanel } from "./components/ImportPanel";
 import { RawFileBrowser } from "./components/RawFileBrowser";
+import { SummaryTrendChart } from "./components/SummaryTrendChart";
 import { SummaryCards } from "./components/SummaryCards";
 import {
   buildDatasetIndex,
@@ -204,6 +205,10 @@ export function App() {
             onSelectDate={setSelectedDate}
           />
           <section className="main-panel">
+            <SummaryTrendChart
+              dataset={dataset}
+              onSelectDate={setSelectedDate}
+            />
             <div className="selected-day-header">
               <h2>{selectedDate}</h2>
               {usageWindow(summary)}

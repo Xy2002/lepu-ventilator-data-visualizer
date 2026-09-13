@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const chartMock = vi.hoisted(() => ({
   dispatchAction: vi.fn(),
   dispose: vi.fn(),
+  off: vi.fn(),
+  on: vi.fn(),
   resize: vi.fn(),
   setOption: vi.fn(),
 }));
@@ -25,10 +27,11 @@ const parsedCacheMock = vi.hoisted(() => ({
 }));
 
 vi.mock("echarts/core", () => echartsCoreMock);
-vi.mock("echarts/charts", () => ({ LineChart: {} }));
+vi.mock("echarts/charts", () => ({ BarChart: {}, LineChart: {} }));
 vi.mock("echarts/components", () => ({
   DataZoomComponent: {},
   GridComponent: {},
+  LegendComponent: {},
   MarkLineComponent: {},
   ToolboxComponent: {},
   TooltipComponent: {},

@@ -38,6 +38,7 @@ interface WaveformChartProps {
   eventMarkers?: EventMarkerInfo[];
   focusedSecond?: number | null;
   focusedTimestamp?: string | null;
+  overlay?: { label: string; values: WaveformValues } | null;
 }
 
 export function WaveformChart({
@@ -49,6 +50,7 @@ export function WaveformChart({
   eventMarkers = [],
   focusedSecond = null,
   focusedTimestamp = null,
+  overlay = null,
 }: WaveformChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<ECharts | null>(null);
@@ -58,6 +60,7 @@ export function WaveformChart({
       buildEChartsWaveformOption({
         label,
         values,
+        overlay,
         sampleRateHz,
         startTime,
         useSessions,

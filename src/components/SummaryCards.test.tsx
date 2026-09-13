@@ -25,5 +25,9 @@ describe("SummaryCards", () => {
     expect(screen.getByText("6h 17m")).toBeInTheDocument();
     expect(screen.getByText("28 / 8")).toBeInTheDocument();
     expect(screen.getByText("0 - 15.1")).toBeInTheDocument();
+    expect(screen.getByText("ASCP 事件")).toBeInTheDocument();
+    expect(screen.getByText("301")).toBeInTheDocument();
+    expect(screen.getByText("波形采样")).toBeInTheDocument();
+    expect(screen.getByText("283,224")).toBeInTheDocument();
   });
 });
