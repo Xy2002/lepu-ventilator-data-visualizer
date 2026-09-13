@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { downloadCsv, exportDateSummariesCsv } from "../data/csv";
-import { filterDays } from "../data/dataset";
+import { computePressureRange, filterDays } from "../data/dataset";
 import type { DatasetIndex } from "../types";
 
 interface DateNavigatorProps {
@@ -117,9 +117,16 @@ export function DateNavigator({
           type="button"
           className="export-filtered-btn"
           disabled={filteredDays.length === 0}
-          onClick={() => {
-            const summaries = filteredDays.map(
-              (date) => dataset.summariesByDay[date]
+          onClick={async () => {
+            // 索引阶段跳过压力扫描；导出前为未加载过的日期补算压力范围
+            const summaries = await Promise.all(
+              filteredDays.map(async (date) => {
+                const summary = dataset.summariesByDay[date];
+                const pressureRange =
+                  summary.pressureRange ??
+                  (await computePressureRange(dataset, date).catch(() => null));
+                return pressureRange ? { ...summary, pressureRange } : summary;
+              })
             );
             const fileName =
               filteredDays.length > 0

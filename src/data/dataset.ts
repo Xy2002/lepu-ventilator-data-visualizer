@@ -284,6 +284,33 @@ export async function buildDatasetIndex(
   };
 }
 
+// 导出场景：索引阶段跳过了压力扫描，按需对单日 pressure 文件补算范围
+export async function computePressureRange(
+  index: DatasetIndex,
+  date: string
+): Promise<DaySummary["pressureRange"]> {
+  for (const ref of index.filesByDay[date] ?? []) {
+    const parsed = await parseImportedFile(ref);
+    if (
+      parsed.header.label !== "pressure" ||
+      parsed.kind !== "waveform_u16le"
+    ) {
+      continue;
+    }
+    let min = Number.POSITIVE_INFINITY;
+    let max = Number.NEGATIVE_INFINITY;
+    for (const value of parsed.values) {
+      if (value < min) min = value;
+      if (value > max) max = value;
+    }
+    if (!Number.isFinite(min)) return null;
+    const toCmH2O = (value: number) =>
+      Math.round(value * PRESSURE_CMH2O_PER_UNIT * 10) / 10;
+    return { min: toCmH2O(min), max: toCmH2O(max) };
+  }
+  return null;
+}
+
 export function filterDays(index: DatasetIndex, filter: DateFilter) {
   return index.days.filter((day) => {
     if (filter.startDate && day < filter.startDate) return false;
