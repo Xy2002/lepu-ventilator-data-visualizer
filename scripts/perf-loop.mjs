@@ -230,10 +230,11 @@ async function main() {
 
     const load = await timed(() => loadImportedFiles());
     const heapAfterLoadMB = Math.round(performance.memory.usedJSHeapSize / 1e6);
-    const parsedLoad = await timed(() => loadParsedDataset(load.result));
-    const build = await timed(() => buildDatasetIndex(load.result));
+    const files = load.result.files;
+    const parsedLoad = await timed(() => loadParsedDataset(files));
+    const build = await timed(() => buildDatasetIndex(files));
     const parsedSave = await timed(() =>
-      saveParsedDataset(load.result, build.result)
+      saveParsedDataset(files, build.result, load.result.generation)
     );
 
     const longTasks = window.__longTasks;
@@ -249,7 +250,7 @@ async function main() {
     return {
       loadImportedFilesMs: load.ms,
       heapAfterLoadMB,
-      fileCount: load.result.length,
+      fileCount: files.length,
       loadParsedDatasetMs: parsedLoad.ms,
       parsedCacheHit: Boolean(parsedLoad.result),
       buildDatasetIndexMs: build.ms,

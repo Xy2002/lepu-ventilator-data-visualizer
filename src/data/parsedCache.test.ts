@@ -8,6 +8,34 @@ import {
   saveParsedDataset,
   loadParsedDataset,
 } from "./parsedCache";
+import { openDatabase } from "./idb";
+
+// 直接写入导入缓存的"已发布代际",模拟另一个标签页完成导入发布;
+// generation 为 null 时删除发布记录(还原到未发布状态)
+async function publishImportGeneration(generation: string | null) {
+  const db = await openDatabase(
+    "ventilator-web-visualizer-import-cache",
+    2,
+    "meta",
+    "path",
+    [
+      { name: "contents", keyPath: "path" },
+      { name: "state", keyPath: "id" },
+    ]
+  );
+  try {
+    const tx = db.transaction("state", "readwrite");
+    const store = tx.objectStore("state");
+    if (generation === null) store.delete("published");
+    else store.put({ id: "published", generation });
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+  } finally {
+    db.close();
+  }
+}
 
 function fileRef(
   path: string,
@@ -273,6 +301,23 @@ describe("parsedCache", () => {
       await invalidateParsedDataset();
 
       await expect(loadParsedDataset(files)).resolves.toBeNull();
+    });
+
+    it("rejects a manifest whose import generation no longer matches", async () => {
+      const files = [fileRef("DATAFILE/20260428/20260428_flow.edf", 515, 1000)];
+      await saveParsedDataset(files, makeIndex(), "generation-1");
+      await publishImportGeneration("generation-1");
+      await loadParsedDataset(files).then((loaded) =>
+        expect(loaded).not.toBeNull()
+      );
+
+      // 另一个标签页发布了新代际:旧摘要必须作废,回退重建
+      await publishImportGeneration("generation-2");
+
+      await expect(loadParsedDataset(files)).resolves.toBeNull();
+
+      // 还原发布状态,避免污染后续用例
+      await publishImportGeneration(null);
     });
 
     it("preserves Uint16Array and Int16Array typed arrays", async () => {

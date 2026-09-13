@@ -5,6 +5,7 @@ import type {
   ParsedVentilatorFile,
 } from "../types";
 import { inferDateFromPath } from "./dataset";
+import { readImportGeneration } from "./importCache";
 
 const DB_NAME = "ventilator-parsed-cache";
 const DB_VERSION = 1;
@@ -17,6 +18,8 @@ export const PARSER_VERSION = 2;
 interface CacheManifest {
   id: "manifest";
   parserVersion: number;
+  /** 摘要/头部所属的导入代际:与当前发布代际不符即作废,防止旧摘要配新内容 */
+  importGeneration: string | null;
   files: Array<{ path: string; lastModified: number; size: number }>;
 }
 
@@ -145,7 +148,8 @@ export function manifestMatches(
 
 export async function saveParsedDataset(
   files: ImportedFileRef[],
-  index: DatasetIndex
+  index: DatasetIndex,
+  importGeneration: string | null = null
 ): Promise<void> {
   const db = await openDatabase(DB_NAME, DB_VERSION, STORE, "id");
 
@@ -157,6 +161,7 @@ export async function saveParsedDataset(
     store.put({
       id: "manifest",
       parserVersion: PARSER_VERSION,
+      importGeneration,
       files: buildManifest(files),
     });
     store.put({
@@ -199,6 +204,10 @@ export async function loadParsedDataset(
   if (typeof indexedDB === "undefined") return null;
   if (files.length === 0) return null;
 
+  // 先读当前发布代际(跨库):不能在 parsed-cache 事务内 await 另一个库的
+  // 读取,否则事务失活。顺序有竞态时只会误判为不匹配 → 回退重建,方向安全
+  const currentGeneration = await readImportGeneration();
+
   const db = await openDatabase(DB_NAME, DB_VERSION, STORE, "id");
 
   try {
@@ -214,6 +223,10 @@ export async function loadParsedDataset(
       !manifestMatches(manifest.files, files)
     )
       return null;
+
+    // 摘要/头部必须属于当前已发布的导入代际:恢复路径的重建也可能与
+    // 其他标签页的新导入交错,代际不符时宁可回退重建
+    if ((manifest.importGeneration ?? null) !== currentGeneration) return null;
 
     const meta = await requestResult<CacheMeta | undefined>(store.get("meta"));
     if (!meta) return null;

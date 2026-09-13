@@ -35,20 +35,21 @@ describe("importCache", () => {
     await saveImportedFiles(files);
     const restored = await loadImportedFiles();
 
-    expect(restored).toHaveLength(2);
-    expect(restored[0].name).toBe("20260429_flow.edf");
-    expect(restored[0].path).toBe("DATAFILE/20260429/20260429_flow.edf");
-    expect(restored[0].size).toBe(1024);
+    expect(restored.files).toHaveLength(2);
+    expect(restored.generation).toEqual(expect.any(String));
+    expect(restored.files[0].name).toBe("20260429_flow.edf");
+    expect(restored.files[0].path).toBe("DATAFILE/20260429/20260429_flow.edf");
+    expect(restored.files[0].size).toBe(1024);
 
-    const buffer = await restored[0].read();
+    const buffer = await restored.files[0].read();
     expect(new Uint8Array(buffer)).toEqual(payload);
 
     // 索引阶段只读 512B 头部:区间读取返回精确切片
-    const header = await restored[0].read(0, 512);
+    const header = await restored.files[0].read(0, 512);
     expect(header.byteLength).toBe(512);
     expect(new Uint8Array(header)).toEqual(payload.slice(0, 512));
 
-    const tail = await restored[0].read(1000);
+    const tail = await restored.files[0].read(1000);
     expect(tail.byteLength).toBe(24);
   });
 
@@ -57,7 +58,7 @@ describe("importCache", () => {
     await saveImportedFiles([makeRef("b.edf", new Uint8Array([2]))]);
 
     const restored = await loadImportedFiles();
-    expect(restored.map((ref) => ref.name)).toEqual(["b.edf"]);
+    expect(restored.files.map((ref) => ref.name)).toEqual(["b.edf"]);
   });
 
   it("publishes nothing when a superseded write aborts", async () => {
@@ -76,7 +77,7 @@ describe("importCache", () => {
       () => true
     );
 
-    await expect(loadImportedFiles()).resolves.toEqual([]);
+    await expect(loadImportedFiles()).resolves.toMatchObject({ files: [] });
   });
 
   it("keeps the published generation's contents while caching a new import", async () => {
@@ -86,7 +87,7 @@ describe("importCache", () => {
     for (let i = 0; i < payload.length; i += 1) payload[i] = i % 251;
     await saveImportedFiles([makeRef("a.edf", payload)]);
     const restored = await loadImportedFiles();
-    expect(restored).toHaveLength(1);
+    expect(restored.files).toHaveLength(1);
 
     // 新导入(不同文件)的写入在发布前被取代:旧代际内容必须仍然可读
     await saveImportedFiles(
@@ -94,8 +95,11 @@ describe("importCache", () => {
       () => true
     );
 
-    expect(new Uint8Array(await restored[0].read())).toEqual(payload);
-    await expect(loadImportedFiles()).resolves.toHaveLength(1);
+    expect(new Uint8Array(await restored.files[0].read())).toEqual(payload);
+    // 被取代的写入未发布:缓存仍是原代际的单文件数据集
+    await expect(loadImportedFiles()).resolves.toMatchObject({
+      files: [expect.objectContaining({ name: "a.edf" })],
+    });
   });
 
   it("keeps published contents readable even after meta invalidation", async () => {
@@ -106,22 +110,22 @@ describe("importCache", () => {
     for (let i = 0; i < payload.length; i += 1) payload[i] = i % 251;
     await saveImportedFiles([makeRef("a.edf", payload)]);
     const restored = await loadImportedFiles();
-    expect(restored).toHaveLength(1);
+    expect(restored.files).toHaveLength(1);
 
     await invalidateImportedFiles();
-    await expect(loadImportedFiles()).resolves.toEqual([]);
+    await expect(loadImportedFiles()).resolves.toMatchObject({ files: [] });
 
     await saveImportedFiles(
       [makeRef("b.edf", new Uint8Array([9]))],
       () => true
     );
-    expect(new Uint8Array(await restored[0].read())).toEqual(payload);
+    expect(new Uint8Array(await restored.files[0].read())).toEqual(payload);
   });
 
   it("treats a torn cache (meta without contents) as absent", async () => {
     await saveImportedFiles([makeRef("a.edf", new Uint8Array([1]))]);
     const restored = await loadImportedFiles();
-    expect(restored).toHaveLength(1);
+    expect(restored.files).toHaveLength(1);
 
     // 模拟写入被打断:meta 有记录但内容缺失
     const database = await openDatabase(
@@ -138,7 +142,7 @@ describe("importCache", () => {
     });
     database.close();
 
-    await expect(loadImportedFiles()).resolves.toEqual([]);
+    await expect(loadImportedFiles()).resolves.toMatchObject({ files: [] });
   });
 
   it("rejects a cache whose generation does not match its contents", async () => {
@@ -168,7 +172,7 @@ describe("importCache", () => {
     });
     database.close();
 
-    await expect(loadImportedFiles()).resolves.toEqual([]);
+    await expect(loadImportedFiles()).resolves.toMatchObject({ files: [] });
   });
 
   it("serves header reads from metadata without hydrating contents", async () => {
@@ -176,7 +180,7 @@ describe("importCache", () => {
     for (let i = 0; i < payload.length; i += 1) payload[i] = i % 251;
     await saveImportedFiles([makeRef("a.edf", payload)]);
     const restored = await loadImportedFiles();
-    expect(restored).toHaveLength(1);
+    expect(restored.files).toHaveLength(1);
 
     // 清空 contents:头部区间读仍可用,完整读取才报缺内容
     await disposeContentsConnectionForTests();
@@ -194,10 +198,12 @@ describe("importCache", () => {
     });
     database.close();
 
-    const header = await restored[0].read(0, 512);
+    const header = await restored.files[0].read(0, 512);
     expect(header.byteLength).toBe(512);
     expect(new Uint8Array(header)).toEqual(payload.slice(0, 512));
-    await expect(restored[0].read()).rejects.toThrow("缓存中缺少文件内容");
+    await expect(restored.files[0].read()).rejects.toThrow(
+      "缓存中缺少文件内容"
+    );
   });
 
   it("drops the legacy v1 files store when upgrading", async () => {

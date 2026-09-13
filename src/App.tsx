@@ -90,16 +90,23 @@ export function App() {
       setIsRestoringImport(true);
 
       try {
-        // 两阶段解析：恢复时只加载文件句柄与摘要索引，波形 payload 按需解析
-        const cachedFiles = await loadImportedFiles();
-        if (cancelled || cachedFiles.length === 0) return;
+        // 两阶段解析：恢复时只加载文件句柄与摘要索引，波形 payload 按需解析。
+        // 快照携带恢复所处的导入代际,重建的解析缓存绑定同代际,
+        // 避免与其他标签页的新导入交错后用旧摘要配新内容
+        const snapshot = await loadImportedFiles();
+        if (cancelled || snapshot.files.length === 0) return;
+        const cachedFiles = snapshot.files;
 
         let nextDataset = await loadParsedDataset(cachedFiles);
         if (!nextDataset) {
           nextDataset = await buildDatasetIndex(cachedFiles);
           if (cancelled) return;
           try {
-            await saveParsedDataset(cachedFiles, nextDataset);
+            await saveParsedDataset(
+              cachedFiles,
+              nextDataset,
+              snapshot.generation
+            );
           } catch {
             /* best effort */
           }
@@ -185,16 +192,19 @@ export function App() {
         try {
           // shouldAbort 让已被新导入取代的活跃写入中途让路:
           // 否则它会写完并重新发布旧数据集的 meta
-          await saveImportedFiles(
+          const generation = await saveImportedFiles(
             files,
             () => cacheRun !== cacheRunRef.current
           );
           if (cacheRun !== cacheRunRef.current) return;
-          await saveParsedDataset(files, nextDataset);
+          await saveParsedDataset(files, nextDataset, generation);
         } catch {
-          setCacheNotice(
-            "已导入，但浏览器无法缓存这些文件；刷新后需要重新选择。"
-          );
+          // 被新导入取代的写入失败与当前数据集无关,不惊扰用户
+          if (cacheRun === cacheRunRef.current) {
+            setCacheNotice(
+              "已导入，但浏览器无法缓存这些文件；刷新后需要重新选择。"
+            );
+          }
         } finally {
           // 仅最后一次导入的写入结束时收起提示;被取代的写入不算完成
           if (cacheRun === cacheRunRef.current) setIsCaching(false);
