@@ -203,6 +203,37 @@ describe("parsedCache", () => {
       expect(loaded).toBeNull();
     });
 
+    it("invalidates cache written by an older parser version", async () => {
+      const files = [fileRef("DATAFILE/20260428/20260428_flow.edf", 515, 1000)];
+      await saveParsedDataset(files, makeIndex());
+
+      // 模拟旧解析器(v1 格式)写入的缓存:manifest 没有 parserVersion 字段
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open("ventilator-parsed-cache", 1);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const tx = db.transaction("cache", "readwrite");
+          const store = tx.objectStore("cache");
+          const getRequest = store.get("manifest");
+          getRequest.onsuccess = () => {
+            const record = getRequest.result as Record<string, unknown>;
+            delete record.parserVersion;
+            store.put(record);
+          };
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        });
+      } finally {
+        db.close();
+      }
+
+      const loaded = await loadParsedDataset(files);
+      expect(loaded).toBeNull();
+    });
+
     it("returns null for empty file list", async () => {
       const loaded = await loadParsedDataset([]);
 

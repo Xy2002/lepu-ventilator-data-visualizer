@@ -201,12 +201,28 @@ export function RawFileBrowser({ files }: RawFileBrowserProps) {
               {isBa525Config ? <ConfigDetail file={file} /> : null}
               <dl>
                 <div>
+                  <dt>Label</dt>
+                  <dd>{file.header.label}</dd>
+                </div>
+                <div>
                   <dt>说明</dt>
                   <dd className="raw-file-description-detail">{description}</dd>
                 </div>
                 <div>
-                  <dt>Label</dt>
-                  <dd>{file.header.label}</dd>
+                  <dt>Version</dt>
+                  <dd>{file.header.version || "-"}</dd>
+                </div>
+                <div>
+                  <dt>Patient ID</dt>
+                  <dd>{file.header.patientId || "-"}</dd>
+                </div>
+                <div>
+                  <dt>Recording ID</dt>
+                  <dd>{file.header.recordingId || "-"}</dd>
+                </div>
+                <div>
+                  <dt>Firmware</dt>
+                  <dd>{file.header.firmware || "-"}</dd>
                 </div>
                 <div>
                   <dt>Header</dt>
@@ -224,6 +240,27 @@ export function RawFileBrowser({ files }: RawFileBrowserProps) {
                   <dt>End</dt>
                   <dd>{file.header.endTime ?? "-"}</dd>
                 </div>
+                {file.header.physicalDimension ||
+                file.header.physicalMin ||
+                file.header.physicalMax ? (
+                  <div>
+                    <dt>Physical</dt>
+                    <dd>
+                      {file.header.physicalMin || "?"} ~{" "}
+                      {file.header.physicalMax || "?"}{" "}
+                      {file.header.physicalDimension}
+                    </dd>
+                  </div>
+                ) : null}
+                {file.header.digitalMin || file.header.digitalMax ? (
+                  <div>
+                    <dt>Digital</dt>
+                    <dd>
+                      {file.header.digitalMin || "?"} ~{" "}
+                      {file.header.digitalMax || "?"}
+                    </dd>
+                  </div>
+                ) : null}
                 <div>
                   <dt>Preview</dt>
                   <dd>{preview(file)}</dd>

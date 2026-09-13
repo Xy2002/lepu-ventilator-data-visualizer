@@ -9,8 +9,18 @@ vi.mock("./EventDistributionChart", () => ({
 }));
 
 vi.mock("../charts/WaveformChart", () => ({
-  WaveformChart: ({ label }: { label: string }) => (
-    <div role="img" aria-label={`${label} ECharts waveform chart`}>
+  WaveformChart: ({
+    label,
+    startTime,
+  }: {
+    label: string;
+    startTime?: string | null;
+  }) => (
+    <div
+      role="img"
+      aria-label={`${label} ECharts waveform chart`}
+      data-start-time={startTime ?? ""}
+    >
       {label}
     </div>
   ),
@@ -111,10 +121,11 @@ describe("DayCharts", () => {
     expect(screen.getByText("压力")).toBeInTheDocument();
   });
 
-  it("shows AI/HI events when flow tab is active", () => {
+  it("shows breathing events when flow tab is active", () => {
     const events = [
       makeEvent("ai", 22, "2026-04-29 02:31:32"),
       makeEvent("hi", 15, "2026-04-29 03:04:41"),
+      makeEvent("csa", 18, "2026-04-29 03:41:00"),
       makeEvent("ascp", 101, "2026-04-29 02:32:00"),
     ];
 
@@ -127,10 +138,39 @@ describe("DayCharts", () => {
       />
     );
 
-    expect(screen.getByText("AI/HI 事件")).toBeTruthy();
+    expect(screen.getByText("呼吸事件")).toBeTruthy();
     expect(screen.getByText("22秒")).toBeTruthy();
     expect(screen.getByText("15秒")).toBeTruthy();
+    expect(screen.getByText("18秒")).toBeTruthy();
     expect(screen.queryByText("ASCP 压力记录")).not.toBeTruthy();
+  });
+
+  it("shows leak events with raw values when difleak tab is active", () => {
+    const events = [
+      { ...makeEvent("leak", 20, "2026-04-29 05:17:14"), value1: 36 },
+    ];
+
+    render(
+      <DayCharts detail={detail([signal("difleak.edf", "difleak")], events)} />
+    );
+
+    expect(screen.getByText("漏气事件")).toBeTruthy();
+    expect(screen.getByText("36 / 20")).toBeTruthy();
+  });
+
+  it("falls back to day start time for signals with degenerate header span", () => {
+    const difleak = signal("difleak.edf", "difleak");
+    difleak.header.endTime = difleak.header.startTime;
+    const dayDetail = detail([difleak]);
+    dayDetail.summary.startTime = "2026-04-29 03:04:08";
+
+    render(<DayCharts detail={dayDetail} />);
+
+    expect(
+      screen
+        .getByRole("img", { name: "difleak ECharts waveform chart" })
+        .getAttribute("data-start-time")
+    ).toBe("2026-04-29 03:04:08");
   });
 
   it("event rows are clickable to focus", async () => {

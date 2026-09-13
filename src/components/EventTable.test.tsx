@@ -1,81 +1,125 @@
-import { cleanup, render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { EventRecord } from '../types';
-import { EventTable } from './EventTable';
+import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { EventRecord } from "../types";
+import { EventTable } from "./EventTable";
 
 afterEach(cleanup);
 
 const baseEvent: EventRecord = {
-  sourceLabel: 'hi',
+  sourceLabel: "hi",
   value1: 1,
   value2: 15,
-  timestamp: '2026-04-29 03:04:41',
+  timestamp: "2026-04-29 03:04:41",
   secondsFromDayStart: 89.65,
 };
 
-describe('EventTable', () => {
-  it('renders events and reports selected event seconds', async () => {
+describe("EventTable", () => {
+  it("renders events and reports selected event seconds", async () => {
     const onSelect = vi.fn();
     render(<EventTable events={[baseEvent]} onSelectEvent={onSelect} />);
 
-    await userEvent.click(screen.getByText('定位'));
+    await userEvent.click(screen.getByText("定位"));
 
-    expect(onSelect).toHaveBeenCalledWith(89.65, '2026-04-29 03:04:41');
+    expect(onSelect).toHaveBeenCalledWith(89.65, "2026-04-29 03:04:41");
   });
 
-  it('shows filter tabs with counts', () => {
+  it("shows filter tabs with counts", () => {
     const events: EventRecord[] = [
-      { ...baseEvent, sourceLabel: 'ai', value2: 22, timestamp: '2026-04-29 02:31:32' },
-      { ...baseEvent, sourceLabel: 'ai', value2: 16, timestamp: '2026-04-29 02:32:53' },
-      { ...baseEvent, sourceLabel: 'hi', value2: 15, timestamp: '2026-04-29 03:04:41' },
-      { ...baseEvent, sourceLabel: 'ascp', value1: 141, value2: 101, timestamp: '2026-04-29 02:31:32' },
+      {
+        ...baseEvent,
+        sourceLabel: "ai",
+        value2: 22,
+        timestamp: "2026-04-29 02:31:32",
+      },
+      {
+        ...baseEvent,
+        sourceLabel: "ai",
+        value2: 16,
+        timestamp: "2026-04-29 02:32:53",
+      },
+      {
+        ...baseEvent,
+        sourceLabel: "hi",
+        value2: 15,
+        timestamp: "2026-04-29 03:04:41",
+      },
+      {
+        ...baseEvent,
+        sourceLabel: "ascp",
+        value1: 141,
+        value2: 101,
+        timestamp: "2026-04-29 02:31:32",
+      },
     ];
 
     render(<EventTable events={events} onSelectEvent={vi.fn()} />);
 
-    const tabs = screen.getAllByRole('button', { name: /全部|AI|HI|ASCP/ });
+    const tabs = screen.getAllByRole("button", { name: /全部|AI|HI|ASCP/ });
     expect(tabs.length).toBeGreaterThanOrEqual(4);
 
     // Count badge for total
-    expect(screen.getByText('4')).toBeTruthy();
+    expect(screen.getByText("4")).toBeTruthy();
   });
 
-  it('shows type-specific columns when filtering by AI', async () => {
+  it("shows type-specific columns when filtering by AI", async () => {
     const events: EventRecord[] = [
-      { ...baseEvent, sourceLabel: 'ai', value2: 22, timestamp: '2026-04-29 02:31:32' },
-      { ...baseEvent, sourceLabel: 'ascp', value1: 141, value2: 101, timestamp: '2026-04-29 02:32:00' },
+      {
+        ...baseEvent,
+        sourceLabel: "ai",
+        value2: 22,
+        timestamp: "2026-04-29 02:31:32",
+      },
+      {
+        ...baseEvent,
+        sourceLabel: "ascp",
+        value1: 141,
+        value2: 101,
+        timestamp: "2026-04-29 02:32:00",
+      },
     ];
 
     render(<EventTable events={events} onSelectEvent={vi.fn()} />);
 
     // Click AI filter tab
-    const aiTab = screen.getByRole('button', { name: /^AI/ });
+    const aiTab = screen.getByRole("button", { name: /^AI/ });
     await userEvent.click(aiTab);
 
     // AI events show duration
-    expect(screen.getByText('22秒')).toBeTruthy();
+    expect(screen.getByText("22秒")).toBeTruthy();
     // ASCP event should not be visible
     expect(screen.queryByText(/cmH2O/)).not.toBeTruthy();
   });
 
-  it('shows IPAP/EPAP columns when filtering by ASCP', async () => {
+  it("shows IPAP/EPAP columns when filtering by ASCP", async () => {
     const events: EventRecord[] = [
-      { ...baseEvent, sourceLabel: 'ascp', value1: 150, value2: 110, timestamp: '2026-04-29 02:31:32' },
+      {
+        ...baseEvent,
+        sourceLabel: "ascp",
+        value1: 150,
+        value2: 110,
+        timestamp: "2026-04-29 02:31:32",
+      },
     ];
 
     render(<EventTable events={events} onSelectEvent={vi.fn()} />);
 
-    const ascpTab = screen.getByRole('button', { name: /^ASCP/ });
+    const ascpTab = screen.getByRole("button", { name: /^ASCP/ });
     await userEvent.click(ascpTab);
 
-    expect(screen.getByText('15.0')).toBeTruthy();
-    expect(screen.getByText('11.0')).toBeTruthy();
+    expect(screen.getByText("15.0")).toBeTruthy();
+    expect(screen.getByText("11.0")).toBeTruthy();
   });
 
-  it('shows duration for usetime events', () => {
+  it("shows duration for usetime events", () => {
     const events: EventRecord[] = [
-      { ...baseEvent, sourceLabel: 'usetime', value1: 19307, value2: 0, timestamp: '2026-04-29 07:45:38' },
+      {
+        ...baseEvent,
+        sourceLabel: "usetime",
+        value1: 19307,
+        value2: 0,
+        timestamp: "2026-04-29 07:45:38",
+      },
     ];
 
     render(<EventTable events={events} onSelectEvent={vi.fn()} />);
@@ -84,10 +128,57 @@ describe('EventTable', () => {
     expect(screen.getByText(/5h 21m/)).toBeTruthy();
   });
 
+  it("shows CSA events with duration in a dedicated tab", async () => {
+    const events: EventRecord[] = [
+      {
+        ...baseEvent,
+        sourceLabel: "csa",
+        value1: 1,
+        value2: 15,
+        timestamp: "2026-04-29 04:41:22",
+      },
+    ];
+
+    render(<EventTable events={events} onSelectEvent={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /^CSA/ }));
+
+    expect(screen.getByText("15秒")).toBeTruthy();
+  });
+
+  it("shows LEAK events with raw values in a dedicated tab", async () => {
+    const events: EventRecord[] = [
+      {
+        ...baseEvent,
+        sourceLabel: "leak",
+        value1: 36,
+        value2: 20,
+        timestamp: "2026-04-29 05:17:14",
+      },
+    ];
+
+    render(<EventTable events={events} onSelectEvent={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /^LEAK/ }));
+
+    expect(screen.getByText("36 / 20")).toBeTruthy();
+  });
+
   it('shows unified detail column in "all" view', () => {
     const events: EventRecord[] = [
-      { ...baseEvent, sourceLabel: 'ai', value2: 22, timestamp: '2026-04-29 02:31:32' },
-      { ...baseEvent, sourceLabel: 'ascp', value1: 141, value2: 101, timestamp: '2026-04-29 02:32:00' },
+      {
+        ...baseEvent,
+        sourceLabel: "ai",
+        value2: 22,
+        timestamp: "2026-04-29 02:31:32",
+      },
+      {
+        ...baseEvent,
+        sourceLabel: "ascp",
+        value1: 141,
+        value2: 101,
+        timestamp: "2026-04-29 02:32:00",
+      },
     ];
 
     render(<EventTable events={events} onSelectEvent={vi.fn()} />);

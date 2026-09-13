@@ -969,6 +969,16 @@ th {
   background: #f0fdf4;
 }
 
+.event-badge--csa {
+  color: #0f766e;
+  background: #f0fdfa;
+}
+
+.event-badge--leak {
+  color: #be123c;
+  background: #fff1f2;
+}
+
 .event-time {
   font-family:
     "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
@@ -1759,6 +1769,29 @@ th {
   color: #d92d20;
   font-size: 12px;
   line-height: 1.4;
+}
+
+.dataset-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  padding: 8px 12px;
+  margin-bottom: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.dataset-status-warnings summary {
+  cursor: pointer;
+  color: #b54708;
+}
+
+.dataset-status-warnings ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
 }
 
 /* 筛选面板复选框使用紧凑内联布局,覆盖通用 label 网格样式 */

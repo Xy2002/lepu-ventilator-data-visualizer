@@ -18,6 +18,9 @@ const CHART_SWITCH_DELAY_MS = 200;
 const EVENT_SIGNAL_MAP: Record<string, string> = {
   ai: "flow",
   hi: "flow",
+  csa: "flow",
+  // leak 事件叠加到同名的 difleak 波形通道:事件时间点已验证,数值语义未确认
+  leak: "difleak",
   ascp: "pressure",
 };
 
@@ -112,6 +115,14 @@ export function DayCharts({ detail }: DayChartsProps) {
       })),
     [overlayEvents]
   );
+  const isLeakChannel = activeLabel === "difleak";
+  // 设备对衍生通道(difleak/mvtvbr)只在起止字段写首样本时间(start==end),
+  // 此时锚定到当日摘要起点,避免把波形错挂到首样本时刻
+  const renderedStartTime =
+    renderedSignal &&
+    renderedSignal.header.startTime === renderedSignal.header.endTime
+      ? detail.summary.startTime
+      : (renderedSignal?.header.startTime ?? null);
 
   return (
     <section className="day-charts">
@@ -140,7 +151,7 @@ export function DayCharts({ detail }: DayChartsProps) {
                   label={renderedSignal.header.label}
                   values={renderedSignal.values}
                   sampleRateHz={renderedSignal.header.sampleRateHz}
-                  startTime={renderedSignal.header.startTime}
+                  startTime={renderedStartTime}
                   useSessions={detail.useSessions}
                   eventMarkers={eventMarkers}
                   focusedSecond={focusedEvent?.secondsFromDayStart ?? null}
@@ -184,7 +195,11 @@ export function DayCharts({ detail }: DayChartsProps) {
         <div className="chart-events">
           <div className="chart-events-header">
             <h4>
-              {isAscp ? "ASCP 压力记录" : "AI/HI 事件"}
+              {isAscp
+                ? "ASCP 压力记录"
+                : isLeakChannel
+                  ? "漏气事件"
+                  : "呼吸事件"}
               <ChipRoot variant="soft" size="sm">
                 <ChipLabel>{activeEvents.length}</ChipLabel>
               </ChipRoot>
@@ -198,7 +213,11 @@ export function DayCharts({ detail }: DayChartsProps) {
                   <th>时间</th>
                   {isAscp ? <th>IPAP</th> : null}
                   {isAscp ? <th>EPAP</th> : null}
-                  {!isAscp ? <th>持续</th> : null}
+                  {isLeakChannel ? (
+                    <th>数值</th>
+                  ) : !isAscp ? (
+                    <th>持续</th>
+                  ) : null}
                 </tr>
               </thead>
               <tbody>
@@ -233,6 +252,10 @@ export function DayCharts({ detail }: DayChartsProps) {
                           <span className="event-unit">cmH2O</span>
                         </td>
                       </>
+                    ) : isLeakChannel ? (
+                      <td className="event-value">
+                        {event.value1} / {event.value2}
+                      </td>
                     ) : (
                       <td className="event-value">{event.value2}秒</td>
                     )}

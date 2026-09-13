@@ -395,6 +395,7 @@ const dayDetailCache = new WeakMap<
   DatasetIndex,
   Map<string, ParsedVentilatorFile[]>
 >();
+const hydratedWarningSummaries = new WeakSet<DaySummary>();
 const DAY_DETAIL_CACHE_LIMIT = 4;
 
 function getDayCache(index: DatasetIndex) {
@@ -479,6 +480,29 @@ export async function loadDayDetail(
   const detailSummary = summary
     ? { ...summary, pressureRange: pressureRange ?? summary.pressureRange }
     : summary;
+
+  // 惰性解析新发现的 payload 警告(如尾部字节)并入 summary,供数据集状态条聚合。
+  // 以索引条目判断哪些文件是延迟解析的(resolveDayFiles 后 full 文件也有 payload,
+  // 不能再据此判断);不去重——不同文件的同款警告都应保留;
+  // 头部长度警告在索引阶段的头部解析中已计入,跳过以免重复。
+  const deferredNames = new Set(
+    (index.parsedFilesByDay[date] ?? [])
+      .filter(
+        (file) => file.rawPayload.length === 0 && file.values.length === 0
+      )
+      .map((file) => file.fileName)
+  );
+  // 每个 summary 只聚合一次:loadDayDetail 会被 StrictMode/重复访问多次调用
+  if (summary && !hydratedWarningSummaries.has(summary)) {
+    for (const file of files) {
+      if (!deferredNames.has(file.fileName)) continue;
+      for (const warning of file.warnings) {
+        if (warning.startsWith("头部长度字段无效")) continue;
+        summary.warnings.push(warning);
+      }
+    }
+    hydratedWarningSummaries.add(summary);
+  }
 
   return {
     summary: detailSummary,
