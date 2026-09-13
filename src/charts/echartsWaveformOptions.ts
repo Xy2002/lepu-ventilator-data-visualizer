@@ -1,3 +1,4 @@
+import { parseEdfTimestampMs } from "../parser/edfTimestamp";
 import type { EChartsOption } from "echarts";
 import type { UseSession } from "../types";
 import type { WaveformValues } from "./waveformData";
@@ -27,30 +28,6 @@ interface BuildEChartsWaveformOptionParams {
   useSessions?: UseSession[];
   eventMarkers?: EventMarkerInfo[];
   pixelWidth?: number;
-}
-
-const timestampPattern =
-  /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?$/;
-
-export function parseEdfTimestampMs(timestamp: string | null | undefined) {
-  if (!timestamp) return null;
-
-  const match = timestamp.match(timestampPattern);
-  if (!match) return null;
-
-  const [, year, month, day, hour, minute, second, fraction = "0"] = match;
-  const millisecond = Number(fraction.padEnd(3, "0").slice(0, 3));
-  const value = Date.UTC(
-    Number(year),
-    Number(month) - 1,
-    Number(day),
-    Number(hour),
-    Number(minute),
-    Number(second),
-    millisecond
-  );
-
-  return Number.isNaN(value) ? null : value;
 }
 
 function pad(value: number, length = 2) {

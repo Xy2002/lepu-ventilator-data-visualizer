@@ -11,10 +11,10 @@ import type { ECharts } from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 import { useEffect, useMemo, useRef } from "react";
 import type { UseSession } from "../types";
+import { parseEdfTimestampMs } from "../parser/edfTimestamp";
 import {
   buildEChartsWaveformOption,
   EVENT_STYLES,
-  parseEdfTimestampMs,
 } from "./echartsWaveformOptions";
 import type { EventMarkerInfo } from "./echartsWaveformOptions";
 import type { WaveformValues } from "./waveformData";
