@@ -122,8 +122,16 @@ async function readPublishedGeneration(
 }
 
 // 读者锁:标签页对正在使用的代际持有共享锁,页面关闭/崩溃时自动释放;
-// 内容清理通过 locks.query() 收集所有活跃读者代际并保留它们
+// 内容清理通过 locks.query() 收集所有活跃读者代际并保留它们。
+// 每个标签页同一时刻只持有一把:切换代际时先注册新锁、再释放旧锁
+// (重叠窗口内 GC 两把都保留,不会出现无锁间隙)
 const READER_LOCK_PREFIX = "ventilator-import-cache-reader:";
+
+interface ActiveReaderLock {
+  generation: string;
+  release: () => void;
+}
+let activeReaderLock: ActiveReaderLock | null = null;
 
 export function holdReaderGeneration(generation: string | null): void {
   if (
@@ -132,16 +140,28 @@ export function holdReaderGeneration(generation: string | null): void {
     !navigator.locks?.request
   )
     return;
+  if (activeReaderLock?.generation === generation) return;
+
+  let release: (() => void) | undefined;
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const previous = activeReaderLock;
   navigator.locks
     .request(
       `${READER_LOCK_PREFIX}${generation}`,
       { mode: "shared" },
-      // 永不 resolve 的回调 = 锁持有到页面生命周期结束
-      () => new Promise<void>(() => {})
+      () => released
     )
+    .then(() => {
+      // 锁因释放而结束时清理本标签页的记录(而非被切换走)
+      if (activeReaderLock?.generation === generation) activeReaderLock = null;
+    })
     .catch(() => {
       /* 持锁失败仅影响旧代际保留策略,不影响功能 */
     });
+  activeReaderLock = { generation, release: release! };
+  previous?.release();
 }
 
 async function activeReaderGenerations(): Promise<Set<string>> {
@@ -157,6 +177,12 @@ async function activeReaderGenerations(): Promise<Set<string>> {
     if (match) generations.add(match[1]);
   }
   return generations;
+}
+
+/** 测试辅助:重置本标签页的读者锁状态 */
+export function resetReaderLockForTests(): void {
+  activeReaderLock?.release();
+  activeReaderLock = null;
 }
 
 // 清理内容记录:保留当前已发布代际与所有仍被活跃标签页引用的代际

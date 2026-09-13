@@ -7,6 +7,7 @@ import {
   holdReaderGeneration,
   invalidateImportedFiles,
   loadImportedFiles,
+  resetReaderLockForTests,
   saveImportedFiles,
 } from "./importCache";
 import { openDatabase } from "./idb";
@@ -142,6 +143,7 @@ describe("importCache", () => {
         const promise = task();
         if (name.startsWith("ventilator-import-cache-reader:")) {
           held.set(name, promise);
+          promise.finally(() => held.delete(name)).catch(() => {});
         }
         return promise;
       },
@@ -176,6 +178,66 @@ describe("importCache", () => {
         files: [expect.objectContaining({ name: "b.edf" })],
       });
     } finally {
+      delete (navigator as unknown as { locks?: unknown }).locks;
+    }
+  });
+
+  it("releases the previous reader generation when the tab switches", async () => {
+    // 每个标签页同一时刻只持有一把读者锁:切换代际后旧锁释放,
+    // 旧代际不再被 GC 无限保留(否则每次导入多留一份数据集)
+    const held = new Map<string, Promise<unknown>>();
+    const fakeLocks = {
+      // 兼容两种签名:写锁 request(name, task) / 读者锁 request(name, options, callback)
+      request: (
+        name: string,
+        optionsOrTask: unknown,
+        maybeCallback?: () => Promise<unknown>
+      ) => {
+        const task =
+          typeof optionsOrTask === "function"
+            ? (optionsOrTask as () => Promise<unknown>)
+            : maybeCallback;
+        if (!task) return Promise.resolve();
+        const promise = task();
+        if (name.startsWith("ventilator-import-cache-reader:")) {
+          held.set(name, promise);
+          promise.finally(() => held.delete(name)).catch(() => {});
+        }
+        return promise;
+      },
+      query: async () => ({
+        held: [...held.keys()].map((name) => ({ name, mode: "shared" })),
+        pending: [],
+      }),
+    };
+    Object.defineProperty(navigator, "locks", {
+      configurable: true,
+      value: fakeLocks,
+    });
+
+    try {
+      await saveImportedFiles([makeRef("a.edf", new Uint8Array([1, 2, 3]))]);
+      const restoredA = await loadImportedFiles();
+      holdReaderGeneration(restoredA.generation);
+
+      await saveImportedFiles([makeRef("b.edf", new Uint8Array([9]))]);
+      const restoredB = await loadImportedFiles();
+      holdReaderGeneration(restoredB.generation);
+      await new Promise((r) => setTimeout(r, 0));
+      expect([...held.keys()]).toEqual([
+        `ventilator-import-cache-reader:${restoredB.generation}`,
+      ]);
+
+      // 旧代际失去读者:下一次写入的 GC 回收它;新代际仍受保护
+      await saveImportedFiles([makeRef("c.edf", new Uint8Array([8]))]);
+      await expect(restoredA.files[0].read()).rejects.toThrow(
+        "缓存中缺少文件内容"
+      );
+      expect(new Uint8Array(await restoredB.files[0].read())).toEqual(
+        new Uint8Array([9])
+      );
+    } finally {
+      resetReaderLockForTests();
       delete (navigator as unknown as { locks?: unknown }).locks;
     }
   });
