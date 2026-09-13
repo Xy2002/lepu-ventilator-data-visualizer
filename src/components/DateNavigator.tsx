@@ -38,6 +38,7 @@ export function DateNavigator({
 }: DateNavigatorProps) {
   const [jumpDate, setJumpDate] = useState(selectedDate);
   const [missingOnly, setMissingOnly] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const filteredDays = useMemo(
     () => filterDays(dataset, { missingFilesOnly: missingOnly }),
     [dataset, missingOnly]
@@ -119,15 +120,30 @@ export function DateNavigator({
           disabled={filteredDays.length === 0}
           onClick={async () => {
             // 索引阶段跳过压力扫描；导出前为未加载过的日期补算压力范围
+            const failedDates: string[] = [];
             const summaries = await Promise.all(
               filteredDays.map(async (date) => {
                 const summary = dataset.summariesByDay[date];
-                const pressureRange =
-                  summary.pressureRange ??
-                  (await computePressureRange(dataset, date).catch(() => null));
+                let pressureRange = summary.pressureRange;
+                if (!pressureRange) {
+                  try {
+                    pressureRange = await computePressureRange(dataset, date);
+                  } catch {
+                    failedDates.push(date);
+                  }
+                }
                 return pressureRange ? { ...summary, pressureRange } : summary;
               })
             );
+
+            // 读取失败时中止导出,避免空白压力列被误当作「无压力数据」
+            if (failedDates.length > 0) {
+              setExportError(
+                `以下日期的压力数据读取失败，已取消导出：${failedDates.join("、")}`
+              );
+              return;
+            }
+            setExportError(null);
             const fileName =
               filteredDays.length > 0
                 ? `summaries-${filteredDays[0]}-to-${filteredDays[filteredDays.length - 1]}.csv`
@@ -140,6 +156,7 @@ export function DateNavigator({
         <p className="results-hint">
           共 {filteredDays.length} 天，显示最近 20 天
         </p>
+        {exportError ? <p className="export-error">{exportError}</p> : null}
         {filteredDays
           .slice(-20)
           .reverse()
