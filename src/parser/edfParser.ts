@@ -4,13 +4,26 @@ import type {
   ParsedVentilatorFile,
   TripleRecord,
   VentilatorHeader,
-} from '../types';
+} from "../types";
 
 const HEADER_BYTES = 512;
-const sampledPayloadLabels = new Set(['flow', 'pressure', 'real_pres', 'real_flow', 'difleak', 'mvtvbr']);
-const waveformSampleRateLabels = new Set(['flow', 'pressure', 'real_pres', 'real_flow', 'difleak']);
-const event16Labels = new Set(['ai', 'hi', 'ascp', 'usetime']);
-const decoder = new TextDecoder('ascii');
+const sampledPayloadLabels = new Set([
+  "flow",
+  "pressure",
+  "real_pres",
+  "real_flow",
+  "difleak",
+  "mvtvbr",
+]);
+const waveformSampleRateLabels = new Set([
+  "flow",
+  "pressure",
+  "real_pres",
+  "real_flow",
+  "difleak",
+]);
+const event16Labels = new Set(["ai", "hi", "ascp", "usetime"]);
+const decoder = new TextDecoder("ascii");
 
 function ascii(raw: Uint8Array, start: number, end: number) {
   return decoder.decode(raw.slice(start, end)).trim();
@@ -52,12 +65,12 @@ function parseTimestamp(raw: Uint8Array) {
     return null;
   }
 
-  const yyyy = year.toString().padStart(4, '0');
-  const mm = month.toString().padStart(2, '0');
-  const dd = day.toString().padStart(2, '0');
-  const hh = hour.toString().padStart(2, '0');
-  const min = minute.toString().padStart(2, '0');
-  const ss = second.toString().padStart(2, '0');
+  const yyyy = year.toString().padStart(4, "0");
+  const mm = month.toString().padStart(2, "0");
+  const dd = day.toString().padStart(2, "0");
+  const hh = hour.toString().padStart(2, "0");
+  const min = minute.toString().padStart(2, "0");
+  const ss = second.toString().padStart(2, "0");
   return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
 }
 
@@ -69,7 +82,10 @@ export function parseHeader(raw: Uint8Array): VentilatorHeader {
   const label = ascii(raw, 256, 272);
   const field244 = ascii(raw, 244, 252);
   const field244Value = parseInteger(field244);
-  const sampleIntervalMs = sampledPayloadLabels.has(label) && field244Value && field244Value > 0 ? field244Value : null;
+  const sampleIntervalMs =
+    sampledPayloadLabels.has(label) && field244Value && field244Value > 0
+      ? field244Value
+      : null;
 
   return {
     version: ascii(raw, 0, 8),
@@ -90,17 +106,23 @@ export function parseHeader(raw: Uint8Array): VentilatorHeader {
     digitalMax: ascii(raw, 384, 392),
     sampleIntervalMs,
     sampleRateHz:
-      waveformSampleRateLabels.has(label) && sampleIntervalMs ? 1000 / sampleIntervalMs : null,
+      waveformSampleRateLabels.has(label) && sampleIntervalMs
+        ? 1000 / sampleIntervalMs
+        : null,
   };
 }
 
 function trailingWarning(byteCount: number) {
   return byteCount === 1
-    ? 'Ignored 1 trailing payload byte'
-    : `Ignored ${byteCount} trailing payload bytes`;
+    ? "忽略 1 个尾部多余字节"
+    : `忽略 ${byteCount} 个尾部多余字节`;
 }
 
-function warnAboutTrailingBytes(payload: Uint8Array, recordBytes: number, warnings: string[]) {
+function warnAboutTrailingBytes(
+  payload: Uint8Array,
+  recordBytes: number,
+  warnings: string[]
+) {
   const trailingBytes = payload.length % recordBytes;
   if (trailingBytes > 0) {
     warnings.push(trailingWarning(trailingBytes));
@@ -110,7 +132,11 @@ function warnAboutTrailingBytes(payload: Uint8Array, recordBytes: number, warnin
 function parseUint16Values(payload: Uint8Array, warnings: string[]) {
   warnAboutTrailingBytes(payload, 2, warnings);
   const values = new Uint16Array(Math.floor(payload.length / 2));
-  const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
+  const view = new DataView(
+    payload.buffer,
+    payload.byteOffset,
+    payload.byteLength
+  );
 
   for (let index = 0; index < values.length; index += 1) {
     values[index] = view.getUint16(index * 2, true);
@@ -122,7 +148,11 @@ function parseUint16Values(payload: Uint8Array, warnings: string[]) {
 function parseInt16Values(payload: Uint8Array, warnings: string[]) {
   warnAboutTrailingBytes(payload, 2, warnings);
   const values = new Int16Array(Math.floor(payload.length / 2));
-  const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
+  const view = new DataView(
+    payload.buffer,
+    payload.byteOffset,
+    payload.byteLength
+  );
 
   for (let index = 0; index < values.length; index += 1) {
     values[index] = view.getInt16(index * 2, true);
@@ -134,7 +164,11 @@ function parseInt16Values(payload: Uint8Array, warnings: string[]) {
 function parseEvents16(label: string, payload: Uint8Array, warnings: string[]) {
   warnAboutTrailingBytes(payload, 16, warnings);
   const records: EventRecord[] = [];
-  const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
+  const view = new DataView(
+    payload.buffer,
+    payload.byteOffset,
+    payload.byteLength
+  );
 
   for (let offset = 0; offset + 16 <= payload.length; offset += 16) {
     records.push({
@@ -151,7 +185,11 @@ function parseEvents16(label: string, payload: Uint8Array, warnings: string[]) {
 function parseTriples(payload: Uint8Array, warnings: string[]) {
   warnAboutTrailingBytes(payload, 6, warnings);
   const records: TripleRecord[] = [];
-  const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
+  const view = new DataView(
+    payload.buffer,
+    payload.byteOffset,
+    payload.byteLength
+  );
 
   for (let offset = 0; offset + 6 <= payload.length; offset += 6) {
     records.push({
@@ -170,23 +208,31 @@ function makeBlankHeader() {
   return parseHeader(raw);
 }
 
-function warnAboutInvalidHeaderBytes(rawHeaderBytes: string, warnings: string[]) {
+function warnAboutInvalidHeaderBytes(
+  rawHeaderBytes: string,
+  warnings: string[]
+) {
   if (parseInteger(rawHeaderBytes) !== HEADER_BYTES) {
-    warnings.push(`Invalid header byte count "${rawHeaderBytes}"; using ${HEADER_BYTES}`);
+    warnings.push(
+      `头部长度字段无效 "${rawHeaderBytes}"，按 ${HEADER_BYTES} 字节处理`
+    );
   }
 }
 
-export function parseVentilatorFile(fileName: string, raw: Uint8Array): ParsedVentilatorFile {
+export function parseVentilatorFile(
+  fileName: string,
+  raw: Uint8Array
+): ParsedVentilatorFile {
   if (raw.length < HEADER_BYTES) {
     return {
       fileName,
-      kind: 'invalid',
+      kind: "invalid",
       header: makeBlankHeader(),
       payloadBytes: 0,
       values: new Uint8Array(),
       records: [],
       rawPayload: new Uint8Array(),
-      warnings: ['File is shorter than 512-byte header'],
+      warnings: ["文件短于 512 字节头部"],
     };
   }
 
@@ -194,27 +240,27 @@ export function parseVentilatorFile(fileName: string, raw: Uint8Array): ParsedVe
   const warnings: string[] = [];
   warnAboutInvalidHeaderBytes(ascii(raw, 184, 192), warnings);
   const payload = raw.slice(header.headerBytes);
-  let kind: ParsedKind = 'raw';
-  let values: ParsedVentilatorFile['values'] = new Uint8Array();
-  let records: ParsedVentilatorFile['records'] = [];
+  let kind: ParsedKind = "raw";
+  let values: ParsedVentilatorFile["values"] = new Uint8Array();
+  let records: ParsedVentilatorFile["records"] = [];
 
-  if (header.label === 'flow' || header.label === 'difleak') {
-    kind = 'waveform_u8';
+  if (header.label === "flow" || header.label === "difleak") {
+    kind = "waveform_u8";
     values = payload;
-  } else if (header.label === 'pressure' || header.label === 'real_pres') {
-    kind = 'waveform_u16le';
+  } else if (header.label === "pressure" || header.label === "real_pres") {
+    kind = "waveform_u16le";
     values = parseUint16Values(payload, warnings);
-  } else if (header.label === 'real_flow') {
-    kind = 'waveform_i16le';
+  } else if (header.label === "real_flow") {
+    kind = "waveform_i16le";
     values = parseInt16Values(payload, warnings);
-  } else if (header.label === 'mvtvbr') {
-    kind = 'triples_u16le';
+  } else if (header.label === "mvtvbr") {
+    kind = "triples_u16le";
     records = parseTriples(payload, warnings);
   } else if (event16Labels.has(header.label)) {
-    kind = 'events16';
+    kind = "events16";
     records = parseEvents16(header.label, payload, warnings);
-  } else if (header.label === 'config') {
-    kind = 'raw_config';
+  } else if (header.label === "config") {
+    kind = "raw_config";
   }
 
   return {
