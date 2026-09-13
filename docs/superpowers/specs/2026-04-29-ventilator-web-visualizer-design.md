@@ -29,10 +29,13 @@ The current data directory contains date folders such as `DATAFILE/20260429`, ea
 
 Known file classes:
 
-- `flow`: waveform payload, unsigned 8-bit values, header field indicates 80 Hz.
-- `pressure`: waveform payload, little-endian unsigned 16-bit values, 80 Hz.
-- `real_pres`: waveform payload, little-endian unsigned 16-bit values, 80 Hz.
-- `real_flow`: stored in `snoredata` files, waveform payload, little-endian signed 16-bit values, 80 Hz.
+- `flow`: waveform payload, unsigned 8-bit values, sample interval 80 ms → 12.5 Hz.
+- `pressure`: waveform payload, little-endian unsigned 16-bit values, sample interval 80 ms → 12.5 Hz.
+- `real_pres`: waveform payload, little-endian unsigned 16-bit values, sample interval 80 ms → 12.5 Hz.
+- `real_flow`: stored in `snoredata` files, waveform payload, little-endian signed 16-bit values, sample interval 80 ms → 12.5 Hz.
+
+Sample rate note: the header field at offset 244 stores the sample interval in milliseconds (not a frequency). The parser derives `sampleRateHz = 1000 / interval` (`edfParser.ts`). An earlier revision of this spec said "80 Hz"; that was wrong — device data shows 12.5 Hz exactly (e.g. a 25,614 s use session vs 320,174 flow samples on the same day).
+
 - `mvtvbr`: records of three little-endian unsigned 16-bit values.
 - `ai`, `hi`, `ascp`, `usetime`: 16-byte records with two little-endian unsigned 32-bit values followed by an 8-byte timestamp.
 - `config`: raw configuration payload with known header metadata but mostly undecoded body.
@@ -320,4 +323,3 @@ The implementation plan should choose a concrete frontend stack and charting app
 - Binary parsing in JavaScript or TypeScript.
 - Efficient chart rendering for large numeric arrays.
 - Component boundaries that separate parsing, aggregation, chart rendering, and UI state.
-
