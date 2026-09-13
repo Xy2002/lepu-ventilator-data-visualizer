@@ -62,7 +62,10 @@ export function buildDataSummary(summary: DaySummary): string {
     hiCount !== undefined ||
     otherEntries.length > 0
   ) {
-    lines.push(`AHI 相关事件总计（AI + HI）: ${ahiTotal} 次`);
+    const ahiComplete = aiCount !== undefined && hiCount !== undefined;
+    lines.push(
+      `AHI 相关事件总计（AI + HI${ahiComplete ? "" : "，部分数据缺失"}）: ${ahiTotal} 次`
+    );
     lines.push(
       `  - 中心性呼吸暂停 (AI): ${aiCount !== undefined ? `${aiCount} 次` : "无记录"}`
     );

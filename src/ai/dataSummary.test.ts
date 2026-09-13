@@ -58,7 +58,7 @@ describe("buildDataSummary", () => {
       eventCounts: { hi: 5, ascp: 4 },
     };
     const result = buildDataSummary(partial);
-    expect(result).toContain("AHI 相关事件总计（AI + HI）: 5 次");
+    expect(result).toContain("AHI 相关事件总计（AI + HI，部分数据缺失）: 5 次");
     expect(result).toContain("中心性呼吸暂停 (AI): 无记录");
     expect(result).toContain("低通气 (HI): 5 次");
     expect(result).not.toContain("中心性呼吸暂停 (AI): 0 次");
