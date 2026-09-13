@@ -179,7 +179,7 @@ describe("App", () => {
     );
     expect(screen.getByText("0.1 - 0.9")).toBeInTheDocument();
     expect(
-      await screen.findByRole("img", { name: "flow 波形图表" })
+      await screen.findByRole("img", { name: "气流 波形图表" })
     ).toBeInTheDocument();
     expect(chartMock.setOption).toHaveBeenCalledWith(
       expect.objectContaining({

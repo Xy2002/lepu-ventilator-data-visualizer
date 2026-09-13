@@ -21,6 +21,21 @@ export const EVENT_STYLES: Record<string, { color: string; label: string }> = {
   ascp: { color: "#6366f1", label: "ASCP 压力调整" },
 };
 
+/** 波形通道的规范标签 → 中文显示名。组件与图表配置统一使用规范标签(即
+ * header.label,如 pressure/real_pres),仅在渲染文字时转换为显示名,
+ * 避免用显示名判断通道语义(本地化文案一变就会漏判)。 */
+export const SIGNAL_DISPLAY_NAMES: Record<string, string> = {
+  flow: "气流",
+  pressure: "压力",
+  real_pres: "实际压力",
+  real_flow: "实际气流",
+  difleak: "漏气",
+};
+
+export function displayChannelName(label: string): string {
+  return SIGNAL_DISPLAY_NAMES[label] ?? label;
+}
+
 /** 波形的时间上下文:{sampleRateHz, startTime, useSessions} 三个参数总是同行出现 */
 export interface WaveformTimeContext {
   sampleRateHz: number | null;
@@ -148,6 +163,59 @@ function isSaturatedWaveformValue(
   return value >= 32768;
 }
 
+// 压力通道 y 轴分位数与外扩边距
+const PRESSURE_AXIS_TAIL = 0.005;
+const PRESSURE_AXIS_MARGIN = 0.08;
+const PRESSURE_AXIS_MIN_PAD = 2;
+
+/**
+ * 压力通道的分位数 y 轴范围。压力是平台型信号(在 EPAP/IPAP 间长时间停留),
+ * 而治疗启动自检过冲、咳嗽等瞬时尖峰是真实数据却会独占刻度,把治疗频带压扁;
+ * 故取 0.5%/99.5% 分位并外扩 8%,超出刻度的样本在网格边缘裁剪。
+ * 仅用于 pressure / real_pres;flow 等波形通道的形状本身是信号,仍用 dataMin/dataMax。
+ */
+function computePressureYAxisRange(
+  channels: WaveformValues[]
+): { min: number; max: number } | null {
+  // 掩掉饱和值后,各编码的合法值都落在 [-32767, 32767],+32768 偏移即可直方图计数
+  const histogram = new Uint32Array(65536);
+  let total = 0;
+  for (const values of channels) {
+    for (let i = 0; i < values.length; i += 1) {
+      const value = values[i];
+      if (isSaturatedWaveformValue(value, values)) continue;
+      histogram[value + 32768] += 1;
+      total += 1;
+    }
+  }
+  if (total === 0) return null;
+
+  const lowTarget = Math.ceil(total * PRESSURE_AXIS_TAIL);
+  const highTarget = Math.floor(total * (1 - PRESSURE_AXIS_TAIL));
+  let cumulative = 0;
+  let low: number | null = null;
+  let high: number | null = null;
+  for (let bin = 0; bin < histogram.length; bin += 1) {
+    cumulative += histogram[bin];
+    if (low === null && cumulative >= lowTarget) low = bin - 32768;
+    if (cumulative >= highTarget) {
+      high = bin - 32768;
+      break;
+    }
+  }
+  if (low === null || high === null) return null;
+
+  const pad = Math.max(
+    (high - low) * PRESSURE_AXIS_MARGIN,
+    PRESSURE_AXIS_MIN_PAD
+  );
+  // 表压不会为负,外扩后下限钳在 0
+  return {
+    min: Math.max(0, Math.floor(low - pad)),
+    max: Math.ceil(high + pad),
+  };
+}
+
 export function buildEChartsWaveformSeries(
   values: WaveformValues,
   time: WaveformTimeContext
@@ -259,8 +327,17 @@ export function buildEChartsWaveformOption({
       ? "秒"
       : "采样序号";
 
+  const pressureAxisRange =
+    label === "pressure" || label === "real_pres"
+      ? computePressureYAxisRange(
+          overlay && overlay.values.length > 0
+            ? [values, overlay.values]
+            : [values]
+        )
+      : null;
+
   const series: Record<string, unknown> = {
-    name: label,
+    name: displayChannelName(label),
     type: "line",
     data,
     symbol: "none",
@@ -302,7 +379,7 @@ export function buildEChartsWaveformOption({
 
   if (overlay && overlay.values.length > 0) {
     seriesList.push({
-      name: overlay.label,
+      name: displayChannelName(overlay.label),
       type: "line",
       data: buildEChartsWaveformSeries(overlay.values, {
         sampleRateHz,
@@ -322,7 +399,7 @@ export function buildEChartsWaveformOption({
       },
       emphasis: { disabled: true },
     });
-    legendData = [label, overlay.label];
+    legendData = [displayChannelName(label), displayChannelName(overlay.label)];
   }
 
   return {
@@ -371,16 +448,26 @@ export function buildEChartsWaveformOption({
       axisLine: { lineStyle: { color: "#c9c9c9" } },
       splitLine: { lineStyle: { color: "rgba(0, 0, 0, 0.06)" } },
     },
-    yAxis: {
-      type: "value",
-      scale: true,
-      min: "dataMin",
-      max: "dataMax",
-      axisLine: { lineStyle: { color: "#c9c9c9" } },
-      splitLine: {
-        lineStyle: { color: "rgba(0, 0, 0, 0.08)", type: "dashed" },
-      },
-    },
+    yAxis: pressureAxisRange
+      ? {
+          type: "value",
+          min: pressureAxisRange.min,
+          max: pressureAxisRange.max,
+          axisLine: { lineStyle: { color: "#c9c9c9" } },
+          splitLine: {
+            lineStyle: { color: "rgba(0, 0, 0, 0.08)", type: "dashed" },
+          },
+        }
+      : {
+          type: "value",
+          scale: true,
+          min: "dataMin",
+          max: "dataMax",
+          axisLine: { lineStyle: { color: "#c9c9c9" } },
+          splitLine: {
+            lineStyle: { color: "rgba(0, 0, 0, 0.08)", type: "dashed" },
+          },
+        },
     dataZoom: [
       {
         type: "inside",

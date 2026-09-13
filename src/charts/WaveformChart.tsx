@@ -14,6 +14,7 @@ import type { UseSession } from "../types";
 import { parseEdfTimestampMs } from "../parser/edfTimestamp";
 import {
   buildEChartsWaveformOption,
+  displayChannelName,
   EVENT_STYLES,
 } from "./echartsWaveformOptions";
 import type { EventMarkerInfo } from "./echartsWaveformOptions";
@@ -181,7 +182,7 @@ export function WaveformChart({
     <section className="waveform-panel">
       <div className="chart-header">
         <div>
-          <h3>{label}</h3>
+          <h3>{displayChannelName(label)}</h3>
           <span>
             {values.length} 采样 · {sampleRateHz ?? "-"} Hz
             {useSessions.length > 0
@@ -217,7 +218,7 @@ export function WaveformChart({
         ref={containerRef}
         className="waveform-chart"
         role="img"
-        aria-label={`${label} 波形图表`}
+        aria-label={`${displayChannelName(label)} 波形图表`}
       />
       <div className="chart-readout">
         <span>滚轮缩放 · 拖动平移</span>

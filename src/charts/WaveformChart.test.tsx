@@ -55,7 +55,7 @@ describe("WaveformChart", () => {
     );
 
     expect(
-      screen.getByRole("img", { name: "flow 波形图表" })
+      screen.getByRole("img", { name: "气流 波形图表" })
     ).toBeInTheDocument();
     expect(
       screen.getByText("3 采样 · 80 Hz · 2026-04-29 03:03:12.57")
@@ -141,7 +141,7 @@ describe("WaveformChart", () => {
       />
     );
 
-    const chart = screen.getByRole("img", { name: "flow 波形图表" });
+    const chart = screen.getByRole("img", { name: "气流 波形图表" });
     const wheelEvent = new WheelEvent("wheel", {
       bubbles: true,
       cancelable: true,

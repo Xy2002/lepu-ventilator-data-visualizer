@@ -97,6 +97,61 @@ describe("buildEChartsWaveformSeries", () => {
     );
     expect(points.map(([, value]) => value)).toEqual([null, 200, null]);
   });
+
+  it("scales pressure channels to the therapy band so transient spikes do not set the axis", () => {
+    // 双水平平台信号(EPAP 90 / IPAP 190)+ 一个 400 的瞬时过冲:过冲是真实数据,
+    // 但不应决定 y 轴刻度(超出部分在网格边缘裁剪)
+    const values = new Uint16Array(2000);
+    for (let i = 0; i < values.length; i++) values[i] = i % 20 < 10 ? 90 : 190;
+    values[3] = 400;
+
+    const option = buildEChartsWaveformOption({
+      label: "real_pres",
+      values,
+      sampleRateHz: 2,
+    });
+
+    expect(option.yAxis).toMatchObject({ min: 82, max: 198 });
+  });
+
+  it("combines main and overlay channels when scaling the pressure overlay axis", () => {
+    const values = new Uint16Array(1000).fill(90);
+    const overlayValues = new Uint16Array(1000).fill(190);
+    overlayValues[7] = 400;
+
+    const option = buildEChartsWaveformOption({
+      label: "pressure",
+      values,
+      sampleRateHz: 2,
+      overlay: { label: "real_pres", values: overlayValues },
+    });
+
+    expect(option.yAxis).toMatchObject({ min: 82, max: 198 });
+  });
+
+  it("keeps the data-driven y-axis for waveform channels where clipping would distort shape", () => {
+    const option = buildEChartsWaveformOption({
+      label: "flow",
+      values: new Uint8Array([10, 200, 12]),
+      sampleRateHz: 2,
+    });
+
+    expect(option.yAxis).toMatchObject({
+      scale: true,
+      min: "dataMin",
+      max: "dataMax",
+    });
+  });
+
+  it("pads a flat pressure signal instead of collapsing the axis to a single value", () => {
+    const option = buildEChartsWaveformOption({
+      label: "pressure",
+      values: new Uint16Array(500).fill(95),
+      sampleRateHz: 2,
+    });
+
+    expect(option.yAxis).toMatchObject({ min: 93, max: 97 });
+  });
 });
 
 describe("buildEChartsWaveformOption", () => {
@@ -190,7 +245,8 @@ describe("buildEChartsWaveformOption", () => {
       axisPointer: { type: "cross" },
     });
     expect(option.xAxis).toMatchObject({ type: "value", name: "秒" });
-    expect(option.yAxis).toMatchObject({ type: "value", scale: true });
+    // pressure 通道走分位数数值轴(4 样本的 99.5% 分位=3,+最小 2 外扩,下限钳 0)
+    expect(option.yAxis).toMatchObject({ type: "value", min: 0, max: 5 });
     expect(option.dataZoom).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -203,7 +259,8 @@ describe("buildEChartsWaveformOption", () => {
     );
     expect(option.series).toEqual([
       expect.objectContaining({
-        name: "pressure",
+        // 序列名渲染为中文显示名,规范标签(label)只承担语义
+        name: "压力",
         type: "line",
         symbol: "none",
         sampling: "lttb",
@@ -244,11 +301,11 @@ describe("buildEChartsWaveformOption overlay", () => {
 
     const series = option.series as Array<{ name: string; type: string }>;
     expect(series).toHaveLength(2);
-    expect(series[0].name).toBe("pressure");
-    expect(series[1].name).toBe("real_pres");
+    expect(series[0].name).toBe("压力");
+    expect(series[1].name).toBe("实际压力");
     expect((option.legend as { data: string[] }).data).toEqual([
-      "pressure",
-      "real_pres",
+      "压力",
+      "实际压力",
     ]);
   });
 
@@ -274,7 +331,7 @@ describe("buildEChartsWaveformOption overlay", () => {
       name: string;
       data: [number, number | null][];
     }>;
-    const overlaySeries = series.find((s) => s.name === "real_pres")!;
+    const overlaySeries = series.find((s) => s.name === "实际压力")!;
     expect(overlaySeries.data.map(([, value]) => value)).toEqual([null, 95]);
   });
 });
