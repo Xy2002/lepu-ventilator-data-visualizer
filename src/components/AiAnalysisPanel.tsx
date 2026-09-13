@@ -45,6 +45,8 @@ export function AiAnalysisPanel({
   const [error, setError] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  // 代际令牌：报告键（日期/provider/模型/prompt）变化即递增，使在途生成/缓存续体全部失效
+  const requestGenerationRef = useRef(0);
 
   useEffect(() => {
     if (!selectedDate || !settings.apiKey) {
@@ -53,6 +55,7 @@ export function AiAnalysisPanel({
       return;
     }
 
+    let cancelled = false;
     const key = reportCacheKey(
       selectedDate,
       settings.provider,
@@ -60,17 +63,24 @@ export function AiAnalysisPanel({
       settings.customPrompt
     );
     loadReport(key).then((cached) => {
+      if (cancelled) return;
       if (cached) {
         setReport(cached.content);
-        setStatus("idle");
       } else {
         setReport("");
-        setStatus("idle");
       }
+      setStatus("idle");
     });
+
+    return () => {
+      cancelled = true;
+      requestGenerationRef.current += 1;
+      abortRef.current?.abort();
+    };
   }, [
     selectedDate,
     settings.provider,
+    settings.endpoint,
     settings.model,
     settings.customPrompt,
     settings.apiKey,
@@ -80,6 +90,7 @@ export function AiAnalysisPanel({
     async (force = false) => {
       if (!summary || !selectedDate || !settings.apiKey) return;
 
+      const generation = ++requestGenerationRef.current;
       const cacheKey = reportCacheKey(
         selectedDate,
         settings.provider,
@@ -89,6 +100,7 @@ export function AiAnalysisPanel({
 
       if (!force) {
         const cached = await loadReport(cacheKey);
+        if (requestGenerationRef.current !== generation) return;
         if (cached) {
           setReport(cached.content);
           setStatus("idle");
@@ -126,21 +138,29 @@ export function AiAnalysisPanel({
           abortRef.current.signal
         )) {
           fullText += chunk;
-          setReport(fullText);
+          if (requestGenerationRef.current === generation) setReport(fullText);
         }
 
-        await saveReport({
-          key: cacheKey,
-          date: selectedDate,
-          content: fullText,
-          createdAt: Date.now(),
-          provider: settings.provider,
-          model: settings.model,
-        });
+        if (requestGenerationRef.current === generation) {
+          await saveReport({
+            key: cacheKey,
+            date: selectedDate,
+            content: fullText,
+            createdAt: Date.now(),
+            provider: settings.provider,
+            model: settings.model,
+          });
 
-        setStatus("idle");
+          if (requestGenerationRef.current === generation) {
+            setStatus("idle");
+          }
+        }
       } catch (err) {
-        if (err instanceof Error && err.name !== "AbortError") {
+        if (
+          err instanceof Error &&
+          err.name !== "AbortError" &&
+          requestGenerationRef.current === generation
+        ) {
           setError(err.message);
           setStatus("error");
         }
@@ -327,8 +347,7 @@ export function AiAnalysisPanel({
         )}
         {!report && status === "idle" && !error && (
           <p className="ai-empty">
-            点击「生成分析」查看当日数据的 AI
-            分析报告。生成时，当日数据摘要将发送至你配置的 API 服务商。
+            点击「生成分析」查看当日数据的 AI 分析报告。
           </p>
         )}
       </div>

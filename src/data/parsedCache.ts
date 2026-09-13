@@ -1,3 +1,4 @@
+import { openDatabase, requestResult, transactionDone } from "./idb";
 import type {
   DatasetIndex,
   ImportedFileRef,
@@ -39,41 +40,6 @@ interface SerializedParsedFile {
 interface CachedParsedDay {
   id: string;
   files: SerializedParsedFile[];
-}
-
-function openDatabase(): Promise<IDBDatabase> {
-  if (typeof indexedDB === "undefined") {
-    return Promise.reject(new Error("IndexedDB is not available"));
-  }
-
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(STORE)) {
-        db.createObjectStore(STORE, { keyPath: "id" });
-      }
-    };
-    request.onerror = () =>
-      reject(request.error ?? new Error("Failed to open parsed cache"));
-    request.onsuccess = () => resolve(request.result);
-  });
-}
-
-function requestResult<T>(request: IDBRequest<T>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    request.onerror = () =>
-      reject(request.error ?? new Error("IndexedDB request failed"));
-    request.onsuccess = () => resolve(request.result);
-  });
-}
-
-function transactionDone(tx: IDBTransaction): Promise<void> {
-  return new Promise((resolve, reject) => {
-    tx.onabort = () => reject(tx.error ?? new Error("Transaction aborted"));
-    tx.onerror = () => reject(tx.error ?? new Error("Transaction failed"));
-    tx.oncomplete = () => resolve();
-  });
 }
 
 function typedArrayType(
@@ -176,7 +142,7 @@ export async function saveParsedDataset(
   files: ImportedFileRef[],
   index: DatasetIndex
 ): Promise<void> {
-  const db = await openDatabase();
+  const db = await openDatabase(DB_NAME, DB_VERSION, STORE, "id");
 
   try {
     const tx = db.transaction(STORE, "readwrite");
@@ -209,7 +175,7 @@ export async function loadParsedDataset(
   if (typeof indexedDB === "undefined") return null;
   if (files.length === 0) return null;
 
-  const db = await openDatabase();
+  const db = await openDatabase(DB_NAME, DB_VERSION, STORE, "id");
 
   try {
     const tx = db.transaction(STORE, "readonly");
