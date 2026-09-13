@@ -19,12 +19,14 @@
     "@fontsource-variable/geist": "^5.2.8",
     "@heroui/react": "^3.0.5",
     "@heroui/styles": "^3.0.5",
+    "@tailwindcss/vite": "^4.2.4",
     "echarts": "^6.0.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-markdown": "^10.1.0",
     "rehype-highlight": "^7.0.2",
-    "remark-gfm": "^4.0.1"
+    "remark-gfm": "^4.0.1",
+    "tailwindcss": "^4.2.4"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",
