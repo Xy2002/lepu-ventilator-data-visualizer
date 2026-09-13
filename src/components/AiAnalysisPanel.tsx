@@ -45,7 +45,8 @@ export function AiAnalysisPanel({
   const [error, setError] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
-  const activeRequestDateRef = useRef<string | null>(null);
+  // 代际令牌：报告键（日期/provider/模型/prompt）变化即递增，使在途生成/缓存续体全部失效
+  const requestGenerationRef = useRef(0);
 
   useEffect(() => {
     if (!selectedDate || !settings.apiKey) {
@@ -73,6 +74,7 @@ export function AiAnalysisPanel({
 
     return () => {
       cancelled = true;
+      requestGenerationRef.current += 1;
       abortRef.current?.abort();
     };
   }, [
@@ -87,8 +89,7 @@ export function AiAnalysisPanel({
     async (force = false) => {
       if (!summary || !selectedDate || !settings.apiKey) return;
 
-      const requestDate = selectedDate;
-      activeRequestDateRef.current = requestDate;
+      const generation = ++requestGenerationRef.current;
       const cacheKey = reportCacheKey(
         selectedDate,
         settings.provider,
@@ -98,7 +99,7 @@ export function AiAnalysisPanel({
 
       if (!force) {
         const cached = await loadReport(cacheKey);
-        if (activeRequestDateRef.current !== requestDate) return;
+        if (requestGenerationRef.current !== generation) return;
         if (cached) {
           setReport(cached.content);
           setStatus("idle");
@@ -136,10 +137,10 @@ export function AiAnalysisPanel({
           abortRef.current.signal
         )) {
           fullText += chunk;
-          if (activeRequestDateRef.current === requestDate) setReport(fullText);
+          if (requestGenerationRef.current === generation) setReport(fullText);
         }
 
-        if (activeRequestDateRef.current === requestDate) {
+        if (requestGenerationRef.current === generation) {
           await saveReport({
             key: cacheKey,
             date: selectedDate,
@@ -155,7 +156,7 @@ export function AiAnalysisPanel({
         if (
           err instanceof Error &&
           err.name !== "AbortError" &&
-          activeRequestDateRef.current === requestDate
+          requestGenerationRef.current === generation
         ) {
           setError(err.message);
           setStatus("error");
