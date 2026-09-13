@@ -191,3 +191,33 @@ describe("buildEChartsWaveformOption", () => {
     expect(series[0]).not.toHaveProperty("markLine");
   });
 });
+
+describe("buildEChartsWaveformOption overlay", () => {
+  it("appends a second series and legend when overlay values are provided", () => {
+    const option = buildEChartsWaveformOption({
+      label: "pressure",
+      values: new Uint16Array([1, 2, 3]),
+      sampleRateHz: null,
+      overlay: { label: "real_pres", values: new Uint16Array([4, 5, 6]) },
+    });
+
+    const series = option.series as Array<{ name: string; type: string }>;
+    expect(series).toHaveLength(2);
+    expect(series[0].name).toBe("pressure");
+    expect(series[1].name).toBe("real_pres");
+    expect((option.legend as { data: string[] }).data).toEqual([
+      "pressure",
+      "real_pres",
+    ]);
+  });
+
+  it("keeps a single series without overlay", () => {
+    const option = buildEChartsWaveformOption({
+      label: "flow",
+      values: new Uint8Array([1]),
+      sampleRateHz: null,
+    });
+    expect(option.series).toHaveLength(1);
+    expect(option.legend).toBeUndefined();
+  });
+});

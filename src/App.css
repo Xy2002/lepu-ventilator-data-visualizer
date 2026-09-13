@@ -1744,6 +1744,26 @@ th {
   color: var(--muted);
 }
 
+/* 长期趋势 / 事件分布 / 压力叠加(issue #35) */
+.summary-trend,
+.event-distribution,
+.pressure-overlay {
+  margin-top: 16px;
+}
+
+.summary-trend h3,
+.event-distribution h3,
+.pressure-overlay h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.pressure-overlay .waveform-chart {
+  height: 300px;
+}
+
 .export-error {
   margin: 4px 0;
   color: #d92d20;

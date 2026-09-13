@@ -9,6 +9,7 @@ import {
   ChipLabel,
 } from "@heroui/react";
 import { WaveformChart } from "../charts/WaveformChart";
+import { EventDistributionChart } from "./EventDistributionChart";
 import type { EventMarkerInfo } from "../charts/echartsWaveformOptions";
 import type { DayDetail } from "../types";
 
@@ -95,6 +96,25 @@ export function DayCharts({ detail }: DayChartsProps) {
   const focusedEvent =
     focusedIndex !== null ? activeEvents[focusedIndex] : null;
   const isAscp = activeLabel === "pressure";
+
+  const pressureSignal =
+    detail.signals.find((s) => s.header.label === "pressure") ?? null;
+  const realPresSignal =
+    detail.signals.find((s) => s.header.label === "real_pres") ?? null;
+  const hasOverlay = Boolean(pressureSignal && realPresSignal);
+  const overlayEvents = useMemo(
+    () => detail.events.filter((e) => e.sourceLabel === "ascp"),
+    [detail.events]
+  );
+  const overlayMarkers = useMemo<EventMarkerInfo[]>(
+    () =>
+      overlayEvents.map((e) => ({
+        timestamp: e.timestamp ?? undefined,
+        secondsFromDayStart: e.secondsFromDayStart,
+        sourceLabel: e.sourceLabel,
+      })),
+    [overlayEvents]
+  );
   const isLeakChannel = activeLabel === "difleak";
   // 设备对衍生通道(difleak/mvtvbr)只在起止字段写首样本时间(start==end),
   // 此时锚定到当日摘要起点,避免把波形错挂到首样本时刻
@@ -153,6 +173,22 @@ export function DayCharts({ detail }: DayChartsProps) {
             </div>
           </TabPanel>
         </TabsRoot>
+      ) : null}
+
+      {hasOverlay && pressureSignal && realPresSignal ? (
+        <section className="pressure-overlay">
+          <h3>压力叠加（pressure / real_pres）</h3>
+          <WaveformChart
+            key="pressure-overlay"
+            label="压力"
+            values={pressureSignal.values}
+            sampleRateHz={pressureSignal.header.sampleRateHz}
+            startTime={pressureSignal.header.startTime}
+            useSessions={detail.useSessions}
+            eventMarkers={overlayMarkers}
+            overlay={{ label: "实际压力", values: realPresSignal.values }}
+          />
+        </section>
       ) : null}
 
       {activeEvents.length > 0 ? (
@@ -229,6 +265,17 @@ export function DayCharts({ detail }: DayChartsProps) {
             </table>
           </div>
         </div>
+      ) : null}
+
+      {"ai" in detail.summary.eventCounts ||
+      "hi" in detail.summary.eventCounts ? (
+        <EventDistributionChart
+          events={detail.events}
+          availability={{
+            ai: "ai" in detail.summary.eventCounts,
+            hi: "hi" in detail.summary.eventCounts,
+          }}
+        />
       ) : null}
     </section>
   );

@@ -29,6 +29,8 @@ interface BuildEChartsWaveformOptionParams {
   useSessions?: UseSession[];
   eventMarkers?: EventMarkerInfo[];
   pixelWidth?: number;
+  /** 压力/实际压力叠加的第二条序列(与主序列共享时间轴与降采样上下文) */
+  overlay?: { label: string; values: WaveformValues } | null;
 }
 
 function pad(value: number, length = 2) {
@@ -185,6 +187,7 @@ export function buildEChartsWaveformOption({
   useSessions = [],
   eventMarkers = [],
   pixelWidth = 1200,
+  overlay = null,
 }: BuildEChartsWaveformOptionParams): EChartsOption {
   const startMs = parseEdfTimestampMs(startTime);
   const firstSessionStartMs = parseEdfTimestampMs(useSessions[0]?.startTime);
@@ -269,9 +272,39 @@ export function buildEChartsWaveformOption({
     };
   }
 
+  const seriesList: Array<Record<string, unknown>> = [series];
+  let legendData: string[] | undefined;
+
+  if (overlay && overlay.values.length > 0) {
+    seriesList.push({
+      name: overlay.label,
+      type: "line",
+      data: buildEChartsWaveformSeries(
+        overlay.values,
+        sampleRateHz,
+        startTime,
+        useSessions
+      ),
+      symbol: "none",
+      showSymbol: false,
+      sampling: "lttb",
+      animation: false,
+      progressive: 8000,
+      progressiveThreshold: 20000,
+      lineStyle: {
+        width: 1.2,
+        color: "#9333ea",
+        opacity: 0.85,
+      },
+      emphasis: { disabled: true },
+    });
+    legendData = [label, overlay.label];
+  }
+
   return {
     animation: false,
     backgroundColor: "transparent",
+    ...(legendData ? { legend: { data: legendData, top: 0, left: 0 } } : {}),
     useUTC: usesRealTime ? true : undefined,
     grid: {
       top: 16,
@@ -343,6 +376,6 @@ export function buildEChartsWaveformOption({
         brushSelect: true,
       },
     ],
-    series: [series],
+    series: seriesList,
   } satisfies EChartsOption;
 }

@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const chartMock = vi.hoisted(() => ({
   dispatchAction: vi.fn(),
   dispose: vi.fn(),
+  off: vi.fn(),
+  on: vi.fn(),
   resize: vi.fn(),
   setOption: vi.fn(),
 }));
@@ -25,10 +27,11 @@ const parsedCacheMock = vi.hoisted(() => ({
 }));
 
 vi.mock("echarts/core", () => echartsCoreMock);
-vi.mock("echarts/charts", () => ({ LineChart: {} }));
+vi.mock("echarts/charts", () => ({ BarChart: {}, LineChart: {} }));
 vi.mock("echarts/components", () => ({
   DataZoomComponent: {},
   GridComponent: {},
+  LegendComponent: {},
   MarkLineComponent: {},
   ToolboxComponent: {},
   TooltipComponent: {},
@@ -171,7 +174,9 @@ describe("App", () => {
     expect(
       screen.getByText("2026-04-29 10:00:00 至 2026-04-29 10:03:00")
     ).toBeInTheDocument();
-    expect(screen.getByText("0 / 1")).toBeInTheDocument();
+    expect(screen.getByText("AI / HI").parentElement?.textContent).toContain(
+      "无记录 / 1"
+    );
     expect(screen.getByText("0.1 - 0.9")).toBeInTheDocument();
     expect(
       await screen.findByRole("img", { name: "flow 波形图表" })

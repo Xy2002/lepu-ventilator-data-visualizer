@@ -4,6 +4,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DayDetail, EventRecord, ParsedVentilatorFile } from "../types";
 import { DayCharts } from "./DayCharts";
 
+vi.mock("./EventDistributionChart", () => ({
+  EventDistributionChart: () => <div aria-label="AI 与 HI 事件按小时分布图" />,
+}));
+
 vi.mock("../charts/WaveformChart", () => ({
   WaveformChart: ({
     label,
