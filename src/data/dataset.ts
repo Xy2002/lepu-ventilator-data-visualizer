@@ -463,6 +463,15 @@ export async function loadDayDetail(
     }
   }
 
+  // 惰性解析新发现的 payload 警告(如尾部字节)并入 summary,供数据集状态条聚合
+  for (const file of files) {
+    for (const warning of file.warnings) {
+      if (!summary.warnings.includes(warning)) {
+        summary.warnings.push(warning);
+      }
+    }
+  }
+
   return {
     summary,
     files,
