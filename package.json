@@ -7,8 +7,10 @@
     "dev": "vite --host 127.0.0.1",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 127.0.0.1",
+    "typecheck": "tsc -b",
     "test": "vitest run --passWithNoTests",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "prepare": "husky"
   },
   "engines": {
     "node": ">=20.19.0"
@@ -34,13 +36,15 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
-    "@types/node": "^25.9.1",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.2",
     "fake-indexeddb": "^6.2.5",
+    "husky": "^9.1.7",
     "jsdom": "^27.3.0",
+    "lint-staged": "^17.5.1",
     "playwright": "^1.60.0",
+    "prettier": "^3.9.6",
     "typescript": "^5.9.3",
     "vite": "^8.0.7",
     "vitest": "^4.0.16"
