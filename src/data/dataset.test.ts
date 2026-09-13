@@ -111,6 +111,18 @@ describe("dataset indexing", () => {
       "2026-04-29",
     ]);
     expect(filterDays(index, { requireEvent: "ascp" })).toEqual([]);
+    expect(filterDays(index, { requireEvents: ["hi", "ascp"] })).toEqual([]);
+    expect(filterDays(index, { requireEvents: ["hi"] })).toEqual([
+      "2026-04-29",
+    ]);
+    // 04-28 无 usetime,兜底使用头部时间跨度(~10.7h);04-29 为 120s 会话
+    expect(filterDays(index, { minUseDurationSeconds: 30000 })).toEqual([
+      "2026-04-28",
+    ]);
+    expect(filterDays(index, { minUseDurationSeconds: 100 })).toEqual([
+      "2026-04-28",
+      "2026-04-29",
+    ]);
   });
 
   it("buildDatasetIndex falls back to the file name when a browser file has no relative path", async () => {
