@@ -395,6 +395,7 @@ const dayDetailCache = new WeakMap<
   DatasetIndex,
   Map<string, ParsedVentilatorFile[]>
 >();
+const hydratedWarningSummaries = new WeakSet<DaySummary>();
 const DAY_DETAIL_CACHE_LIMIT = 4;
 
 function getDayCache(index: DatasetIndex) {
@@ -491,12 +492,16 @@ export async function loadDayDetail(
       )
       .map((file) => file.fileName)
   );
-  for (const file of files) {
-    if (!deferredNames.has(file.fileName)) continue;
-    for (const warning of file.warnings) {
-      if (warning.startsWith("头部长度字段无效")) continue;
-      summary.warnings.push(warning);
+  // 每个 summary 只聚合一次:loadDayDetail 会被 StrictMode/重复访问多次调用
+  if (summary && !hydratedWarningSummaries.has(summary)) {
+    for (const file of files) {
+      if (!deferredNames.has(file.fileName)) continue;
+      for (const warning of file.warnings) {
+        if (warning.startsWith("头部长度字段无效")) continue;
+        summary.warnings.push(warning);
+      }
     }
+    hydratedWarningSummaries.add(summary);
   }
 
   return {
