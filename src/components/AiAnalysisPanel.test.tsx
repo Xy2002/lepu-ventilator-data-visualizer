@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AiAnalysisPanel } from "./AiAnalysisPanel";
 import type { DaySummary } from "../types";
@@ -168,21 +168,21 @@ describe("AiAnalysisPanel", () => {
       />
     );
 
-    resolveStale({
-      key: "2026-05-21_openai_gpt-4o",
-      date: "2026-05-21",
-      content: "旧日期的报告内容",
-      createdAt: 1,
-      provider: "openai",
-      model: "gpt-4o",
+    await act(async () => {
+      resolveStale({
+        key: "2026-05-21_openai_gpt-4o",
+        date: "2026-05-21",
+        content: "旧日期的报告内容",
+        createdAt: 1,
+        provider: "openai",
+        model: "gpt-4o",
+      });
     });
 
-    await waitFor(() => {
-      expect(screen.queryByText("旧日期的报告内容")).not.toBeInTheDocument();
-      expect(
-        screen.getByText("点击「生成分析」查看当日数据的 AI 分析报告。")
-      ).toBeInTheDocument();
-    });
+    expect(screen.queryByText("旧日期的报告内容")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("点击「生成分析」查看当日数据的 AI 分析报告。")
+    ).toBeInTheDocument();
   });
 
   it("ignores a stale generate-report cache hit after the selected date changes", async () => {
@@ -223,20 +223,20 @@ describe("AiAnalysisPanel", () => {
       />
     );
 
-    resolvePending({
-      key: "2026-05-21_openai_gpt-4o",
-      date: "2026-05-21",
-      content: "过期生成的缓存报告",
-      createdAt: 1,
-      provider: "openai",
-      model: "gpt-4o",
+    await act(async () => {
+      resolvePending({
+        key: "2026-05-21_openai_gpt-4o",
+        date: "2026-05-21",
+        content: "过期生成的缓存报告",
+        createdAt: 1,
+        provider: "openai",
+        model: "gpt-4o",
+      });
     });
 
-    await waitFor(() => {
-      expect(screen.queryByText("过期生成的缓存报告")).not.toBeInTheDocument();
-      expect(
-        screen.getByText("点击「生成分析」查看当日数据的 AI 分析报告。")
-      ).toBeInTheDocument();
-    });
+    expect(screen.queryByText("过期生成的缓存报告")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("点击「生成分析」查看当日数据的 AI 分析报告。")
+    ).toBeInTheDocument();
   });
 });
