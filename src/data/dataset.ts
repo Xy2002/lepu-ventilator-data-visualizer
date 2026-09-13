@@ -232,16 +232,21 @@ export async function buildDatasetIndex(
   const summariesByDay: Record<string, DaySummary> = {};
   const parsedFilesByDay: Record<string, ParsedVentilatorFile[]> = {};
 
-  const results = await Promise.all(
-    days.map((day) => summarizeDay(day, filesByDay[day], true))
-  );
-
-  for (let i = 0; i < days.length; i++) {
-    const { summary, files } = results[i];
-    summariesByDay[days[i]] = summary;
-    parsedFilesByDay[days[i]] = files;
-    onProgress?.({ completed: i + 1, total: days.length });
-  }
+  let completed = 0;
+  let runSettled = false;
+  await Promise.all(
+    days.map(async (day) => {
+      const { summary, files } = await summarizeDay(day, filesByDay[day], true);
+      summariesByDay[day] = summary;
+      parsedFilesByDay[day] = files;
+      if (runSettled) return;
+      completed += 1;
+      onProgress?.({ completed, total: days.length });
+    })
+  ).finally(() => {
+    // 某日解析失败使 Promise.all 先行拒绝后,其余日任务不得再向调用方发进度
+    runSettled = true;
+  });
 
   return {
     days,

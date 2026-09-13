@@ -5,7 +5,12 @@ import {
   makeEventPayloadAt,
 } from "../parser/fixtures";
 import type { ImportedFileRef } from "../types";
-import { buildDatasetIndex, filterDays, loadDayDetail } from "./dataset";
+import {
+  buildDatasetIndex,
+  filterDays,
+  loadDayDetail,
+  type IndexProgress,
+} from "./dataset";
 
 function imported(
   path: string,
@@ -145,5 +150,77 @@ describe("dataset indexing", () => {
       "mystery",
     ]);
     expect(detail.summary.pressureRange).toEqual({ min: 0.1, max: 0.9 });
+  });
+
+  it("fires onProgress as each day completes, not after all days", async () => {
+    const events: Array<IndexProgress & { slowSettled: boolean }> = [];
+    let settled = false;
+    let resolveSlow: () => void = () => {};
+    const slowBytes = makeEdfLikeFile("flow", new Uint8Array([1, 2, 3]));
+    const slowFile = {
+      arrayBuffer: () =>
+        new Promise<ArrayBuffer>((resolve) => {
+          resolveSlow = () => {
+            settled = true;
+            resolve(slowBytes.buffer as ArrayBuffer);
+          };
+        }),
+    } as unknown as File;
+    const slow: ImportedFileRef = {
+      name: "20260429_flow.edf",
+      path: "20260429_flow.edf",
+      file: slowFile,
+    };
+    const fast = imported("20260428_flow.edf", "flow", new Uint8Array([1]));
+
+    const building = buildDatasetIndex([slow, fast], (progress) =>
+      events.push({ ...progress, slowSettled: settled })
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(events).toEqual([{ completed: 1, total: 2, slowSettled: false }]);
+
+    resolveSlow();
+    await building;
+
+    expect(events[events.length - 1]).toEqual({
+      completed: 2,
+      total: 2,
+      slowSettled: true,
+    });
+  });
+
+  it("stops progress callbacks once a day fails mid-run", async () => {
+    const events: number[] = [];
+    let resolveSlow: () => void = () => {};
+    const slowBytes = makeEdfLikeFile("flow", new Uint8Array([1]));
+    const slowFile = {
+      arrayBuffer: () =>
+        new Promise<ArrayBuffer>((resolve) => {
+          resolveSlow = () => resolve(slowBytes.buffer as ArrayBuffer);
+        }),
+    } as unknown as File;
+    const badFile = {
+      arrayBuffer: () => Promise.reject(new Error("boom")),
+    } as unknown as File;
+
+    const building = buildDatasetIndex(
+      [
+        {
+          name: "20260428_flow.edf",
+          path: "20260428_flow.edf",
+          file: slowFile,
+        },
+        { name: "20260429_flow.edf", path: "20260429_flow.edf", file: badFile },
+      ],
+      (progress) => events.push(progress.completed)
+    );
+
+    await expect(building).rejects.toThrow("boom");
+
+    resolveSlow();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(events).toEqual([]);
   });
 });

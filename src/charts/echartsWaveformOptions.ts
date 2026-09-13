@@ -225,10 +225,10 @@ export function buildEChartsWaveformOption({
     useSessions
   );
   const xAxisName = usesRealTime
-    ? "real time"
+    ? "真实时间"
     : sampleRateHz
-      ? "seconds"
-      : "sample index";
+      ? "秒"
+      : "采样序号";
 
   const series: Record<string, unknown> = {
     name: label,

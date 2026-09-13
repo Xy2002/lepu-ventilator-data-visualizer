@@ -214,7 +214,7 @@ export function WaveformChart({
         ref={containerRef}
         className="waveform-chart"
         role="img"
-        aria-label={`${label} ECharts waveform chart`}
+        aria-label={`${label} 波形图表`}
       />
       <div className="chart-readout">
         <span>滚轮缩放 · 拖动平移</span>

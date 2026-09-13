@@ -36,11 +36,6 @@ function parseInteger(text: string) {
   return Number.parseInt(trimmed, 10);
 }
 
-function parseHeaderBytes(text: string) {
-  const headerBytes = parseInteger(text);
-  return headerBytes === HEADER_BYTES ? headerBytes : HEADER_BYTES;
-}
-
 export function parseHeader(raw: Uint8Array): VentilatorHeader {
   if (raw.length < HEADER_BYTES) {
     throw new Error(`file is too short for a ${HEADER_BYTES}-byte header`);
@@ -60,7 +55,7 @@ export function parseHeader(raw: Uint8Array): VentilatorHeader {
     recordingId: ascii(raw, 88, 168),
     startTime: parseBinaryTimestamp(raw.slice(168, 176)),
     endTime: parseBinaryTimestamp(raw.slice(176, 184)),
-    headerBytes: parseHeaderBytes(ascii(raw, 184, 192)),
+    headerBytes: HEADER_BYTES,
     firmware: ascii(raw, 192, 236),
     field236: ascii(raw, 236, 244),
     field244,
@@ -81,8 +76,8 @@ export function parseHeader(raw: Uint8Array): VentilatorHeader {
 
 function trailingWarning(byteCount: number) {
   return byteCount === 1
-    ? "Ignored 1 trailing payload byte"
-    : `Ignored ${byteCount} trailing payload bytes`;
+    ? "忽略 1 个尾部多余字节"
+    : `忽略 ${byteCount} 个尾部多余字节`;
 }
 
 function warnAboutTrailingBytes(
@@ -181,7 +176,7 @@ function warnAboutInvalidHeaderBytes(
 ) {
   if (parseInteger(rawHeaderBytes) !== HEADER_BYTES) {
     warnings.push(
-      `Invalid header byte count "${rawHeaderBytes}"; using ${HEADER_BYTES}`
+      `头部长度字段无效 "${rawHeaderBytes}"，按 ${HEADER_BYTES} 字节处理`
     );
   }
 }
@@ -199,13 +194,14 @@ export function parseVentilatorFile(
       values: new Uint8Array(),
       records: [],
       rawPayload: new Uint8Array(),
-      warnings: ["File is shorter than 512-byte header"],
+      warnings: ["文件短于 512 字节头部"],
     };
   }
 
-  const header = parseHeader(raw.slice(0, HEADER_BYTES));
+  const headerRaw = raw.slice(0, HEADER_BYTES);
+  const header = parseHeader(headerRaw);
   const warnings: string[] = [];
-  warnAboutInvalidHeaderBytes(ascii(raw, 184, 192), warnings);
+  warnAboutInvalidHeaderBytes(ascii(headerRaw, 184, 192), warnings);
   const payload = raw.slice(header.headerBytes);
   let kind: ParsedKind = "raw";
   let values: ParsedVentilatorFile["values"] = new Uint8Array();
