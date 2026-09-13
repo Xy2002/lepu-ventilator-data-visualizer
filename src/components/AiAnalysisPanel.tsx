@@ -80,6 +80,7 @@ export function AiAnalysisPanel({
   }, [
     selectedDate,
     settings.provider,
+    settings.endpoint,
     settings.model,
     settings.customPrompt,
     settings.apiKey,
@@ -150,7 +151,9 @@ export function AiAnalysisPanel({
             model: settings.model,
           });
 
-          setStatus("idle");
+          if (requestGenerationRef.current === generation) {
+            setStatus("idle");
+          }
         }
       } catch (err) {
         if (
