@@ -255,16 +255,16 @@ export async function buildDatasetIndex(
   const summariesByDay: Record<string, DaySummary> = {};
   const parsedFilesByDay: Record<string, ParsedVentilatorFile[]> = {};
 
-  const results = await Promise.all(
-    days.map((day) => summarizeDay(day, filesByDay[day], true))
+  let completed = 0;
+  await Promise.all(
+    days.map(async (day) => {
+      const { summary, files } = await summarizeDay(day, filesByDay[day], true);
+      summariesByDay[day] = summary;
+      parsedFilesByDay[day] = files;
+      completed += 1;
+      onProgress?.({ completed, total: days.length });
+    })
   );
-
-  for (let i = 0; i < days.length; i++) {
-    const { summary, files } = results[i];
-    summariesByDay[days[i]] = summary;
-    parsedFilesByDay[days[i]] = files;
-    onProgress?.({ completed: i + 1, total: days.length });
-  }
 
   return {
     days,
