@@ -21,12 +21,16 @@ export const EVENT_STYLES: Record<string, { color: string; label: string }> = {
   ascp: { color: "#6366f1", label: "ASCP 压力调整" },
 };
 
-interface BuildEChartsWaveformOptionParams {
-  label: string;
-  values: WaveformValues;
+/** 波形的时间上下文:{sampleRateHz, startTime, useSessions} 三个参数总是同行出现 */
+export interface WaveformTimeContext {
   sampleRateHz: number | null;
   startTime?: string | null;
   useSessions?: UseSession[];
+}
+
+interface BuildEChartsWaveformOptionParams extends WaveformTimeContext {
+  label: string;
+  values: WaveformValues;
   eventMarkers?: EventMarkerInfo[];
   pixelWidth?: number;
   /** 压力/实际压力叠加的第二条序列(与主序列共享时间轴与降采样上下文) */
@@ -53,6 +57,19 @@ interface MarkLineItem {
   lineStyle: { color: string };
 }
 
+const FALLBACK_EVENT_STYLE = {
+  color: "#d92d20",
+};
+
+function eventStyleFor(sourceLabel: string) {
+  return (
+    EVENT_STYLES[sourceLabel] ?? {
+      ...FALLBACK_EVENT_STYLE,
+      label: sourceLabel.toUpperCase(),
+    }
+  );
+}
+
 function buildTimestampMarkLineData(
   eventMarkers: EventMarkerInfo[],
   chartStartMs: number,
@@ -73,10 +90,7 @@ function buildTimestampMarkLineData(
     if (marker.ms < chartStartMs || marker.ms > chartStartMs + visibleMs)
       continue;
 
-    const style = EVENT_STYLES[marker.sourceLabel] ?? {
-      color: "#d92d20",
-      label: marker.sourceLabel.toUpperCase(),
-    };
+    const style = eventStyleFor(marker.sourceLabel);
     markers.push({
       xAxis: marker.ms,
       name: style.label,
@@ -108,10 +122,7 @@ function buildEventMarkLineData(
     const second = marker.secondsFromDayStart!;
     if (second < 0 || second > visibleSeconds) continue;
 
-    const style = EVENT_STYLES[marker.sourceLabel] ?? {
-      color: "#d92d20",
-      label: marker.sourceLabel.toUpperCase(),
-    };
+    const style = eventStyleFor(marker.sourceLabel);
     markers.push({
       xAxis: second,
       name: style.label,
@@ -124,10 +135,9 @@ function buildEventMarkLineData(
 
 export function buildEChartsWaveformSeries(
   values: WaveformValues,
-  sampleRateHz: number | null,
-  startTime?: string | null,
-  useSessions: UseSession[] = []
+  time: WaveformTimeContext
 ): EChartsWaveformPoint[] {
+  const { sampleRateHz, startTime = null, useSessions = [] } = time;
   if (sampleRateHz && sampleRateHz > 0 && useSessions.length > 0) {
     const points: EChartsWaveformPoint[] = [];
     let valueIndex = 0;
@@ -222,12 +232,11 @@ export function buildEChartsWaveformOption({
           values.length,
           pixelWidth
         );
-  const data = buildEChartsWaveformSeries(
-    values,
+  const data = buildEChartsWaveformSeries(values, {
     sampleRateHz,
     startTime,
-    useSessions
-  );
+    useSessions,
+  });
   const xAxisName = usesRealTime
     ? "真实时间"
     : sampleRateHz
@@ -279,12 +288,11 @@ export function buildEChartsWaveformOption({
     seriesList.push({
       name: overlay.label,
       type: "line",
-      data: buildEChartsWaveformSeries(
-        overlay.values,
+      data: buildEChartsWaveformSeries(overlay.values, {
         sampleRateHz,
         startTime,
-        useSessions
-      ),
+        useSessions,
+      }),
       symbol: "none",
       showSymbol: false,
       sampling: "lttb",
