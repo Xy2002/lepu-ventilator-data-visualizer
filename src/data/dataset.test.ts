@@ -189,4 +189,38 @@ describe("dataset indexing", () => {
       slowSettled: true,
     });
   });
+
+  it("stops progress callbacks once a day fails mid-run", async () => {
+    const events: number[] = [];
+    let resolveSlow: () => void = () => {};
+    const slowBytes = makeEdfLikeFile("flow", new Uint8Array([1]));
+    const slowFile = {
+      arrayBuffer: () =>
+        new Promise<ArrayBuffer>((resolve) => {
+          resolveSlow = () => resolve(slowBytes.buffer as ArrayBuffer);
+        }),
+    } as unknown as File;
+    const badFile = {
+      arrayBuffer: () => Promise.reject(new Error("boom")),
+    } as unknown as File;
+
+    const building = buildDatasetIndex(
+      [
+        {
+          name: "20260428_flow.edf",
+          path: "20260428_flow.edf",
+          file: slowFile,
+        },
+        { name: "20260429_flow.edf", path: "20260429_flow.edf", file: badFile },
+      ],
+      (progress) => events.push(progress.completed)
+    );
+
+    await expect(building).rejects.toThrow("boom");
+
+    resolveSlow();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(events).toEqual([]);
+  });
 });

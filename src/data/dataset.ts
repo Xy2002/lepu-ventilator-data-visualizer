@@ -256,15 +256,20 @@ export async function buildDatasetIndex(
   const parsedFilesByDay: Record<string, ParsedVentilatorFile[]> = {};
 
   let completed = 0;
+  let runSettled = false;
   await Promise.all(
     days.map(async (day) => {
       const { summary, files } = await summarizeDay(day, filesByDay[day], true);
       summariesByDay[day] = summary;
       parsedFilesByDay[day] = files;
+      if (runSettled) return;
       completed += 1;
       onProgress?.({ completed, total: days.length });
     })
-  );
+  ).finally(() => {
+    // 某日解析失败使 Promise.all 先行拒绝后,其余日任务不得再向调用方发进度
+    runSettled = true;
+  });
 
   return {
     days,
