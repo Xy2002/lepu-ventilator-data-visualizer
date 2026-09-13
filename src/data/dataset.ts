@@ -1,4 +1,8 @@
-import { parseVentilatorFile } from "../parser/edfParser";
+import {
+  HEADER_BYTES,
+  parseVentilatorFile,
+  parseVentilatorFileHeader,
+} from "../parser/edfParser";
 import { parseEdfTimestampMs } from "../parser/edfTimestamp";
 import type {
   DatasetIndex,
@@ -64,6 +68,42 @@ export function secondsBetween(start: string | null, end: string | null) {
 async function parseImportedFile(fileRef: ImportedFileRef) {
   const buffer = await fileRef.file.arrayBuffer();
   return parseVentilatorFile(fileRef.name, new Uint8Array(buffer));
+}
+
+// 索引阶段需要完整内容的类型：事件/配置直接参与摘要，invalid 文件本身很小
+const INDEX_FULL_PARSE_KINDS = new Set(["events16", "raw_config", "invalid"]);
+
+async function readBlobPart(blob: Blob): Promise<ArrayBuffer> {
+  if (typeof blob.arrayBuffer === "function") return blob.arrayBuffer();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as ArrayBuffer);
+    reader.onerror = () =>
+      reject(reader.error ?? new Error("Failed to read blob"));
+    reader.readAsArrayBuffer(blob);
+  });
+}
+
+async function parseImportedFileForIndex(fileRef: ImportedFileRef) {
+  const headerRaw = new Uint8Array(
+    await readBlobPart(fileRef.file.slice(0, HEADER_BYTES))
+  );
+  const headerOnly = parseVentilatorFileHeader(
+    fileRef.name,
+    headerRaw,
+    fileRef.file.size
+  );
+  if (INDEX_FULL_PARSE_KINDS.has(headerOnly.kind)) {
+    return parseImportedFile(fileRef);
+  }
+  return headerOnly;
+}
+
+function sampleCountOf(file: ParsedVentilatorFile) {
+  if (file.values.length > 0) return file.values.length;
+  // 索引阶段的波形文件只读头部：payload 字节数 / 每采样字节数
+  const bytesPerSample = file.kind === "waveform_u8" ? 1 : 2;
+  return Math.floor(file.payloadBytes / bytesPerSample);
 }
 
 function isEventRecord(
@@ -146,7 +186,9 @@ async function summarizeDay(
   skipPressureScan: boolean
 ) {
   const summary = makeEmptySummary(date);
-  const files = await Promise.all(fileRefs.map(parseImportedFile));
+  const files = await Promise.all(
+    fileRefs.map((fileRef) => parseImportedFileForIndex(fileRef))
+  );
 
   for (const parsed of files) {
     const label = parsed.header.label;
@@ -170,7 +212,7 @@ async function summarizeDay(
     if (isSignal(parsed)) {
       summary.signalPresence[label] = true;
       summary.sampleCounts[label] =
-        (summary.sampleCounts[label] ?? 0) + parsed.values.length;
+        (summary.sampleCounts[label] ?? 0) + sampleCountOf(parsed);
 
       if (!skipPressureScan && label === "pressure") {
         for (const value of parsed.values) {
@@ -296,14 +338,73 @@ function withSecondsFromDayStart(
     : { ...record, secondsFromDayStart: seconds };
 }
 
+// 按日粒度的 LRU：仅保留最近 N 天的完整解析结果，波形 payload 不再常驻内存。
+// 以 dataset 实例为键（WeakMap），重新导入后旧缓存可整体回收、不会跨数据集污染。
+const dayDetailCache = new WeakMap<
+  DatasetIndex,
+  Map<string, ParsedVentilatorFile[]>
+>();
+const DAY_DETAIL_CACHE_LIMIT = 4;
+
+function getDayCache(index: DatasetIndex) {
+  let perIndex = dayDetailCache.get(index);
+  if (!perIndex) {
+    perIndex = new Map();
+    dayDetailCache.set(index, perIndex);
+  }
+  return perIndex;
+}
+
+/** 测试辅助：查看某 dataset 的按日缓存 */
+export function inspectDayDetailCache(index: DatasetIndex) {
+  const perIndex = dayDetailCache.get(index);
+  return {
+    keys: perIndex ? [...perIndex.keys()] : [],
+    size: perIndex ? perIndex.size : 0,
+  };
+}
+
+async function resolveDayFiles(
+  index: DatasetIndex,
+  date: string
+): Promise<ParsedVentilatorFile[]> {
+  const perIndex = getDayCache(index);
+  const cached = perIndex.get(date);
+  if (cached) {
+    // 命中时刷新 LRU 顺序，避免退化为 FIFO
+    perIndex.delete(date);
+    perIndex.set(date, cached);
+    return cached;
+  }
+
+  const indexFiles = index.parsedFilesByDay[date] ?? [];
+  const refsByName = new Map(
+    (index.filesByDay[date] ?? []).map((ref) => [ref.name, ref])
+  );
+  const files = await Promise.all(
+    indexFiles.map(async (file) => {
+      // 索引阶段仅读头部的文件在此补齐完整 payload
+      if (file.rawPayload.length > 0 || file.values.length > 0) return file;
+      const ref = refsByName.get(file.fileName);
+      if (!ref) return file;
+      return parseImportedFile(ref);
+    })
+  );
+
+  perIndex.set(date, files);
+  while (perIndex.size > DAY_DETAIL_CACHE_LIMIT) {
+    const oldest = perIndex.keys().next().value;
+    if (oldest === undefined) break;
+    perIndex.delete(oldest);
+  }
+  return files;
+}
+
 export async function loadDayDetail(
   index: DatasetIndex,
   date: string
 ): Promise<DayDetail> {
-  const cached = index.parsedFilesByDay[date];
-  const files =
-    cached ??
-    (await Promise.all((index.filesByDay[date] ?? []).map(parseImportedFile)));
+  const files = await resolveDayFiles(index, date);
   const summary = index.summariesByDay[date];
   const signals = files.filter(isSignal);
   const useSessions = buildUseSessions(files);

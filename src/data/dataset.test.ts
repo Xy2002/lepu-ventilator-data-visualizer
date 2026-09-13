@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   makeEdfLikeFile,
   makeEventPayload,
@@ -8,6 +8,7 @@ import type { ImportedFileRef } from "../types";
 import {
   buildDatasetIndex,
   filterDays,
+  inspectDayDetailCache,
   loadDayDetail,
   type IndexProgress,
 } from "./dataset";
@@ -152,19 +153,57 @@ describe("dataset indexing", () => {
     expect(detail.summary.pressureRange).toEqual({ min: 0.1, max: 0.9 });
   });
 
+  it("keeps waveform payloads out of the index and loads them on demand", async () => {
+    const files = [
+      "20260421",
+      "20260422",
+      "20260423",
+      "20260424",
+      "20260425",
+    ].map((day) =>
+      imported(`${day}_flow.edf`, "flow", new Uint8Array([7, 8, 9]))
+    );
+    const index = await buildDatasetIndex(files);
+    expect(index.days).toHaveLength(5);
+
+    // 索引阶段：波形仅含头部，采样数按 payload 字节推算
+    for (const day of index.days) {
+      for (const file of index.parsedFilesByDay[day]) {
+        expect(file.kind).toBe("waveform_u8");
+        expect(file.values.length).toBe(0);
+        expect(file.rawPayload.length).toBe(0);
+      }
+    }
+    expect(index.summariesByDay["2026-04-21"].sampleCounts.flow).toBe(3);
+    expect(index.summariesByDay["2026-04-21"].signalPresence.flow).toBe(true);
+
+    // 按需解析：payload 在 loadDayDetail 后补齐
+    const detail = await loadDayDetail(index, "2026-04-21");
+    const flow = detail.signals.find((file) => file.header.label === "flow");
+    expect(Array.from(flow?.values ?? [])).toEqual([7, 8, 9]);
+
+    // LRU：超过上限后最早的日被淘汰
+    for (const day of index.days.slice(1)) await loadDayDetail(index, day);
+    expect(inspectDayDetailCache(index).size).toBe(4);
+    expect(inspectDayDetailCache(index).keys).not.toContain("2026-04-21");
+  });
+
   it("fires onProgress as each day completes, not after all days", async () => {
     const events: Array<IndexProgress & { slowSettled: boolean }> = [];
     let settled = false;
     let resolveSlow: () => void = () => {};
     const slowBytes = makeEdfLikeFile("flow", new Uint8Array([1, 2, 3]));
     const slowFile = {
-      arrayBuffer: () =>
-        new Promise<ArrayBuffer>((resolve) => {
-          resolveSlow = () => {
-            settled = true;
-            resolve(slowBytes.buffer as ArrayBuffer);
-          };
-        }),
+      size: slowBytes.byteLength,
+      slice: (start: number, end: number) => ({
+        arrayBuffer: () =>
+          new Promise<ArrayBuffer>((resolve) => {
+            resolveSlow = () => {
+              settled = true;
+              resolve(slowBytes.slice(start, end).buffer as ArrayBuffer);
+            };
+          }),
+      }),
     } as unknown as File;
     const slow: ImportedFileRef = {
       name: "20260429_flow.edf",
@@ -176,9 +215,11 @@ describe("dataset indexing", () => {
     const building = buildDatasetIndex([slow, fast], (progress) =>
       events.push({ ...progress, slowSettled: settled })
     );
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await vi.waitFor(() => {
+      expect(events.length).toBe(1);
+    });
 
-    expect(events).toEqual([{ completed: 1, total: 2, slowSettled: false }]);
+    expect(events[0]).toEqual({ completed: 1, total: 2, slowSettled: false });
 
     resolveSlow();
     await building;
@@ -195,13 +236,20 @@ describe("dataset indexing", () => {
     let resolveSlow: () => void = () => {};
     const slowBytes = makeEdfLikeFile("flow", new Uint8Array([1]));
     const slowFile = {
-      arrayBuffer: () =>
-        new Promise<ArrayBuffer>((resolve) => {
-          resolveSlow = () => resolve(slowBytes.buffer as ArrayBuffer);
-        }),
+      size: slowBytes.byteLength,
+      slice: (start: number, end: number) => ({
+        arrayBuffer: () =>
+          new Promise<ArrayBuffer>((resolve) => {
+            resolveSlow = () =>
+              resolve(slowBytes.slice(start, end).buffer as ArrayBuffer);
+          }),
+      }),
     } as unknown as File;
     const badFile = {
-      arrayBuffer: () => Promise.reject(new Error("boom")),
+      size: 514,
+      slice: () => ({
+        arrayBuffer: () => Promise.reject(new Error("boom")),
+      }),
     } as unknown as File;
 
     const building = buildDatasetIndex(

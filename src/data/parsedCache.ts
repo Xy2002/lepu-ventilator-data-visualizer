@@ -77,7 +77,29 @@ function makeTypedArray(type: string, buffer: ArrayBuffer): TypedArrayValues {
   return new Uint8Array(buffer);
 }
 
+// 旧版缓存把波形 payload 全量写进了 IndexedDB；加载时归一化为 header-only，
+// 让升级用户同样享受两阶段的内存收益（payload 仍可经 importCache 按需重解析）
+const DEFERRED_PAYLOAD_KINDS = new Set([
+  "waveform_u8",
+  "waveform_u16le",
+  "waveform_i16le",
+  "triples_u16le",
+  "raw",
+]);
+
 function deserializeFile(sf: SerializedParsedFile): ParsedVentilatorFile {
+  if (DEFERRED_PAYLOAD_KINDS.has(sf.kind)) {
+    return {
+      fileName: sf.fileName,
+      kind: sf.kind,
+      header: sf.header,
+      payloadBytes: sf.payloadBytes,
+      values: new Uint8Array(),
+      records: sf.records,
+      rawPayload: new Uint8Array(),
+      warnings: sf.warnings,
+    };
+  }
   return {
     fileName: sf.fileName,
     kind: sf.kind,
@@ -142,49 +164,6 @@ export async function saveParsedDataset(
     }
 
     await transactionDone(tx);
-  } finally {
-    db.close();
-  }
-}
-
-export async function loadParsedDatasetDirect(): Promise<DatasetIndex | null> {
-  if (typeof indexedDB === "undefined") return null;
-
-  const db = await openDatabase(DB_NAME, DB_VERSION, STORE, "id");
-
-  try {
-    const tx = db.transaction(STORE, "readonly");
-    const store = tx.objectStore(STORE);
-
-    const manifest = await requestResult<CacheManifest | undefined>(
-      store.get("manifest")
-    );
-    if (!manifest || manifest.files.length === 0) return null;
-
-    const meta = await requestResult<CacheMeta | undefined>(store.get("meta"));
-    if (!meta) return null;
-
-    const parsedFilesByDay: Record<string, ParsedVentilatorFile[]> = {};
-    for (const day of meta.days) {
-      const cached = await requestResult<CachedParsedDay | undefined>(
-        store.get(`parsed:${day}`)
-      );
-      if (!cached) return null;
-      parsedFilesByDay[day] = cached.files.map(deserializeFile);
-    }
-
-    await transactionDone(tx);
-
-    return {
-      days: meta.days,
-      dateRange: meta.dateRange,
-      filesByDay: {},
-      summariesByDay: meta.summariesByDay,
-      parsedFilesByDay,
-      warnings: meta.warnings,
-    };
-  } catch {
-    return null;
   } finally {
     db.close();
   }
