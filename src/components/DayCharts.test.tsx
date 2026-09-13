@@ -141,6 +141,19 @@ describe("DayCharts", () => {
     expect(screen.queryByText("ASCP 压力记录")).not.toBeTruthy();
   });
 
+  it("shows leak events with raw values when difleak tab is active", () => {
+    const events = [
+      { ...makeEvent("leak", 20, "2026-04-29 05:17:14"), value1: 36 },
+    ];
+
+    render(
+      <DayCharts detail={detail([signal("difleak.edf", "difleak")], events)} />
+    );
+
+    expect(screen.getByText("漏气事件")).toBeTruthy();
+    expect(screen.getByText("36 / 20")).toBeTruthy();
+  });
+
   it("falls back to day start time for signals with degenerate header span", () => {
     const difleak = signal("difleak.edf", "difleak");
     difleak.header.endTime = difleak.header.startTime;
