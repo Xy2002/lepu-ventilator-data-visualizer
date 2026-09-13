@@ -1753,3 +1753,25 @@ th {
 .pressure-overlay .waveform-chart {
   height: 300px;
 }
+
+.export-error {
+  margin: 4px 0;
+  color: #d92d20;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* 筛选面板复选框使用紧凑内联布局,覆盖通用 label 网格样式 */
+.date-navigator .filter-checks label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: auto;
+  line-height: 1.2;
+}
+
+.date-navigator .filter-checks input[type="checkbox"] {
+  width: auto;
+  min-height: auto;
+  margin: 0;
+}

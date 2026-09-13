@@ -169,15 +169,13 @@ function makeEmptySummary(date: string): DaySummary {
 // 见 docs/data-format.md），摘要统一换算为 cmH2O 存储。
 const PRESSURE_CMH2O_PER_UNIT = 0.1;
 
-function addPressureValue(summary: DaySummary, value: number) {
+function extendPressureRange(
+  range: DaySummary["pressureRange"],
+  value: number
+): { min: number; max: number } {
   const cmH2O = Math.round(value * PRESSURE_CMH2O_PER_UNIT * 10) / 10;
-  if (summary.pressureRange) {
-    summary.pressureRange.min = Math.min(summary.pressureRange.min, cmH2O);
-    summary.pressureRange.max = Math.max(summary.pressureRange.max, cmH2O);
-    return;
-  }
-
-  summary.pressureRange = { min: cmH2O, max: cmH2O };
+  if (!range) return { min: cmH2O, max: cmH2O };
+  return { min: Math.min(range.min, cmH2O), max: Math.max(range.max, cmH2O) };
 }
 
 async function summarizeDay(
@@ -216,7 +214,10 @@ async function summarizeDay(
 
       if (!skipPressureScan && label === "pressure") {
         for (const value of parsed.values) {
-          addPressureValue(summary, value);
+          summary.pressureRange = extendPressureRange(
+            summary.pressureRange,
+            value
+          );
         }
       }
     }
@@ -303,6 +304,44 @@ export async function buildDatasetIndex(
   };
 }
 
+// 导出场景：索引阶段跳过了压力扫描，按需对单日 pressure 文件补算范围
+export async function computePressureRange(
+  index: DatasetIndex,
+  date: string
+): Promise<DaySummary["pressureRange"]> {
+  // 已完整解析的缓存条目优先(legacy 缓存或已加载的日),避免重复读盘
+  for (const file of index.parsedFilesByDay[date] ?? []) {
+    if (file.header.label !== "pressure" || file.values.length === 0) continue;
+    return scanPressureRange(file.values);
+  }
+  for (const ref of index.filesByDay[date] ?? []) {
+    const parsed = await parseImportedFile(ref);
+    if (
+      parsed.header.label !== "pressure" ||
+      parsed.kind !== "waveform_u16le"
+    ) {
+      continue;
+    }
+    return scanPressureRange(parsed.values);
+  }
+  return null;
+}
+
+function scanPressureRange(
+  values: ParsedVentilatorFile["values"]
+): DaySummary["pressureRange"] {
+  let min = Number.POSITIVE_INFINITY;
+  let max = Number.NEGATIVE_INFINITY;
+  for (const value of values) {
+    if (value < min) min = value;
+    if (value > max) max = value;
+  }
+  if (!Number.isFinite(min)) return null;
+  const toCmH2O = (value: number) =>
+    Math.round(value * PRESSURE_CMH2O_PER_UNIT * 10) / 10;
+  return { min: toCmH2O(min), max: toCmH2O(max) };
+}
+
 export function filterDays(index: DatasetIndex, filter: DateFilter) {
   return index.days.filter((day) => {
     if (filter.startDate && day < filter.startDate) return false;
@@ -314,8 +353,20 @@ export function filterDays(index: DatasetIndex, filter: DateFilter) {
       (summary.eventCounts[filter.requireEvent] ?? 0) === 0
     )
       return false;
+    if (filter.requireEvents) {
+      const missingRequired = filter.requireEvents.some(
+        (label) => (summary.eventCounts[label] ?? 0) === 0
+      );
+      if (missingRequired) return false;
+    }
     if (filter.missingFilesOnly && summary.missingFiles.length === 0)
       return false;
+    if (
+      filter.minUseDurationSeconds !== undefined &&
+      (summary.useDurationSeconds ?? 0) < filter.minUseDurationSeconds
+    ) {
+      return false;
+    }
 
     return true;
   });
@@ -414,19 +465,23 @@ export async function loadDayDetail(
       .map((record) => withSecondsFromDayStart(record, summary.startTime))
   );
 
-  // Compute pressure range on demand if not available
-  if (summary && !summary.pressureRange) {
+  // 按需计算压力范围:返回新的 summary 对象,不突变 dataset 索引中的共享状态
+  let pressureRange = summary?.pressureRange ?? null;
+  if (summary && !pressureRange) {
     for (const signal of signals) {
       if (signal.header.label === "pressure") {
         for (const value of signal.values) {
-          addPressureValue(summary, value);
+          pressureRange = extendPressureRange(pressureRange, value);
         }
       }
     }
   }
+  const detailSummary = summary
+    ? { ...summary, pressureRange: pressureRange ?? summary.pressureRange }
+    : summary;
 
   return {
-    summary,
+    summary: detailSummary,
     files,
     signals,
     events,
