@@ -9,7 +9,6 @@
 | `DateNavigator`   | `src/components/DateNavigator.tsx`   | 日期选择与热力图导航                     |
 | `SummaryCards`    | `src/components/SummaryCards.tsx`    | 当日数据摘要卡片                         |
 | `DayCharts`       | `src/components/DayCharts.tsx`       | 波形图表与内嵌事件列表                   |
-| `EventTable`      | `src/components/EventTable.tsx`      | 事件表格（含分类筛选和定位）             |
 | `RawFileBrowser`  | `src/components/RawFileBrowser.tsx`  | 原始文件浏览器与 CSV 导出                |
 | `AiAnalysisPanel` | `src/components/AiAnalysisPanel.tsx` | AI 分析面板（OpenAI/Anthropic 流式生成） |
 
@@ -99,23 +98,6 @@ Props：
 - **事件标记** — 匹配的事件作为标记线（markLine）渲染在波形图上，样式由 `EVENT_STYLES` 定义
 - **事件聚焦** — 点击内嵌事件表中的行可触发波形图滚动到对应时间位置（通过 `focusedSecond` / `focusedTimestamp` 控制 dataZoom）
 - **内嵌事件表** — 图表下方展示当前信号相关的事件，按类型显示不同列（ASCP: IPAP/EPAP，AI/HI: 持续秒数）
-
-### EventTable
-
-独立事件表格组件，支持按类型筛选和定位到波形图上的具体时间点。
-
-Props：
-
-- `events: EventRecord[]` — 事件记录列表
-- `onSelectEvent: (seconds: number, timestamp: string | null) => void` — 定位回调
-
-功能：
-
-- 筛选标签自动根据当前日期存在的事件类型生成（AI、HI、ASCP、usetime）
-- 不同事件类型显示不同的参数列（ASCP → IPAP/EPAP，AI/HI → 持续秒数，usetime → 时长）
-- 点击「定位」按钮触发 `onSelectEvent`
-
-> 注意：当前 `App.tsx` 中 `EventTable` 未直接使用（事件表格功能已内嵌在 `DayCharts` 中），但组件仍保留以供复用。
 
 ### RawFileBrowser
 
