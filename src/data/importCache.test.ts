@@ -78,6 +78,25 @@ describe("importCache", () => {
     await expect(loadImportedFiles()).resolves.toEqual([]);
   });
 
+  it("keeps the published generation's contents while caching a new import", async () => {
+    // 其他标签页可能仍持有旧代际的引用并按需读取:
+    // 新导入开始时不得清掉"已发布代际"的内容
+    const payload = new Uint8Array(600);
+    for (let i = 0; i < payload.length; i += 1) payload[i] = i % 251;
+    await saveImportedFiles([makeRef("a.edf", payload)]);
+    const restored = await loadImportedFiles();
+    expect(restored).toHaveLength(1);
+
+    // 新导入(不同文件)的写入在发布前被取代:旧代际内容必须仍然可读
+    await saveImportedFiles(
+      [makeRef("b.edf", new Uint8Array([9]))],
+      () => true
+    );
+
+    expect(new Uint8Array(await restored[0].read())).toEqual(payload);
+    await expect(loadImportedFiles()).resolves.toHaveLength(1);
+  });
+
   it("treats a torn cache (meta without contents) as absent", async () => {
     await saveImportedFiles([makeRef("a.edf", new Uint8Array([1]))]);
     const restored = await loadImportedFiles();

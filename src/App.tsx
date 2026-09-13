@@ -19,7 +19,11 @@ import {
   loadImportedFiles,
   saveImportedFiles,
 } from "./data/importCache";
-import { loadParsedDataset, saveParsedDataset } from "./data/parsedCache";
+import {
+  loadParsedDataset,
+  saveParsedDataset,
+  invalidateParsedDataset,
+} from "./data/parsedCache";
 import type {
   DatasetIndex,
   DayDetail,
@@ -67,6 +71,7 @@ export function App() {
   const [isIndexing, setIsIndexing] = useState(false);
   const [isLoadingDay, setIsLoadingDay] = useState(false);
   const [isRestoringImport, setIsRestoringImport] = useState(false);
+  const [isCaching, setIsCaching] = useState(false);
   const [cacheNotice, setCacheNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [indexProgress, setIndexProgress] = useState<IndexProgress | null>(
@@ -159,19 +164,21 @@ export function App() {
     const cacheRun = ++cacheRunRef.current;
 
     try {
-      // 新导入即刻作废旧缓存(毫秒级):此后任何时刻刷新都不会恢复出旧数据集;
-      // 后台写入若被打断,残缺缓存同样视同未缓存。
+      // 新导入即刻作废两套缓存(毫秒级):此后任何时刻刷新都不会恢复出旧数据集,
+      // 也避免"导入缓存已发布、解析缓存未更新"的窗口用旧摘要配新内容字节。
       // 作废失败(IDB 拒绝访问等)不阻断导入本身——此时旧缓存同样不可达
-      try {
-        await invalidateImportedFiles();
-      } catch {
+      await Promise.all([
+        invalidateImportedFiles(),
+        invalidateParsedDataset(),
+      ]).catch(() => {
         /* best effort */
-      }
+      });
       const nextDataset = await buildDatasetIndex(files, setIndexProgress);
       // 数据集就绪立即展示;缓存写入(文件内容进 IndexedDB,可能上 GB)后台进行,
       // 不阻塞首屏交互。失败仅提示,不影响本次使用。
       setDataset(nextDataset);
       setSelectedDate(nextDataset.days[nextDataset.days.length - 1] ?? null);
+      setIsCaching(true);
       cacheWriteRef.current = cacheWriteRef.current.then(async () => {
         try {
           // shouldAbort 让已被新导入取代的活跃写入中途让路:
@@ -186,6 +193,9 @@ export function App() {
           setCacheNotice(
             "已导入，但浏览器无法缓存这些文件；刷新后需要重新选择。"
           );
+        } finally {
+          // 仅最后一次导入的写入结束时收起提示;被取代的写入不算完成
+          if (cacheRun === cacheRunRef.current) setIsCaching(false);
         }
       });
     } catch (caught) {
@@ -216,6 +226,9 @@ export function App() {
         {error ? <Notice>{error}</Notice> : null}
         {cacheNotice ? <Notice>{cacheNotice}</Notice> : null}
         {isRestoringImport ? <Notice>正在恢复上次导入...</Notice> : null}
+        {isCaching ? (
+          <Notice>正在缓存文件...（缓存完成前请保持数据源连接）</Notice>
+        ) : null}
         {isIndexing ? (
           <Notice>
             正在索引文件...

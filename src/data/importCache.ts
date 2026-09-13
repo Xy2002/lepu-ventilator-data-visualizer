@@ -103,6 +103,43 @@ function newCacheGeneration() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+// 读取已发布的 cache generation(全部 meta 记录同代际)
+async function readPublishedGeneration(
+  database: IDBDatabase
+): Promise<string | null> {
+  const transaction = database.transaction(META_STORE, "readonly");
+  const metas = await requestResult<CachedFileMeta[]>(
+    transaction.objectStore(META_STORE).getAll()
+  );
+  await transactionDone(transaction);
+  const contentKey = metas[0]?.contentKey;
+  if (!contentKey) return null;
+  const separator = contentKey.indexOf("/");
+  return separator > 0 ? contentKey.slice(0, separator) : null;
+}
+
+// 清理已发布代际之外的内容记录:仍被其他标签页引用的已发布代际保留,
+// 更早的遗留代际(含写入中断的残骸)删除,磁盘占用有上界(约两份)
+async function deleteContentGenerationsExcept(
+  database: IDBDatabase,
+  keepGeneration: string | null
+) {
+  const transaction = database.transaction(CONTENT_STORE, "readwrite");
+  const store = transaction.objectStore(CONTENT_STORE);
+  const request = store.openKeyCursor();
+  request.onsuccess = () => {
+    const cursor = request.result;
+    if (!cursor) return;
+    const key = String(cursor.key);
+    const generation = key.slice(0, key.indexOf("/"));
+    if (generation !== keepGeneration) {
+      store.delete(cursor.key);
+    }
+    cursor.continue();
+  };
+  await transactionDone(transaction);
+}
+
 export async function saveImportedFiles(
   files: ImportedFileRef[],
   shouldAbort?: () => boolean
@@ -110,9 +147,14 @@ export async function saveImportedFiles(
   const database = await openImportDatabase();
 
   try {
+    // 保留已发布代际的内容(其他标签页可能正要惰性读取),
+    // 只清理更早的遗留代际;新代际写入后由下一次保存清理本代际
+    const publishedGeneration = await readPublishedGeneration(database);
+    await deleteContentGenerationsExcept(database, publishedGeneration);
+
     const generation = newCacheGeneration();
     const BATCH_SIZE = 20;
-    // 先分批写内容(首批 clear 旧内容),最后单事务写元数据:
+    // 内容先行写入,最后单事务写元数据发布:
     // 写入中途被刷新/关页打断时,meta 与 contents 不会混入半新半旧状态;
     // contentKey 的 generation 保证"同路径重导入"也不会张冠李戴。
     // shouldAbort 在每批之间与 meta 发布前复查:被更新导入取代的活跃写入
@@ -138,7 +180,6 @@ export async function saveImportedFiles(
 
       const transaction = database.transaction(CONTENT_STORE, "readwrite");
       const contentStore = transaction.objectStore(CONTENT_STORE);
-      if (i === 0) contentStore.clear();
       for (const content of contents) {
         contentStore.put(content);
       }

@@ -23,6 +23,7 @@ const importCacheMock = vi.hoisted(() => ({
 }));
 
 const parsedCacheMock = vi.hoisted(() => ({
+  invalidateParsedDataset: vi.fn(),
   loadParsedDataset: vi.fn(),
   saveParsedDataset: vi.fn(),
 }));
@@ -101,6 +102,7 @@ describe("App", () => {
     importCacheMock.invalidateImportedFiles.mockResolvedValue(undefined);
     importCacheMock.loadImportedFiles.mockResolvedValue([]);
     importCacheMock.saveImportedFiles.mockResolvedValue(undefined);
+    parsedCacheMock.invalidateParsedDataset.mockResolvedValue(undefined);
     parsedCacheMock.loadParsedDataset.mockResolvedValue(null);
     parsedCacheMock.saveParsedDataset.mockResolvedValue(undefined);
     vi.stubGlobal("ResizeObserver", ResizeObserverMock);
@@ -199,6 +201,30 @@ describe("App", () => {
         ]),
         expect.any(Function)
       )
+    );
+  });
+
+  it("shows a keep-source-connected notice while caching is in progress", async () => {
+    let resolveSave: (() => void) | undefined;
+    importCacheMock.saveImportedFiles.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSave = resolve;
+        })
+    );
+
+    render(<App />);
+    await userEvent.upload(
+      screen.getByLabelText("选择 EDF 文件"),
+      edfFile("20260429_flow.edf", "flow", new Uint8Array([20, 19, 17]))
+    );
+    expect(await screen.findByText("日期导航")).toBeInTheDocument();
+
+    // 缓存写入进行中:提示用户数据源(如 SD 卡)还需保持连接
+    expect(await screen.findByText(/正在缓存文件/)).toBeInTheDocument();
+    resolveSave?.();
+    await vi.waitFor(() =>
+      expect(screen.queryByText(/正在缓存文件/)).not.toBeInTheDocument()
     );
   });
 

@@ -178,6 +178,21 @@ export async function saveParsedDataset(
   }
 }
 
+// 新导入开始时作废旧解析结果:防止关闭发生在"导入缓存已发布、
+// 解析缓存未更新"之间时,旧摘要/头部配上按需读取的新内容字节
+export async function invalidateParsedDataset(): Promise<void> {
+  if (typeof indexedDB === "undefined") return;
+
+  const db = await openDatabase(DB_NAME, DB_VERSION, STORE, "id");
+  try {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.objectStore(STORE).clear();
+    await transactionDone(tx);
+  } finally {
+    db.close();
+  }
+}
+
 export async function loadParsedDataset(
   files: ImportedFileRef[]
 ): Promise<DatasetIndex | null> {

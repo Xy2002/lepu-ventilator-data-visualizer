@@ -4,6 +4,7 @@ import type { ImportedFileRef, DatasetIndex } from "../types";
 import {
   buildManifest,
   manifestMatches,
+  invalidateParsedDataset,
   saveParsedDataset,
   loadParsedDataset,
 } from "./parsedCache";
@@ -260,6 +261,18 @@ describe("parsedCache", () => {
       const loaded = await loadParsedDataset(files);
       expect(loaded!.days).toEqual(["2026-04-29"]);
       expect(loaded!.warnings).toEqual(["new warning"]);
+    });
+
+    it("returns null after invalidateParsedDataset", async () => {
+      const files = [fileRef("DATAFILE/20260428/20260428_flow.edf", 515, 1000)];
+      await saveParsedDataset(files, makeIndex());
+      await loadParsedDataset(files).then((loaded) =>
+        expect(loaded).not.toBeNull()
+      );
+
+      await invalidateParsedDataset();
+
+      await expect(loadParsedDataset(files)).resolves.toBeNull();
     });
 
     it("preserves Uint16Array and Int16Array typed arrays", async () => {
