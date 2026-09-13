@@ -17,6 +17,7 @@ const echartsCoreMock = vi.hoisted(() => ({
 }));
 
 const importCacheMock = vi.hoisted(() => ({
+  invalidateImportedFiles: vi.fn(),
   loadImportedFiles: vi.fn(),
   saveImportedFiles: vi.fn(),
 }));
@@ -97,6 +98,7 @@ function concatPayloads(...payloads: Uint8Array[]) {
 
 describe("App", () => {
   beforeEach(() => {
+    importCacheMock.invalidateImportedFiles.mockResolvedValue(undefined);
     importCacheMock.loadImportedFiles.mockResolvedValue([]);
     importCacheMock.saveImportedFiles.mockResolvedValue(undefined);
     parsedCacheMock.loadParsedDataset.mockResolvedValue(null);
@@ -174,7 +176,8 @@ describe("App", () => {
     expect(screen.getByText("AI / HI").parentElement?.textContent).toContain(
       "无记录 / 1"
     );
-    expect(screen.getByText("0.1 - 0.9")).toBeInTheDocument();
+    // 压力范围来自异步加载的 dayDetail,用 findBy 等待其到达
+    expect(await screen.findByText("0.1 - 0.9")).toBeInTheDocument();
     expect(
       await screen.findByRole("img", { name: "flow 波形图表" })
     ).toBeInTheDocument();
@@ -185,6 +188,8 @@ describe("App", () => {
       true
     );
     expect(screen.getByText("呼吸事件")).toBeTruthy();
+    // 新导入开始时立即作废旧缓存
+    expect(importCacheMock.invalidateImportedFiles).toHaveBeenCalled();
     // 缓存写入在数据集展示后后台进行,用 waitFor 等待触发
     await vi.waitFor(() =>
       expect(importCacheMock.saveImportedFiles).toHaveBeenCalledWith(

@@ -22,7 +22,7 @@ export function importedFileRefFromFile(
     path: path || file.name,
     size: file.size,
     lastModified: file.lastModified,
-    read: (start = 0, end?: number) =>
-      readBlobPart(end === undefined ? file : file.slice(start, end)),
+    // 始终 slice 以遵守 [start, end) 契约:end 省略时 File.slice 读到末尾
+    read: (start = 0, end?: number) => readBlobPart(file.slice(start, end)),
   };
 }

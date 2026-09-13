@@ -82,11 +82,44 @@ describe("importCache", () => {
     await expect(loadImportedFiles()).resolves.toEqual([]);
   });
 
-  it("rejects reads whose content record vanished after restore", async () => {
-    await saveImportedFiles([makeRef("a.edf", new Uint8Array([1]))]);
+  it("rejects a cache whose generation does not match its contents", async () => {
+    // 同路径重导入后内容已换成新 generation、meta 仍是旧 generation:
+    // 这是刷新落在"内容已清写、meta 未发布"之间的状态,必须视同未缓存
+    await saveImportedFiles([makeRef("a.edf", new Uint8Array([1, 2, 3]))]);
+
+    const database = await openDatabase(DB_NAME, DB_VERSION, "meta", "path", [
+      { name: "contents", keyPath: "path" },
+    ]);
+    const tx = database.transaction(["meta", "contents"], "readwrite");
+    const metas = await new Promise<Array<{ path: string }>>((res, rej) => {
+      const req = tx.objectStore("meta").getAll();
+      req.onsuccess = () => res(req.result);
+      req.onerror = () => rej(req.error);
+    });
+    tx.objectStore("contents").clear();
+    for (const meta of metas) {
+      tx.objectStore("contents").put({
+        path: `generation-2/${meta.path}`,
+        data: new ArrayBuffer(8),
+      });
+    }
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+    database.close();
+
+    await expect(loadImportedFiles()).resolves.toEqual([]);
+  });
+
+  it("serves header reads from metadata without hydrating contents", async () => {
+    const payload = new Uint8Array(1024);
+    for (let i = 0; i < payload.length; i += 1) payload[i] = i % 251;
+    await saveImportedFiles([makeRef("a.edf", payload)]);
     const restored = await loadImportedFiles();
     expect(restored).toHaveLength(1);
 
+    // 清空 contents:头部区间读仍可用,完整读取才报缺内容
     await disposeContentsConnectionForTests();
     const database = await openDatabase(
       DB_NAME,
@@ -102,6 +135,9 @@ describe("importCache", () => {
     });
     database.close();
 
+    const header = await restored[0].read(0, 512);
+    expect(header.byteLength).toBe(512);
+    expect(new Uint8Array(header)).toEqual(payload.slice(0, 512));
     await expect(restored[0].read()).rejects.toThrow("缓存中缺少文件内容");
   });
 

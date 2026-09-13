@@ -14,7 +14,11 @@ import {
   loadDayDetail,
 } from "./data/dataset";
 import { downloadCsv, exportDaySummaryCsv } from "./data/csv";
-import { loadImportedFiles, saveImportedFiles } from "./data/importCache";
+import {
+  invalidateImportedFiles,
+  loadImportedFiles,
+  saveImportedFiles,
+} from "./data/importCache";
 import { loadParsedDataset, saveParsedDataset } from "./data/parsedCache";
 import type {
   DatasetIndex,
@@ -69,8 +73,10 @@ export function App() {
     null
   );
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
-  // 串行化后台缓存写入,避免连续导入时两个 save 并发清空/交错写库
+  // 串行化后台缓存写入,避免连续导入时两个 save 并发清空/交错写库;
+  // runId 递增使被新导入取代的排队写入自动跳过
   const cacheWriteRef = useRef<Promise<void>>(Promise.resolve());
+  const cacheRunRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -150,14 +156,19 @@ export function App() {
     setError(null);
     setCacheNotice(null);
     setIndexProgress(null);
+    const cacheRun = ++cacheRunRef.current;
 
     try {
+      // 新导入即刻作废旧缓存(毫秒级):此后任何时刻刷新都不会恢复出旧数据集;
+      // 后台写入若被打断,残缺缓存同样视同未缓存
+      await invalidateImportedFiles();
       const nextDataset = await buildDatasetIndex(files, setIndexProgress);
       // 数据集就绪立即展示;缓存写入(文件内容进 IndexedDB,可能上 GB)后台进行,
       // 不阻塞首屏交互。失败仅提示,不影响本次使用。
       setDataset(nextDataset);
       setSelectedDate(nextDataset.days[nextDataset.days.length - 1] ?? null);
       cacheWriteRef.current = cacheWriteRef.current.then(async () => {
+        if (cacheRun !== cacheRunRef.current) return;
         try {
           await saveImportedFiles(files);
           await saveParsedDataset(files, nextDataset);

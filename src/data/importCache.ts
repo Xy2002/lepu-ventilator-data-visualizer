@@ -1,4 +1,5 @@
 import type { ImportedFileRef } from "../types";
+import { HEADER_BYTES } from "../parser/edfParser";
 import { openDatabase, requestResult, transactionDone } from "./idb";
 
 const DB_NAME = "ventilator-web-visualizer-import-cache";
@@ -6,9 +7,14 @@ const DB_VERSION = 2;
 const META_STORE = "meta";
 const CONTENT_STORE = "contents";
 
-// 元数据(path/name/size/lastModified)与文件内容分库存储:
+// 元数据(path/name/size/lastModified/512B 头部)与文件内容分库存储:
 // 恢复路径只读 meta(getAll 为毫秒级),内容按需经 read() 从 contents 读取,
-// 不再把整个数据集的字节往返 JS 堆。
+// 不再把整个数据集的字节往返 JS 堆。头部随 meta 落库,使索引重建
+// (PARSER_VERSION 变更后的回退路径)只读头部即可,不必搬运完整内容。
+//
+// contents 的键带 cache generation 前缀,meta 记录携带自己的 contentKey:
+// 重新导入同路径文件时,刷新若落在"内容已清写、meta 未发布"之间,
+// 键的 generation 不匹配,残缺缓存视同未缓存,不会出现旧 meta 配新字节。
 //
 // 为什么 contents 存 ArrayBuffer 而不是 File 对象:IDB 对 File/Blob 值只保存
 // 源文件引用(实测 put 秒回、内容不在写入时复制),源盘/SD 卡移除后读回即报
@@ -18,6 +24,8 @@ interface CachedFileMeta {
   name: string;
   size: number;
   lastModified: number;
+  headerRaw: ArrayBuffer;
+  contentKey: string;
 }
 
 interface CachedFileContent {
@@ -38,11 +46,18 @@ function openImportDatabase() {
   );
 }
 
-// 内容库连接常驻页面生命周期,供恢复后的 read() 按需取用
+// 内容库连接常驻页面生命周期,供恢复后的 read() 按需取用。
+// 旧标签页持有连接会阻塞未来 DB_VERSION 的升级事务,版本变化时立即让路
 let contentsDatabasePromise: Promise<IDBDatabase> | null = null;
 
 function getContentsDatabase() {
-  contentsDatabasePromise ??= openImportDatabase();
+  contentsDatabasePromise ??= openImportDatabase().then((database) => {
+    database.onversionchange = () => {
+      contentsDatabasePromise = null;
+      database.close();
+    };
+    return database;
+  });
   return contentsDatabasePromise;
 }
 
@@ -53,46 +68,65 @@ export function disposeContentsConnectionForTests(): Promise<void> {
   return promise?.then((database) => database.close()) ?? Promise.resolve();
 }
 
-async function readFileContent(path: string): Promise<ArrayBuffer> {
+async function readFileContent(contentKey: string): Promise<ArrayBuffer> {
   const database = await getContentsDatabase();
   const transaction = database.transaction(CONTENT_STORE, "readonly");
   const record = await requestResult<CachedFileContent | undefined>(
-    transaction.objectStore(CONTENT_STORE).get(path)
+    transaction.objectStore(CONTENT_STORE).get(contentKey)
   );
   await transactionDone(transaction);
   if (!record) {
-    throw new Error(`缓存中缺少文件内容: ${path}`);
+    throw new Error(`缓存中缺少文件内容: ${contentKey}`);
   }
   return record.data;
 }
 
 function makeCachedRef(meta: CachedFileMeta): ImportedFileRef {
+  const headerByteLength = meta.headerRaw.byteLength;
   return {
     name: meta.name,
     path: meta.path,
     size: meta.size,
     lastModified: meta.lastModified,
     read: async (start = 0, end?: number) => {
-      const buffer = await readFileContent(meta.path);
+      // 覆盖头部的区间读直接命中 meta,索引重建不搬运完整内容
+      if (end !== undefined && end <= headerByteLength) {
+        return meta.headerRaw.slice(start, end);
+      }
+      const buffer = await readFileContent(meta.contentKey);
       return buffer.slice(start, end);
     },
   };
+}
+
+function newCacheGeneration() {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 export async function saveImportedFiles(files: ImportedFileRef[]) {
   const database = await openImportDatabase();
 
   try {
+    const generation = newCacheGeneration();
     const BATCH_SIZE = 20;
     // 先分批写内容(首批 clear 旧内容),最后单事务写元数据:
-    // 写入中途被刷新/关页打断时,meta 与 contents 不会混入半新半旧状态
+    // 写入中途被刷新/关页打断时,meta 与 contents 不会混入半新半旧状态;
+    // contentKey 的 generation 保证"同路径重导入"也不会张冠李戴
+    const metaRecords: CachedFileMeta[] = [];
     for (let i = 0; i < files.length; i += BATCH_SIZE) {
       const batch = files.slice(i, i + BATCH_SIZE);
       const contents: CachedFileContent[] = [];
       for (const fileRef of batch) {
-        contents.push({
-          path: fileRef.path || fileRef.name,
-          data: await fileRef.read(),
+        const path = fileRef.path || fileRef.name;
+        const data = await fileRef.read();
+        contents.push({ path: `${generation}/${path}`, data });
+        metaRecords.push({
+          path,
+          name: fileRef.name,
+          size: fileRef.size,
+          lastModified: fileRef.lastModified,
+          headerRaw: data.slice(0, HEADER_BYTES),
+          contentKey: `${generation}/${path}`,
         });
       }
 
@@ -108,15 +142,24 @@ export async function saveImportedFiles(files: ImportedFileRef[]) {
     const metaTransaction = database.transaction(META_STORE, "readwrite");
     const metaStore = metaTransaction.objectStore(META_STORE);
     metaStore.clear();
-    for (const fileRef of files) {
-      metaStore.put({
-        path: fileRef.path || fileRef.name,
-        name: fileRef.name,
-        size: fileRef.size,
-        lastModified: fileRef.lastModified,
-      });
+    for (const meta of metaRecords) {
+      metaStore.put(meta);
     }
     await transactionDone(metaTransaction);
+  } finally {
+    database.close();
+  }
+}
+
+// 作废当前缓存(meta 清空即失效;旧内容残留无害,键的 generation 不会再被引用)
+export async function invalidateImportedFiles(): Promise<void> {
+  if (typeof indexedDB === "undefined") return;
+
+  const database = await openImportDatabase();
+  try {
+    const transaction = database.transaction(META_STORE, "readwrite");
+    transaction.objectStore(META_STORE).clear();
+    await transactionDone(transaction);
   } finally {
     database.close();
   }
@@ -135,15 +178,15 @@ export async function loadImportedFiles(): Promise<ImportedFileRef[]> {
     const metas = await requestResult<CachedFileMeta[]>(
       transaction.objectStore(META_STORE).getAll()
     );
-    // 只取键不取内容,用于校验缓存完整性(内容与元数据一一对应)
+    // 只取键不取内容,用于校验缓存完整性(每条 meta 的 contentKey 都必须存在)
     const contentKeys = await requestResult<IDBValidKey[]>(
       transaction.objectStore(CONTENT_STORE).getAllKeys()
     );
     await transactionDone(transaction);
 
-    // meta 有记录但内容缺失 = 上次写入被打断的残缺缓存,视同未缓存
+    // meta 与 contents 不对应(写入被打断/代际不符)= 残缺缓存,视同未缓存
     const available = new Set(contentKeys);
-    if (!metas.every((meta) => available.has(meta.path))) return [];
+    if (!metas.every((meta) => available.has(meta.contentKey))) return [];
 
     return metas.map(makeCachedRef);
   } finally {
