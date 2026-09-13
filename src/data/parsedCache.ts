@@ -111,7 +111,29 @@ function makeTypedArray(type: string, buffer: ArrayBuffer): TypedArrayValues {
   return new Uint8Array(buffer);
 }
 
+// 旧版缓存把波形 payload 全量写进了 IndexedDB；加载时归一化为 header-only，
+// 让升级用户同样享受两阶段的内存收益（payload 仍可经 importCache 按需重解析）
+const DEFERRED_PAYLOAD_KINDS = new Set([
+  "waveform_u8",
+  "waveform_u16le",
+  "waveform_i16le",
+  "triples_u16le",
+  "raw",
+]);
+
 function deserializeFile(sf: SerializedParsedFile): ParsedVentilatorFile {
+  if (DEFERRED_PAYLOAD_KINDS.has(sf.kind)) {
+    return {
+      fileName: sf.fileName,
+      kind: sf.kind,
+      header: sf.header,
+      payloadBytes: sf.payloadBytes,
+      values: new Uint8Array(),
+      records: sf.records,
+      rawPayload: new Uint8Array(),
+      warnings: sf.warnings,
+    };
+  }
   return {
     fileName: sf.fileName,
     kind: sf.kind,

@@ -393,7 +393,12 @@ async function resolveDayFiles(
 ): Promise<ParsedVentilatorFile[]> {
   const perIndex = getDayCache(index);
   const cached = perIndex.get(date);
-  if (cached) return cached;
+  if (cached) {
+    // 命中时刷新 LRU 顺序，避免退化为 FIFO
+    perIndex.delete(date);
+    perIndex.set(date, cached);
+    return cached;
+  }
 
   const indexFiles = index.parsedFilesByDay[date] ?? [];
   const refsByName = new Map(

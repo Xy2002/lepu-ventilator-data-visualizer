@@ -230,6 +230,20 @@ export function parseVentilatorFileHeader(
   headerRaw: Uint8Array,
   totalBytes: number
 ): ParsedVentilatorFile {
+  // 短于头部的损坏文件不能让 parseHeader 抛错、拖垮整个导入
+  if (headerRaw.length < HEADER_BYTES) {
+    return {
+      fileName,
+      kind: "invalid",
+      header: makeBlankHeader(),
+      payloadBytes: Math.max(0, totalBytes - headerRaw.length),
+      values: new Uint8Array(),
+      records: [],
+      rawPayload: new Uint8Array(),
+      warnings: ["文件短于 512 字节头部"],
+    };
+  }
+
   const header = parseHeader(headerRaw);
   const warnings: string[] = [];
   warnAboutInvalidHeaderBytes(ascii(headerRaw, 184, 192), warnings);
