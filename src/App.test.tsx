@@ -128,7 +128,9 @@ describe("App", () => {
     expect(screen.getByText("呼吸机数据可视化")).toBeInTheDocument();
     expect(screen.getByText("导入 DATAFILE 开始查看")).toBeInTheDocument();
     expect(
-      screen.getByText("浏览器本地解析，不上传原始数据")
+      screen.getByText(
+        "浏览器本地解析，原始数据不出浏览器；启用 AI 分析时当日摘要将发送至所配服务商"
+      )
     ).toBeInTheDocument();
   });
 

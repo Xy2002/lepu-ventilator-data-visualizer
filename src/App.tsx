@@ -1,21 +1,42 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
-import { CardDescription } from '@heroui/react';
-import './App.css';
-import { AiAnalysisPanel } from './components/AiAnalysisPanel';
-import { DateNavigator } from './components/DateNavigator';
-import { ImportPanel } from './components/ImportPanel';
-import { RawFileBrowser } from './components/RawFileBrowser';
-import { SummaryCards } from './components/SummaryCards';
-import { buildDatasetIndex, type IndexProgress, loadDayDetail } from './data/dataset';
-import { loadImportedFiles, saveImportedFiles } from './data/importCache';
-import { loadParsedDatasetDirect, loadParsedDataset, saveParsedDataset } from './data/parsedCache';
-import type { DatasetIndex, DayDetail, DaySummary, ImportedFileRef } from './types';
+import { lazy, Suspense, useEffect, useState } from "react";
+import { CardDescription } from "@heroui/react";
+import "./App.css";
+import { AiAnalysisPanel } from "./components/AiAnalysisPanel";
+import { DateNavigator } from "./components/DateNavigator";
+import { ImportPanel } from "./components/ImportPanel";
+import { RawFileBrowser } from "./components/RawFileBrowser";
+import { SummaryCards } from "./components/SummaryCards";
+import {
+  buildDatasetIndex,
+  type IndexProgress,
+  loadDayDetail,
+} from "./data/dataset";
+import { loadImportedFiles, saveImportedFiles } from "./data/importCache";
+import {
+  loadParsedDatasetDirect,
+  loadParsedDataset,
+  saveParsedDataset,
+} from "./data/parsedCache";
+import type {
+  DatasetIndex,
+  DayDetail,
+  DaySummary,
+  ImportedFileRef,
+} from "./types";
 
-const DayCharts = lazy(() => import('./components/DayCharts').then((module) => ({ default: module.DayCharts })));
+const DayCharts = lazy(() =>
+  import("./components/DayCharts").then((module) => ({
+    default: module.DayCharts,
+  }))
+);
 
 function usageWindow(summary: DaySummary) {
   if (summary.useSessions.length === 0) {
-    return <CardDescription>{summary.startTime ?? '-'} 至 {summary.endTime ?? '-'}</CardDescription>;
+    return (
+      <CardDescription>
+        {summary.startTime ?? "-"} 至 {summary.endTime ?? "-"}
+      </CardDescription>
+    );
   }
 
   return (
@@ -45,7 +66,9 @@ export function App() {
   const [isRestoringImport, setIsRestoringImport] = useState(false);
   const [cacheNotice, setCacheNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [indexProgress, setIndexProgress] = useState<IndexProgress | null>(null);
+  const [indexProgress, setIndexProgress] = useState<IndexProgress | null>(
+    null
+  );
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
 
   useEffect(() => {
@@ -59,8 +82,10 @@ export function App() {
         if (nextDataset) {
           if (cancelled) return;
           setDataset(nextDataset);
-          setSelectedDate(nextDataset.days[nextDataset.days.length - 1] ?? null);
-          setCacheNotice('已从缓存恢复上次导入的文件。');
+          setSelectedDate(
+            nextDataset.days[nextDataset.days.length - 1] ?? null
+          );
+          setCacheNotice("已从缓存恢复上次导入的文件。");
           return;
         }
 
@@ -71,15 +96,22 @@ export function App() {
         if (!nextDataset) {
           nextDataset = await buildDatasetIndex(cachedFiles);
           if (cancelled) return;
-          try { await saveParsedDataset(cachedFiles, nextDataset); } catch { /* best effort */ }
+          try {
+            await saveParsedDataset(cachedFiles, nextDataset);
+          } catch {
+            /* best effort */
+          }
         }
         if (cancelled) return;
 
         setDataset(nextDataset);
         setSelectedDate(nextDataset.days[nextDataset.days.length - 1] ?? null);
-        setCacheNotice('已恢复上次导入的文件。');
+        setCacheNotice("已恢复上次导入的文件。");
       } catch {
-        if (!cancelled) setCacheNotice('无法恢复上次导入的文件，请重新选择 DATAFILE 文件夹。');
+        if (!cancelled)
+          setCacheNotice(
+            "无法恢复上次导入的文件，请重新选择 DATAFILE 文件夹。"
+          );
       } finally {
         if (!cancelled) setIsRestoringImport(false);
       }
@@ -93,7 +125,8 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    if (dataset && !selectedDate) setSelectedDate(dataset.days[dataset.days.length - 1] ?? null);
+    if (dataset && !selectedDate)
+      setSelectedDate(dataset.days[dataset.days.length - 1] ?? null);
   }, [dataset, selectedDate]);
 
   useEffect(() => {
@@ -129,26 +162,32 @@ export function App() {
         await saveImportedFiles(files);
         await saveParsedDataset(files, nextDataset);
       } catch {
-        setCacheNotice('已导入，但浏览器无法缓存这些文件；刷新后需要重新选择。');
+        setCacheNotice(
+          "已导入，但浏览器无法缓存这些文件；刷新后需要重新选择。"
+        );
       }
       setDataset(nextDataset);
       setSelectedDate(nextDataset.days[nextDataset.days.length - 1] ?? null);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : '导入失败');
+      setError(caught instanceof Error ? caught.message : "导入失败");
     } finally {
       setIsIndexing(false);
       setIndexProgress(null);
     }
   }
 
-  const summary = dataset && selectedDate ? dataset.summariesByDay[selectedDate] : null;
+  const summary =
+    dataset && selectedDate ? dataset.summariesByDay[selectedDate] : null;
 
   return (
     <main className="app-shell">
       <header className="top-bar">
         <div>
           <h1>呼吸机数据可视化</h1>
-          <p>浏览器本地解析，不上传原始数据</p>
+          <p>
+            浏览器本地解析，原始数据不出浏览器；启用 AI
+            分析时当日摘要将发送至所配服务商
+          </p>
         </div>
         <ImportPanel onImport={handleImport} disabled={isIndexing} />
       </header>
@@ -157,12 +196,23 @@ export function App() {
         {error ? <Notice>{error}</Notice> : null}
         {cacheNotice ? <Notice>{cacheNotice}</Notice> : null}
         {isRestoringImport ? <Notice>正在恢复上次导入...</Notice> : null}
-        {isIndexing ? <Notice>正在索引文件...{indexProgress ? ` (${indexProgress.completed}/${indexProgress.total})` : null}</Notice> : null}
+        {isIndexing ? (
+          <Notice>
+            正在索引文件...
+            {indexProgress
+              ? ` (${indexProgress.completed}/${indexProgress.total})`
+              : null}
+          </Notice>
+        ) : null}
       </div>
 
       {dataset && selectedDate && summary ? (
         <div className="workbench">
-          <DateNavigator dataset={dataset} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
+          <DateNavigator
+            dataset={dataset}
+            selectedDate={selectedDate}
+            onSelectDate={setSelectedDate}
+          />
           <section className="main-panel">
             <div className="selected-day-header">
               <h2>{selectedDate}</h2>
