@@ -6,6 +6,7 @@ import { DateNavigator } from "./components/DateNavigator";
 import { ImportPanel } from "./components/ImportPanel";
 import { RawFileBrowser } from "./components/RawFileBrowser";
 import { SummaryCards } from "./components/SummaryCards";
+import { DatasetStatusBar } from "./components/DatasetStatusBar";
 import {
   buildDatasetIndex,
   type IndexProgress,
@@ -205,6 +206,7 @@ export function App() {
             onSelectDate={setSelectedDate}
           />
           <section className="main-panel">
+            <DatasetStatusBar dataset={dataset} />
             <div className="selected-day-header">
               <h2>{selectedDate}</h2>
               {usageWindow(summary)}

@@ -1740,3 +1740,26 @@ th {
   font-size: 12px;
   line-height: 1.4;
 }
+
+.dataset-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  padding: 8px 12px;
+  margin-bottom: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.dataset-status-warnings summary {
+  cursor: pointer;
+  color: #b54708;
+}
+
+.dataset-status-warnings ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+}
