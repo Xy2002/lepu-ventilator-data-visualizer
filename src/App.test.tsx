@@ -21,7 +21,6 @@ const importCacheMock = vi.hoisted(() => ({
 
 const parsedCacheMock = vi.hoisted(() => ({
   loadParsedDataset: vi.fn(),
-  loadParsedDatasetDirect: vi.fn(),
   saveParsedDataset: vi.fn(),
 }));
 
@@ -44,6 +43,7 @@ import {
   makeEventPayload,
   makeEventPayloadAt,
 } from "./parser/fixtures";
+import { parseVentilatorFileHeader } from "./parser/edfParser";
 import type { DatasetIndex, ImportedFileRef } from "./types";
 
 class ResizeObserverMock {
@@ -100,7 +100,6 @@ describe("App", () => {
     importCacheMock.loadImportedFiles.mockResolvedValue([]);
     importCacheMock.saveImportedFiles.mockResolvedValue(undefined);
     parsedCacheMock.loadParsedDataset.mockResolvedValue(null);
-    parsedCacheMock.loadParsedDatasetDirect.mockResolvedValue(null);
     parsedCacheMock.saveParsedDataset.mockResolvedValue(undefined);
     vi.stubGlobal("ResizeObserver", ResizeObserverMock);
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
@@ -222,10 +221,17 @@ describe("App", () => {
       path: "20260429_flow.edf",
       file: brokenFile,
     };
+    const fileBytes = makeEdfLikeFile("flow", new Uint8Array([1, 2, 3]));
+    const headerOnlyFlow = parseVentilatorFileHeader(
+      "20260429_flow.edf",
+      fileBytes.slice(0, 512),
+      fileBytes.length
+    );
     const brokenIndex: DatasetIndex = {
       days: ["2026-04-29"],
       dateRange: { start: "2026-04-29", end: "2026-04-29" },
       filesByDay: { "2026-04-29": [brokenRef] },
+      parsedFilesByDay: { "2026-04-29": [headerOnlyFlow] },
       summariesByDay: {
         "2026-04-29": {
           date: "2026-04-29",
@@ -241,7 +247,6 @@ describe("App", () => {
           warnings: [],
         },
       },
-      parsedFilesByDay: {},
       warnings: [],
     };
     importCacheMock.loadImportedFiles.mockResolvedValueOnce([brokenRef]);

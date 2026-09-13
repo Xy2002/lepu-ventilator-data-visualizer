@@ -175,10 +175,13 @@ describe("parsedCache", () => {
       const parsed = loaded!.parsedFilesByDay["2026-04-28"];
       expect(parsed).toHaveLength(1);
       expect(parsed[0].kind).toBe("waveform_u8");
+      // 波形属于延迟解析类型：加载时归一化为 header-only,payload 由 importCache 按需重解析
+
       expect(parsed[0].values).toBeInstanceOf(Uint8Array);
-      expect(Array.from(parsed[0].values as Uint8Array)).toEqual([20, 19, 17]);
+      expect(parsed[0].values.length).toBe(0);
       expect(parsed[0].rawPayload).toBeInstanceOf(Uint8Array);
-      expect(Array.from(parsed[0].rawPayload)).toEqual([20, 19, 17]);
+      expect(parsed[0].rawPayload.length).toBe(0);
+      expect(parsed[0].payloadBytes).toBe(3);
     });
 
     it("returns null when no cache exists", async () => {
@@ -296,10 +299,11 @@ describe("parsedCache", () => {
       const loaded = await loadParsedDataset(files);
 
       const parsed = loaded!.parsedFilesByDay["2026-04-28"];
-      expect(parsed[0].values).toBeInstanceOf(Uint16Array);
-      expect(Array.from(parsed[0].values as Uint16Array)).toEqual([100, 200]);
-      expect(parsed[1].values).toBeInstanceOf(Int16Array);
-      expect(Array.from(parsed[1].values as Int16Array)).toEqual([-100, 200]);
+      // 旧 schema 的波形 payload 在加载时被归一化(header-only),避免升级用户内存不降
+      expect(parsed[0].values.length).toBe(0);
+      expect(parsed[1].values.length).toBe(0);
+      expect(parsed[0].payloadBytes).toBe(4);
+      expect(parsed[1].payloadBytes).toBe(4);
     });
 
     it("reconstructs filesByDay from loaded files", async () => {
