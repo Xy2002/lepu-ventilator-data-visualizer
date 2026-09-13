@@ -7,7 +7,7 @@ import type {
   VentilatorHeader,
 } from "../types";
 
-const HEADER_BYTES = 512;
+export const HEADER_BYTES = 512;
 const sampledPayloadLabels = new Set([
   "flow",
   "pressure",
@@ -181,6 +181,51 @@ function warnAboutInvalidHeaderBytes(
   }
 }
 
+function kindForLabel(label: string): ParsedKind {
+  if (label === "flow" || label === "difleak") return "waveform_u8";
+  if (label === "pressure" || label === "real_pres") return "waveform_u16le";
+  if (label === "real_flow") return "waveform_i16le";
+  if (label === "mvtvbr") return "triples_u16le";
+  if (event16Labels.has(label)) return "events16";
+  if (label === "config") return "raw_config";
+  return "raw";
+}
+
+// 索引阶段专用：仅解析 512B 头部，不读取 payload（波形延迟到 loadDayDetail 再解析）
+export function parseVentilatorFileHeader(
+  fileName: string,
+  headerRaw: Uint8Array,
+  totalBytes: number
+): ParsedVentilatorFile {
+  // 短于头部的损坏文件不能让 parseHeader 抛错、拖垮整个导入
+  if (headerRaw.length < HEADER_BYTES) {
+    return {
+      fileName,
+      kind: "invalid",
+      header: makeBlankHeader(),
+      payloadBytes: Math.max(0, totalBytes - headerRaw.length),
+      values: new Uint8Array(),
+      records: [],
+      rawPayload: new Uint8Array(),
+      warnings: ["文件短于 512 字节头部"],
+    };
+  }
+
+  const header = parseHeader(headerRaw);
+  const warnings: string[] = [];
+  warnAboutInvalidHeaderBytes(ascii(headerRaw, 184, 192), warnings);
+  return {
+    fileName,
+    kind: kindForLabel(header.label),
+    header,
+    payloadBytes: Math.max(0, totalBytes - header.headerBytes),
+    values: new Uint8Array(),
+    records: [],
+    rawPayload: new Uint8Array(),
+    warnings,
+  };
+}
+
 export function parseVentilatorFile(
   fileName: string,
   raw: Uint8Array
@@ -203,27 +248,20 @@ export function parseVentilatorFile(
   const warnings: string[] = [];
   warnAboutInvalidHeaderBytes(ascii(headerRaw, 184, 192), warnings);
   const payload = raw.slice(header.headerBytes);
-  let kind: ParsedKind = "raw";
+  const kind = kindForLabel(header.label);
   let values: ParsedVentilatorFile["values"] = new Uint8Array();
   let records: ParsedVentilatorFile["records"] = [];
 
-  if (header.label === "flow" || header.label === "difleak") {
-    kind = "waveform_u8";
+  if (kind === "waveform_u8") {
     values = payload;
-  } else if (header.label === "pressure" || header.label === "real_pres") {
-    kind = "waveform_u16le";
+  } else if (kind === "waveform_u16le") {
     values = parseUint16Values(payload, warnings);
-  } else if (header.label === "real_flow") {
-    kind = "waveform_i16le";
+  } else if (kind === "waveform_i16le") {
     values = parseInt16Values(payload, warnings);
-  } else if (header.label === "mvtvbr") {
-    kind = "triples_u16le";
+  } else if (kind === "triples_u16le") {
     records = parseTriples(payload, warnings);
-  } else if (event16Labels.has(header.label)) {
-    kind = "events16";
+  } else if (kind === "events16") {
     records = parseEvents16(header.label, payload, warnings);
-  } else if (header.label === "config") {
-    kind = "raw_config";
   }
 
   return {

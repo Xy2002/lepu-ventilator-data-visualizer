@@ -13,11 +13,7 @@ import {
 } from "./data/dataset";
 import { downloadCsv, exportDaySummaryCsv } from "./data/csv";
 import { loadImportedFiles, saveImportedFiles } from "./data/importCache";
-import {
-  loadParsedDatasetDirect,
-  loadParsedDataset,
-  saveParsedDataset,
-} from "./data/parsedCache";
+import { loadParsedDataset, saveParsedDataset } from "./data/parsedCache";
 import type {
   DatasetIndex,
   DayDetail,
@@ -79,21 +75,11 @@ export function App() {
       setIsRestoringImport(true);
 
       try {
-        let nextDataset = await loadParsedDatasetDirect();
-        if (nextDataset) {
-          if (cancelled) return;
-          setDataset(nextDataset);
-          setSelectedDate(
-            nextDataset.days[nextDataset.days.length - 1] ?? null
-          );
-          setCacheNotice("已从缓存恢复上次导入的文件。");
-          return;
-        }
-
+        // 两阶段解析：恢复时只加载文件句柄与摘要索引，波形 payload 按需解析
         const cachedFiles = await loadImportedFiles();
         if (cancelled || cachedFiles.length === 0) return;
 
-        nextDataset = await loadParsedDataset(cachedFiles);
+        let nextDataset = await loadParsedDataset(cachedFiles);
         if (!nextDataset) {
           nextDataset = await buildDatasetIndex(cachedFiles);
           if (cancelled) return;
