@@ -21,12 +21,17 @@ echarts.use([
 
 interface EventDistributionChartProps {
   events: EventRecord[];
+  availability: { ai: boolean; hi: boolean };
 }
 
 export function EventDistributionChart({
   events,
+  availability,
 }: EventDistributionChartProps) {
-  const option = useMemo(() => buildEventDistributionOption(events), [events]);
+  const option = useMemo(
+    () => buildEventDistributionOption(events, availability),
+    [events, availability]
+  );
   const { containerRef } = useECharts(option);
 
   return (

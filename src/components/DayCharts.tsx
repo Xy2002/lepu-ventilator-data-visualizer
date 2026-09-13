@@ -245,7 +245,13 @@ export function DayCharts({ detail }: DayChartsProps) {
       ) : null}
 
       {detail.events.length > 0 ? (
-        <EventDistributionChart events={detail.events} />
+        <EventDistributionChart
+          events={detail.events}
+          availability={{
+            ai: "ai" in detail.summary.eventCounts,
+            hi: "hi" in detail.summary.eventCounts,
+          }}
+        />
       ) : null}
     </section>
   );

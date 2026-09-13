@@ -1,9 +1,11 @@
 import type { EChartsCoreOption } from "echarts/core";
 import type { EventRecord } from "../types";
 
-// 事件分布图:按小时(0–23)堆叠 AI 与 HI 事件数量
+// 事件分布图:按小时(0–23)堆叠 AI 与 HI 事件数量。
+// availability 标注事件文件是否实际存在,缺失的类目不绘制(区别于 0 条事件)
 export function buildEventDistributionOption(
-  events: EventRecord[]
+  events: EventRecord[],
+  availability: { ai: boolean; hi: boolean } = { ai: true, hi: true }
 ): EChartsCoreOption {
   const hours = Array.from({ length: 24 }, (_, hour) => hour);
   const aiByHour = hours.map(() => 0);
@@ -24,7 +26,14 @@ export function buildEventDistributionOption(
     animation: false,
     backgroundColor: "transparent",
     grid: { top: 28, right: 16, bottom: 40, left: 40, containLabel: false },
-    legend: { data: ["AI", "HI"], top: 0, left: 0 },
+    legend: {
+      data: [
+        ...(availability.ai ? ["AI"] : []),
+        ...(availability.hi ? ["HI"] : []),
+      ],
+      top: 0,
+      left: 0,
+    },
     tooltip: { trigger: "axis" },
     xAxis: {
       type: "category",
@@ -34,22 +43,30 @@ export function buildEventDistributionOption(
     },
     yAxis: { type: "value", minInterval: 1, axisLabel: { fontSize: 10 } },
     series: [
-      {
-        name: "AI",
-        type: "bar",
-        stack: "events",
-        data: aiByHour,
-        itemStyle: { color: "#d92d20" },
-        barMaxWidth: 18,
-      },
-      {
-        name: "HI",
-        type: "bar",
-        stack: "events",
-        data: hiByHour,
-        itemStyle: { color: "#f59e0b" },
-        barMaxWidth: 18,
-      },
+      ...(availability.ai
+        ? [
+            {
+              name: "AI",
+              type: "bar",
+              stack: "events",
+              data: aiByHour,
+              itemStyle: { color: "#d92d20" },
+              barMaxWidth: 18,
+            },
+          ]
+        : []),
+      ...(availability.hi
+        ? [
+            {
+              name: "HI",
+              type: "bar",
+              stack: "events",
+              data: hiByHour,
+              itemStyle: { color: "#f59e0b" },
+              barMaxWidth: 18,
+            },
+          ]
+        : []),
     ],
   };
 }
