@@ -169,7 +169,7 @@ sequenceDiagram
 
 ## 降采样策略
 
-**算法**：ECharts 内置 `sampling: 'lttb'`（Least-Tail-Downsampling），配置于 `echartsWaveformOptions.ts` 的 series。
+**算法**：ECharts 内置 `sampling: 'lttb'`（Largest-Triangle-Three-Buckets，最大三角形三桶法），配置于 `echartsWaveformOptions.ts` 的 series。
 
 **触发条件**：由 ECharts 按渲染分辨率自动处理，配合 `progressive: 8000` / `progressiveThreshold: 20000` 分块渲染超大序列。
 
