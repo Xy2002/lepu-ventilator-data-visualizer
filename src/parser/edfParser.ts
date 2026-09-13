@@ -23,7 +23,7 @@ const waveformSampleRateLabels = new Set([
   "real_flow",
   "difleak",
 ]);
-const event16Labels = new Set(["ai", "hi", "ascp", "usetime"]);
+const event16Labels = new Set(["ai", "hi", "ascp", "usetime", "leak", "csa"]);
 const decoder = new TextDecoder("ascii");
 
 function ascii(raw: Uint8Array, start: number, end: number) {

@@ -176,6 +176,7 @@ describe("parsedCache", () => {
       expect(parsed).toHaveLength(1);
       expect(parsed[0].kind).toBe("waveform_u8");
       // 波形属于延迟解析类型：加载时归一化为 header-only,payload 由 importCache 按需重解析
+
       expect(parsed[0].values).toBeInstanceOf(Uint8Array);
       expect(parsed[0].values.length).toBe(0);
       expect(parsed[0].rawPayload).toBeInstanceOf(Uint8Array);
@@ -200,6 +201,37 @@ describe("parsedCache", () => {
       ];
       const loaded = await loadParsedDataset(changedFiles);
 
+      expect(loaded).toBeNull();
+    });
+
+    it("invalidates cache written by an older parser version", async () => {
+      const files = [fileRef("DATAFILE/20260428/20260428_flow.edf", 515, 1000)];
+      await saveParsedDataset(files, makeIndex());
+
+      // 模拟旧解析器(v1 格式)写入的缓存:manifest 没有 parserVersion 字段
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open("ventilator-parsed-cache", 1);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const tx = db.transaction("cache", "readwrite");
+          const store = tx.objectStore("cache");
+          const getRequest = store.get("manifest");
+          getRequest.onsuccess = () => {
+            const record = getRequest.result as Record<string, unknown>;
+            delete record.parserVersion;
+            store.put(record);
+          };
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        });
+      } finally {
+        db.close();
+      }
+
+      const loaded = await loadParsedDataset(files);
       expect(loaded).toBeNull();
     });
 
