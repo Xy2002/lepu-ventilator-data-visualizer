@@ -160,17 +160,27 @@ export function App() {
 
     try {
       // 新导入即刻作废旧缓存(毫秒级):此后任何时刻刷新都不会恢复出旧数据集;
-      // 后台写入若被打断,残缺缓存同样视同未缓存
-      await invalidateImportedFiles();
+      // 后台写入若被打断,残缺缓存同样视同未缓存。
+      // 作废失败(IDB 拒绝访问等)不阻断导入本身——此时旧缓存同样不可达
+      try {
+        await invalidateImportedFiles();
+      } catch {
+        /* best effort */
+      }
       const nextDataset = await buildDatasetIndex(files, setIndexProgress);
       // 数据集就绪立即展示;缓存写入(文件内容进 IndexedDB,可能上 GB)后台进行,
       // 不阻塞首屏交互。失败仅提示,不影响本次使用。
       setDataset(nextDataset);
       setSelectedDate(nextDataset.days[nextDataset.days.length - 1] ?? null);
       cacheWriteRef.current = cacheWriteRef.current.then(async () => {
-        if (cacheRun !== cacheRunRef.current) return;
         try {
-          await saveImportedFiles(files);
+          // shouldAbort 让已被新导入取代的活跃写入中途让路:
+          // 否则它会写完并重新发布旧数据集的 meta
+          await saveImportedFiles(
+            files,
+            () => cacheRun !== cacheRunRef.current
+          );
+          if (cacheRun !== cacheRunRef.current) return;
           await saveParsedDataset(files, nextDataset);
         } catch {
           setCacheNotice(

@@ -103,7 +103,10 @@ function newCacheGeneration() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export async function saveImportedFiles(files: ImportedFileRef[]) {
+export async function saveImportedFiles(
+  files: ImportedFileRef[],
+  shouldAbort?: () => boolean
+) {
   const database = await openImportDatabase();
 
   try {
@@ -111,9 +114,12 @@ export async function saveImportedFiles(files: ImportedFileRef[]) {
     const BATCH_SIZE = 20;
     // 先分批写内容(首批 clear 旧内容),最后单事务写元数据:
     // 写入中途被刷新/关页打断时,meta 与 contents 不会混入半新半旧状态;
-    // contentKey 的 generation 保证"同路径重导入"也不会张冠李戴
+    // contentKey 的 generation 保证"同路径重导入"也不会张冠李戴。
+    // shouldAbort 在每批之间与 meta 发布前复查:被更新导入取代的活跃写入
+    // 必须让路,否则 UI 已显示新数据、刷新却会恢复旧数据集
     const metaRecords: CachedFileMeta[] = [];
     for (let i = 0; i < files.length; i += BATCH_SIZE) {
+      if (shouldAbort?.()) return;
       const batch = files.slice(i, i + BATCH_SIZE);
       const contents: CachedFileContent[] = [];
       for (const fileRef of batch) {
@@ -138,6 +144,8 @@ export async function saveImportedFiles(files: ImportedFileRef[]) {
       }
       await transactionDone(transaction);
     }
+
+    if (shouldAbort?.()) return;
 
     const metaTransaction = database.transaction(META_STORE, "readwrite");
     const metaStore = metaTransaction.objectStore(META_STORE);

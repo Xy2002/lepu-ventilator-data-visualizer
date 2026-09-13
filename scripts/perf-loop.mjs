@@ -259,12 +259,19 @@ async function main() {
   });
   console.log("[perf] probes=", JSON.stringify(report.probes, null, 2));
 
-  const lastRestore = report.restoreRuns[report.restoreRuns.length - 1];
+  // 预算约束每一次恢复测量(含冷启动):末轮快不代表没有间歇性/冷启动回归
+  const restoreTimes = report.restoreRuns
+    .map((run) => run.restoreMs)
+    .filter((ms) => typeof ms === "number");
+  if (typeof report.coldRestoreMs === "number") {
+    restoreTimes.push(report.coldRestoreMs);
+  }
+  const anyRestoreFailed = report.restoreRuns.some((run) => run.failed);
   report.red =
     (!skipImport && report.importMs > IMPORT_BUDGET_MS) ||
-    !lastRestore ||
-    lastRestore.failed ||
-    (lastRestore.restoreMs ?? Infinity) > RESTORE_BUDGET_MS;
+    anyRestoreFailed ||
+    restoreTimes.length === 0 ||
+    restoreTimes.some((ms) => ms > RESTORE_BUDGET_MS);
   console.log(
     `[perf] RED=${report.red} (budgets: import<=${IMPORT_BUDGET_MS}ms restore<=${RESTORE_BUDGET_MS}ms)`
   );

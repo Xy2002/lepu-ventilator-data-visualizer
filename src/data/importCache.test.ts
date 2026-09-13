@@ -59,6 +59,25 @@ describe("importCache", () => {
     expect(restored.map((ref) => ref.name)).toEqual(["b.edf"]);
   });
 
+  it("publishes nothing when a superseded write aborts", async () => {
+    // 活跃写入被新导入取代:内容批与 meta 发布都必须中止,
+    // 否则 UI 已显示新导入、刷新却会恢复旧数据集。
+    // (真实流程中旧缓存由导入开始时的 invalidateImportedFiles 清除;
+    //  此处直接从空库开始,验证中止的写入自身不发布任何 meta)
+    await disposeContentsConnectionForTests();
+    await new Promise((resolve) => {
+      const req = indexedDB.deleteDatabase(DB_NAME);
+      req.onsuccess = req.onerror = req.onblocked = () => resolve(null);
+    });
+
+    await saveImportedFiles(
+      [makeRef("a.edf", new Uint8Array([1, 2, 3]))],
+      () => true
+    );
+
+    await expect(loadImportedFiles()).resolves.toEqual([]);
+  });
+
   it("treats a torn cache (meta without contents) as absent", async () => {
     await saveImportedFiles([makeRef("a.edf", new Uint8Array([1]))]);
     const restored = await loadImportedFiles();

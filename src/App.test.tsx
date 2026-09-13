@@ -190,12 +190,14 @@ describe("App", () => {
     expect(screen.getByText("呼吸事件")).toBeTruthy();
     // 新导入开始时立即作废旧缓存
     expect(importCacheMock.invalidateImportedFiles).toHaveBeenCalled();
-    // 缓存写入在数据集展示后后台进行,用 waitFor 等待触发
+    // 缓存写入在数据集展示后后台进行,用 waitFor 等待触发;
+    // 第二个参数是活跃写入被新导入取代时的中止检查
     await vi.waitFor(() =>
       expect(importCacheMock.saveImportedFiles).toHaveBeenCalledWith(
         expect.arrayContaining([
           expect.objectContaining({ name: "20260429_flow.edf" }),
-        ])
+        ]),
+        expect.any(Function)
       )
     );
   });
