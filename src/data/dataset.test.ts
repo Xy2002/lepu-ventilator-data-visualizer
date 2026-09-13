@@ -1,17 +1,31 @@
-import { describe, expect, it } from 'vitest';
-import { makeEdfLikeFile, makeEventPayload, makeEventPayloadAt } from '../parser/fixtures';
-import type { ImportedFileRef } from '../types';
-import { buildDatasetIndex, filterDays, loadDayDetail } from './dataset';
+import { describe, expect, it } from "vitest";
+import {
+  makeEdfLikeFile,
+  makeEventPayload,
+  makeEventPayloadAt,
+} from "../parser/fixtures";
+import type { ImportedFileRef } from "../types";
+import { buildDatasetIndex, filterDays, loadDayDetail } from "./dataset";
 
-function imported(path: string, label: string, payload: Uint8Array): ImportedFileRef {
-  const segments = path.split('/');
+function imported(
+  path: string,
+  label: string,
+  payload: Uint8Array
+): ImportedFileRef {
+  const segments = path.split("/");
   const name = segments[segments.length - 1] ?? path;
   const bytes = makeEdfLikeFile(label, payload);
   const file = new File([bytes], name);
 
-  if (typeof file.arrayBuffer !== 'function') {
-    Object.defineProperty(file, 'arrayBuffer', {
-      value: () => Promise.resolve(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)),
+  if (typeof file.arrayBuffer !== "function") {
+    Object.defineProperty(file, "arrayBuffer", {
+      value: () =>
+        Promise.resolve(
+          bytes.buffer.slice(
+            bytes.byteOffset,
+            bytes.byteOffset + bytes.byteLength
+          )
+        ),
     });
   }
 
@@ -24,73 +38,112 @@ function imported(path: string, label: string, payload: Uint8Array): ImportedFil
 
 function makeImportedFiles() {
   return [
-    imported('DATAFILE/20260429/20260429_flow.edf', 'flow', new Uint8Array([20, 19, 17])),
-    imported('DATAFILE/20260429/20260429_pressure.edf', 'pressure', new Uint8Array([1, 0, 9, 0])),
-    imported('DATAFILE/20260429/20260429_hi.edf', 'hi', makeEventPayload(1, 15)),
     imported(
-      'DATAFILE/20260429/20260429_usetime.edf',
-      'usetime',
-      makeEventPayloadAt(120, 677025283, new Date(Date.UTC(2026, 3, 29, 8, 30, 0))),
+      "DATAFILE/20260429/20260429_flow.edf",
+      "flow",
+      new Uint8Array([20, 19, 17])
     ),
-    imported('DATAFILE/20260429/20260429_mystery.edf', 'mystery', new Uint8Array([7, 8])),
-    imported('DATAFILE/20260428/20260428_pressure.edf', 'pressure', new Uint8Array([2, 0, 6, 0])),
+    imported(
+      "DATAFILE/20260429/20260429_pressure.edf",
+      "pressure",
+      new Uint8Array([1, 0, 9, 0])
+    ),
+    imported(
+      "DATAFILE/20260429/20260429_hi.edf",
+      "hi",
+      makeEventPayload(1, 15)
+    ),
+    imported(
+      "DATAFILE/20260429/20260429_usetime.edf",
+      "usetime",
+      makeEventPayloadAt(
+        120,
+        677025283,
+        new Date(Date.UTC(2026, 3, 29, 8, 30, 0))
+      )
+    ),
+    imported(
+      "DATAFILE/20260429/20260429_mystery.edf",
+      "mystery",
+      new Uint8Array([7, 8])
+    ),
+    imported(
+      "DATAFILE/20260428/20260428_pressure.edf",
+      "pressure",
+      new Uint8Array([2, 0, 6, 0])
+    ),
   ];
 }
 
-describe('dataset indexing', () => {
-  it('buildDatasetIndex groups imported files by date and computes summaries', async () => {
+describe("dataset indexing", () => {
+  it("buildDatasetIndex groups imported files by date and computes summaries", async () => {
     const index = await buildDatasetIndex(makeImportedFiles());
 
-    expect(index.days).toEqual(['2026-04-28', '2026-04-29']);
-    expect(index.summariesByDay['2026-04-29'].eventCounts.hi).toBe(1);
-    expect(index.summariesByDay['2026-04-29'].sampleCounts.flow).toBe(3);
-    expect(index.summariesByDay['2026-04-29'].startTime).toBe('2026-04-29 08:28:00');
-    expect(index.summariesByDay['2026-04-29'].endTime).toBe('2026-04-29 08:30:00');
-    expect(index.summariesByDay['2026-04-29'].useDurationSeconds).toBe(120);
-    expect(index.summariesByDay['2026-04-29'].pressureRange).toBeNull();
+    expect(index.days).toEqual(["2026-04-28", "2026-04-29"]);
+    expect(index.summariesByDay["2026-04-29"].eventCounts.hi).toBe(1);
+    expect(index.summariesByDay["2026-04-29"].sampleCounts.flow).toBe(3);
+    expect(index.summariesByDay["2026-04-29"].startTime).toBe(
+      "2026-04-29 08:28:00"
+    );
+    expect(index.summariesByDay["2026-04-29"].endTime).toBe(
+      "2026-04-29 08:30:00"
+    );
+    expect(index.summariesByDay["2026-04-29"].useDurationSeconds).toBe(120);
+    expect(index.summariesByDay["2026-04-29"].pressureRange).toBeNull();
   });
 
-  it('filterDays filters by range, event presence, and missing files', async () => {
+  it("filterDays filters by range, event presence, and missing files", async () => {
     const index = await buildDatasetIndex(makeImportedFiles());
 
-    expect(filterDays(index, { startDate: '2026-04-29', endDate: '2026-04-29' })).toEqual([
-      '2026-04-29',
+    expect(
+      filterDays(index, { startDate: "2026-04-29", endDate: "2026-04-29" })
+    ).toEqual(["2026-04-29"]);
+    expect(filterDays(index, { requireEvent: "hi" })).toEqual(["2026-04-29"]);
+    expect(filterDays(index, { missingFilesOnly: true })).toEqual([
+      "2026-04-28",
+      "2026-04-29",
     ]);
-    expect(filterDays(index, { requireEvent: 'hi' })).toEqual(['2026-04-29']);
-    expect(filterDays(index, { missingFilesOnly: true })).toEqual(['2026-04-28', '2026-04-29']);
-    expect(filterDays(index, { requireEvent: 'ascp' })).toEqual([]);
+    expect(filterDays(index, { requireEvent: "ascp" })).toEqual([]);
   });
 
-  it('buildDatasetIndex falls back to the file name when a browser file has no relative path', async () => {
-    const file = imported('20260430_flow.edf', 'flow', new Uint8Array([1]));
-    const index = await buildDatasetIndex([{ ...file, path: '' }]);
+  it("buildDatasetIndex falls back to the file name when a browser file has no relative path", async () => {
+    const file = imported("20260430_flow.edf", "flow", new Uint8Array([1]));
+    const index = await buildDatasetIndex([{ ...file, path: "" }]);
 
-    expect(index.days).toEqual(['2026-04-30']);
+    expect(index.days).toEqual(["2026-04-30"]);
     expect(index.warnings).toEqual([]);
   });
 
-  it('loadDayDetail loads selected day, returns signal labels, event count, and rawFiles count', async () => {
+  it("loadDayDetail loads selected day, returns signal labels, event count, and rawFiles count", async () => {
     const index = await buildDatasetIndex(makeImportedFiles());
 
-    const detail = await loadDayDetail(index, '2026-04-29');
+    const detail = await loadDayDetail(index, "2026-04-29");
 
-    expect(detail.signals.map((file) => file.header.label)).toEqual(['flow', 'pressure']);
+    expect(detail.signals.map((file) => file.header.label)).toEqual([
+      "flow",
+      "pressure",
+    ]);
     expect(detail.useSessions).toEqual([
       {
-        startTime: '2026-04-29 08:28:00',
-        endTime: '2026-04-29 08:30:00',
+        startTime: "2026-04-29 08:28:00",
+        endTime: "2026-04-29 08:30:00",
         durationSeconds: 120,
       },
     ]);
-    expect(detail.events.filter((event) => event.sourceLabel === 'hi')).toHaveLength(1);
-    expect(detail.events.find((event) => event.sourceLabel === 'hi')?.secondsFromDayStart).toBeUndefined();
+    expect(
+      detail.events.filter((event) => event.sourceLabel === "hi")
+    ).toHaveLength(1);
+    expect(
+      detail.events.find((event) => event.sourceLabel === "hi")
+        ?.secondsFromDayStart
+    ).toBeUndefined();
     expect(detail.rawFiles.map((file) => file.header.label)).toEqual([
-      'flow',
-      'pressure',
-      'hi',
-      'usetime',
-      'mystery',
+      "flow",
+      "pressure",
+      "hi",
+      "usetime",
+      "mystery",
     ]);
-    expect(detail.summary.pressureRange).toEqual({ min: 1, max: 9 });
+    expect(detail.summary.pressureRange).toEqual({ min: 0.1, max: 0.9 });
   });
 });
