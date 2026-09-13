@@ -21,6 +21,21 @@ export const EVENT_STYLES: Record<string, { color: string; label: string }> = {
   ascp: { color: "#6366f1", label: "ASCP 压力调整" },
 };
 
+/** 波形通道的规范标签 → 中文显示名。组件与图表配置统一使用规范标签(即
+ * header.label,如 pressure/real_pres),仅在渲染文字时转换为显示名,
+ * 避免用显示名判断通道语义(本地化文案一变就会漏判)。 */
+export const SIGNAL_DISPLAY_NAMES: Record<string, string> = {
+  flow: "气流",
+  pressure: "压力",
+  real_pres: "实际压力",
+  real_flow: "实际气流",
+  difleak: "漏气",
+};
+
+export function displayChannelName(label: string): string {
+  return SIGNAL_DISPLAY_NAMES[label] ?? label;
+}
+
 /** 波形的时间上下文:{sampleRateHz, startTime, useSessions} 三个参数总是同行出现 */
 export interface WaveformTimeContext {
   sampleRateHz: number | null;
@@ -322,7 +337,7 @@ export function buildEChartsWaveformOption({
       : null;
 
   const series: Record<string, unknown> = {
-    name: label,
+    name: displayChannelName(label),
     type: "line",
     data,
     symbol: "none",
@@ -364,7 +379,7 @@ export function buildEChartsWaveformOption({
 
   if (overlay && overlay.values.length > 0) {
     seriesList.push({
-      name: overlay.label,
+      name: displayChannelName(overlay.label),
       type: "line",
       data: buildEChartsWaveformSeries(overlay.values, {
         sampleRateHz,
@@ -384,7 +399,7 @@ export function buildEChartsWaveformOption({
       },
       emphasis: { disabled: true },
     });
-    legendData = [label, overlay.label];
+    legendData = [displayChannelName(label), displayChannelName(overlay.label)];
   }
 
   return {

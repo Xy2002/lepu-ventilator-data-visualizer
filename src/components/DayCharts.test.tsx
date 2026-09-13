@@ -12,14 +12,17 @@ vi.mock("../charts/WaveformChart", () => ({
   WaveformChart: ({
     label,
     startTime,
+    overlay,
   }: {
     label: string;
     startTime?: string | null;
+    overlay?: { label: string; values: unknown } | null;
   }) => (
     <div
       role="img"
       aria-label={`${label} ECharts waveform chart`}
       data-start-time={startTime ?? ""}
+      data-overlay-label={overlay?.label ?? ""}
     >
       {label}
     </div>
@@ -119,6 +122,29 @@ describe("DayCharts", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("气流")).toBeInTheDocument();
     expect(screen.getByText("压力")).toBeInTheDocument();
+  });
+
+  it("passes canonical channel labels to the pressure overlay chart", () => {
+    // 回归(Codex review):叠加图曾传入显示名"压力",导致
+    // buildEChartsWaveformOption 按 label 判断压力语义失败,y 轴退回 dataMax
+    render(
+      <DayCharts
+        detail={detail([
+          signal("pressure.edf", "pressure"),
+          signal("realpresdata.edf", "real_pres"),
+        ])}
+      />
+    );
+
+    const overlayChart = screen
+      .getAllByRole("img")
+      .find((el) => el.getAttribute("data-overlay-label") !== "");
+    expect(overlayChart).toBeDefined();
+    expect(overlayChart).toHaveAttribute(
+      "aria-label",
+      "pressure ECharts waveform chart"
+    );
+    expect(overlayChart).toHaveAttribute("data-overlay-label", "real_pres");
   });
 
   it("shows breathing events when flow tab is active", () => {

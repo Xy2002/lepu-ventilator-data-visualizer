@@ -10,7 +10,10 @@ import {
 } from "@heroui/react";
 import { WaveformChart } from "../charts/WaveformChart";
 import { EventDistributionChart } from "./EventDistributionChart";
-import type { EventMarkerInfo } from "../charts/echartsWaveformOptions";
+import {
+  displayChannelName,
+  type EventMarkerInfo,
+} from "../charts/echartsWaveformOptions";
 import type { DayDetail } from "../types";
 
 const CHART_SWITCH_DELAY_MS = 200;
@@ -22,14 +25,6 @@ const EVENT_SIGNAL_MAP: Record<string, string> = {
   // leak 事件叠加到同名的 difleak 波形通道:事件时间点已验证,数值语义未确认
   leak: "difleak",
   ascp: "pressure",
-};
-
-const LABEL_NAMES: Record<string, string> = {
-  flow: "气流",
-  pressure: "压力",
-  real_pres: "实际压力",
-  real_flow: "实际气流",
-  difleak: "漏气",
 };
 
 interface DayChartsProps {
@@ -138,7 +133,7 @@ export function DayCharts({ detail }: DayChartsProps) {
             <TabList>
               {detail.signals.map((signal) => (
                 <Tab key={signal.fileName} id={signal.fileName}>
-                  {LABEL_NAMES[signal.header.label] ?? signal.header.label}
+                  {displayChannelName(signal.header.label)}
                 </Tab>
               ))}
             </TabList>
@@ -180,13 +175,13 @@ export function DayCharts({ detail }: DayChartsProps) {
           <h3>压力叠加（pressure / real_pres）</h3>
           <WaveformChart
             key="pressure-overlay"
-            label="压力"
+            label="pressure"
             values={pressureSignal.values}
             sampleRateHz={pressureSignal.header.sampleRateHz}
             startTime={pressureSignal.header.startTime}
             useSessions={detail.useSessions}
             eventMarkers={overlayMarkers}
-            overlay={{ label: "实际压力", values: realPresSignal.values }}
+            overlay={{ label: "real_pres", values: realPresSignal.values }}
           />
         </section>
       ) : null}

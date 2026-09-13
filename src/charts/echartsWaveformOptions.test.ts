@@ -259,7 +259,8 @@ describe("buildEChartsWaveformOption", () => {
     );
     expect(option.series).toEqual([
       expect.objectContaining({
-        name: "pressure",
+        // 序列名渲染为中文显示名,规范标签(label)只承担语义
+        name: "压力",
         type: "line",
         symbol: "none",
         sampling: "lttb",
@@ -300,11 +301,11 @@ describe("buildEChartsWaveformOption overlay", () => {
 
     const series = option.series as Array<{ name: string; type: string }>;
     expect(series).toHaveLength(2);
-    expect(series[0].name).toBe("pressure");
-    expect(series[1].name).toBe("real_pres");
+    expect(series[0].name).toBe("压力");
+    expect(series[1].name).toBe("实际压力");
     expect((option.legend as { data: string[] }).data).toEqual([
-      "pressure",
-      "real_pres",
+      "压力",
+      "实际压力",
     ]);
   });
 
@@ -330,7 +331,7 @@ describe("buildEChartsWaveformOption overlay", () => {
       name: string;
       data: [number, number | null][];
     }>;
-    const overlaySeries = series.find((s) => s.name === "real_pres")!;
+    const overlaySeries = series.find((s) => s.name === "实际压力")!;
     expect(overlaySeries.data.map(([, value]) => value)).toEqual([null, 95]);
   });
 });
