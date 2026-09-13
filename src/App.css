@@ -969,6 +969,16 @@ th {
   background: #f0fdf4;
 }
 
+.event-badge--csa {
+  color: #0f766e;
+  background: #f0fdfa;
+}
+
+.event-badge--leak {
+  color: #be123c;
+  background: #fff1f2;
+}
+
 .event-time {
   font-family:
     "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
@@ -1762,4 +1772,19 @@ th {
   margin: 6px 0 0;
   padding-left: 18px;
   font-size: 12px;
+}
+
+/* 筛选面板复选框使用紧凑内联布局,覆盖通用 label 网格样式 */
+.date-navigator .filter-checks label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: auto;
+  line-height: 1.2;
+}
+
+.date-navigator .filter-checks input[type="checkbox"] {
+  width: auto;
+  min-height: auto;
+  margin: 0;
 }

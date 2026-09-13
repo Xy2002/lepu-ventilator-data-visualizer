@@ -169,15 +169,13 @@ function makeEmptySummary(date: string): DaySummary {
 // 见 docs/data-format.md），摘要统一换算为 cmH2O 存储。
 const PRESSURE_CMH2O_PER_UNIT = 0.1;
 
-function addPressureValue(summary: DaySummary, value: number) {
+function extendPressureRange(
+  range: DaySummary["pressureRange"],
+  value: number
+): { min: number; max: number } {
   const cmH2O = Math.round(value * PRESSURE_CMH2O_PER_UNIT * 10) / 10;
-  if (summary.pressureRange) {
-    summary.pressureRange.min = Math.min(summary.pressureRange.min, cmH2O);
-    summary.pressureRange.max = Math.max(summary.pressureRange.max, cmH2O);
-    return;
-  }
-
-  summary.pressureRange = { min: cmH2O, max: cmH2O };
+  if (!range) return { min: cmH2O, max: cmH2O };
+  return { min: Math.min(range.min, cmH2O), max: Math.max(range.max, cmH2O) };
 }
 
 async function summarizeDay(
@@ -216,7 +214,10 @@ async function summarizeDay(
 
       if (!skipPressureScan && label === "pressure") {
         for (const value of parsed.values) {
-          addPressureValue(summary, value);
+          summary.pressureRange = extendPressureRange(
+            summary.pressureRange,
+            value
+          );
         }
       }
     }
@@ -352,8 +353,20 @@ export function filterDays(index: DatasetIndex, filter: DateFilter) {
       (summary.eventCounts[filter.requireEvent] ?? 0) === 0
     )
       return false;
+    if (filter.requireEvents) {
+      const missingRequired = filter.requireEvents.some(
+        (label) => (summary.eventCounts[label] ?? 0) === 0
+      );
+      if (missingRequired) return false;
+    }
     if (filter.missingFilesOnly && summary.missingFiles.length === 0)
       return false;
+    if (
+      filter.minUseDurationSeconds !== undefined &&
+      (summary.useDurationSeconds ?? 0) < filter.minUseDurationSeconds
+    ) {
+      return false;
+    }
 
     return true;
   });
@@ -452,16 +465,20 @@ export async function loadDayDetail(
       .map((record) => withSecondsFromDayStart(record, summary.startTime))
   );
 
-  // Compute pressure range on demand if not available
-  if (summary && !summary.pressureRange) {
+  // 按需计算压力范围:返回新的 summary 对象,不突变 dataset 索引中的共享状态
+  let pressureRange = summary?.pressureRange ?? null;
+  if (summary && !pressureRange) {
     for (const signal of signals) {
       if (signal.header.label === "pressure") {
         for (const value of signal.values) {
-          addPressureValue(summary, value);
+          pressureRange = extendPressureRange(pressureRange, value);
         }
       }
     }
   }
+  const detailSummary = summary
+    ? { ...summary, pressureRange: pressureRange ?? summary.pressureRange }
+    : summary;
 
   // 惰性解析新发现的 payload 警告(如尾部字节)并入 summary,供数据集状态条聚合。
   // 以索引条目判断哪些文件是延迟解析的(resolveDayFiles 后 full 文件也有 payload,
@@ -483,7 +500,7 @@ export async function loadDayDetail(
   }
 
   return {
-    summary,
+    summary: detailSummary,
     files,
     signals,
     events,

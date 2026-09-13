@@ -99,6 +99,44 @@ describe("parseVentilatorFile", () => {
     ]);
   });
 
+  it("parses 16-byte event records for leak", () => {
+    const file = makeEdfLikeFile("leak", makeEventPayload(36, 20), {
+      field244: "0",
+    });
+
+    const parsed = parseVentilatorFile("20240724_leak.edf", file);
+
+    expect(parsed.kind).toBe("events16");
+    expect(parsed.header.sampleRateHz).toBeNull();
+    expect(parsed.records).toEqual([
+      {
+        sourceLabel: "leak",
+        value1: 36,
+        value2: 20,
+        timestamp: "2026-04-29 04:41:22",
+      },
+    ]);
+  });
+
+  it("parses 16-byte event records for csa", () => {
+    const file = makeEdfLikeFile("csa", makeEventPayload(1, 15), {
+      field244: "0",
+    });
+
+    const parsed = parseVentilatorFile("20241111_csa.edf", file);
+
+    expect(parsed.kind).toBe("events16");
+    expect(parsed.header.sampleRateHz).toBeNull();
+    expect(parsed.records).toEqual([
+      {
+        sourceLabel: "csa",
+        value1: 1,
+        value2: 15,
+        timestamp: "2026-04-29 04:41:22",
+      },
+    ]);
+  });
+
   it("returns invalid with a warning when the file is shorter than the header", () => {
     const parsed = parseVentilatorFile("short.edf", new Uint8Array(511));
 
