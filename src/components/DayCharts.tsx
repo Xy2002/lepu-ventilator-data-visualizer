@@ -244,7 +244,8 @@ export function DayCharts({ detail }: DayChartsProps) {
         </div>
       ) : null}
 
-      {detail.events.length > 0 ? (
+      {"ai" in detail.summary.eventCounts ||
+      "hi" in detail.summary.eventCounts ? (
         <EventDistributionChart
           events={detail.events}
           availability={{
