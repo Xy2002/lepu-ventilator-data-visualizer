@@ -266,6 +266,11 @@ export async function computePressureRange(
   index: DatasetIndex,
   date: string
 ): Promise<DaySummary["pressureRange"]> {
+  // 已完整解析的缓存条目优先(legacy 缓存或已加载的日),避免重复读盘
+  for (const file of index.parsedFilesByDay[date] ?? []) {
+    if (file.header.label !== "pressure" || file.values.length === 0) continue;
+    return scanPressureRange(file.values);
+  }
   for (const ref of index.filesByDay[date] ?? []) {
     const parsed = await parseImportedFile(ref);
     if (
@@ -274,18 +279,24 @@ export async function computePressureRange(
     ) {
       continue;
     }
-    let min = Number.POSITIVE_INFINITY;
-    let max = Number.NEGATIVE_INFINITY;
-    for (const value of parsed.values) {
-      if (value < min) min = value;
-      if (value > max) max = value;
-    }
-    if (!Number.isFinite(min)) return null;
-    const toCmH2O = (value: number) =>
-      Math.round(value * PRESSURE_CMH2O_PER_UNIT * 10) / 10;
-    return { min: toCmH2O(min), max: toCmH2O(max) };
+    return scanPressureRange(parsed.values);
   }
   return null;
+}
+
+function scanPressureRange(
+  values: ParsedVentilatorFile["values"]
+): DaySummary["pressureRange"] {
+  let min = Number.POSITIVE_INFINITY;
+  let max = Number.NEGATIVE_INFINITY;
+  for (const value of values) {
+    if (value < min) min = value;
+    if (value > max) max = value;
+  }
+  if (!Number.isFinite(min)) return null;
+  const toCmH2O = (value: number) =>
+    Math.round(value * PRESSURE_CMH2O_PER_UNIT * 10) / 10;
+  return { min: toCmH2O(min), max: toCmH2O(max) };
 }
 
 export function filterDays(index: DatasetIndex, filter: DateFilter) {
