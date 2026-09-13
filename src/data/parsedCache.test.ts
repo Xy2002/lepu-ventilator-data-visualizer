@@ -17,10 +17,9 @@ function fileRef(
   return {
     name,
     path,
-    file: new File([new Uint8Array(size)], name, {
-      type: "application/octet-stream",
-      lastModified,
-    }),
+    size,
+    lastModified,
+    read: async () => new ArrayBuffer(size),
   };
 }
 

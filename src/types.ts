@@ -63,7 +63,11 @@ export interface ParsedVentilatorFile {
 export interface ImportedFileRef {
   name: string;
   path: string;
-  file: File;
+  /** 字节数与最后修改时间:恢复路径仅凭元数据即可校验缓存清单,无需读取内容 */
+  size: number;
+  lastModified: number;
+  /** 读取 [start, end) 字节区间;end 省略表示读到文件末尾 */
+  read: (start?: number, end?: number) => Promise<ArrayBuffer>;
 }
 
 export interface DaySummary {

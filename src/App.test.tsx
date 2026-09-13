@@ -41,6 +41,7 @@ vi.mock("./data/importCache", () => importCacheMock);
 vi.mock("./data/parsedCache", () => parsedCacheMock);
 
 import { App } from "./App";
+import { importedFileRefFromFile } from "./data/importedFile";
 import {
   makeEdfLikeFile,
   makeEventPayload,
@@ -79,11 +80,7 @@ function importedFile(
   label: string,
   payload: Uint8Array
 ): ImportedFileRef {
-  return {
-    name,
-    path: name,
-    file: edfFile(name, label, payload),
-  };
+  return importedFileRefFromFile(edfFile(name, label, payload), name);
 }
 
 function concatPayloads(...payloads: Uint8Array[]) {
@@ -188,10 +185,13 @@ describe("App", () => {
       true
     );
     expect(screen.getByText("呼吸事件")).toBeTruthy();
-    expect(importCacheMock.saveImportedFiles).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({ name: "20260429_flow.edf" }),
-      ])
+    // 缓存写入在数据集展示后后台进行,用 waitFor 等待触发
+    await vi.waitFor(() =>
+      expect(importCacheMock.saveImportedFiles).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({ name: "20260429_flow.edf" }),
+        ])
+      )
     );
   });
 
@@ -216,15 +216,12 @@ describe("App", () => {
   });
 
   it("shows an error notice when loading the selected day fails", async () => {
-    const brokenBytes = new Uint8Array([1, 2, 3]);
-    const brokenFile = new File([brokenBytes], "20260429_flow.edf");
-    Object.defineProperty(brokenFile, "arrayBuffer", {
-      value: () => Promise.reject(new Error("read failed")),
-    });
     const brokenRef: ImportedFileRef = {
       name: "20260429_flow.edf",
       path: "20260429_flow.edf",
-      file: brokenFile,
+      size: 3,
+      lastModified: 0,
+      read: () => Promise.reject(new Error("read failed")),
     };
     const fileBytes = makeEdfLikeFile("flow", new Uint8Array([1, 2, 3]));
     const headerOnlyFlow = parseVentilatorFileHeader(

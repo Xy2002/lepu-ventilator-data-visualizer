@@ -1,10 +1,17 @@
 // IndexedDB Promise 样板的公共封装,供 importCache / parsedCache / reportCache 复用。
 
+export interface ExtraStoreConfig {
+  name: string;
+  keyPath: string;
+}
+
 export function openDatabase(
   dbName: string,
   dbVersion: number,
   storeName: string,
-  keyPath: string
+  keyPath: string,
+  extraStores: ExtraStoreConfig[] = [],
+  dropStoreNames: string[] = []
 ): Promise<IDBDatabase> {
   if (typeof indexedDB === "undefined") {
     return Promise.reject(new Error("IndexedDB is not available"));
@@ -17,6 +24,16 @@ export function openDatabase(
       const database = request.result;
       if (!database.objectStoreNames.contains(storeName)) {
         database.createObjectStore(storeName, { keyPath });
+      }
+      for (const extra of extraStores) {
+        if (!database.objectStoreNames.contains(extra.name)) {
+          database.createObjectStore(extra.name, { keyPath: extra.keyPath });
+        }
+      }
+      for (const name of dropStoreNames) {
+        if (database.objectStoreNames.contains(name)) {
+          database.deleteObjectStore(name);
+        }
       }
     };
     request.onerror = () =>

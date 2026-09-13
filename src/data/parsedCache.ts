@@ -123,8 +123,8 @@ export function buildManifest(
   return files
     .map((f) => ({
       path: f.path || f.name,
-      lastModified: f.file.lastModified,
-      size: f.file.size,
+      lastModified: f.lastModified,
+      size: f.size,
     }))
     .sort((a, b) => a.path.localeCompare(b.path));
 }

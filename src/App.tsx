@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { CardDescription } from "@heroui/react";
 import "./App.css";
 import { AiAnalysisPanel } from "./components/AiAnalysisPanel";
@@ -69,6 +69,8 @@ export function App() {
     null
   );
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
+  // 串行化后台缓存写入,避免连续导入时两个 save 并发清空/交错写库
+  const cacheWriteRef = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     let cancelled = false;
@@ -151,16 +153,20 @@ export function App() {
 
     try {
       const nextDataset = await buildDatasetIndex(files, setIndexProgress);
-      try {
-        await saveImportedFiles(files);
-        await saveParsedDataset(files, nextDataset);
-      } catch {
-        setCacheNotice(
-          "已导入，但浏览器无法缓存这些文件；刷新后需要重新选择。"
-        );
-      }
+      // 数据集就绪立即展示;缓存写入(文件内容进 IndexedDB,可能上 GB)后台进行,
+      // 不阻塞首屏交互。失败仅提示,不影响本次使用。
       setDataset(nextDataset);
       setSelectedDate(nextDataset.days[nextDataset.days.length - 1] ?? null);
+      cacheWriteRef.current = cacheWriteRef.current.then(async () => {
+        try {
+          await saveImportedFiles(files);
+          await saveParsedDataset(files, nextDataset);
+        } catch {
+          setCacheNotice(
+            "已导入，但浏览器无法缓存这些文件；刷新后需要重新选择。"
+          );
+        }
+      });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "导入失败");
     } finally {

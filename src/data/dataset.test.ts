@@ -5,6 +5,7 @@ import {
   makeEventPayloadAt,
 } from "../parser/fixtures";
 import type { ImportedFileRef } from "../types";
+import { importedFileRefFromFile } from "./importedFile";
 import {
   buildDatasetIndex,
   computePressureRange,
@@ -36,11 +37,7 @@ function imported(
     });
   }
 
-  return {
-    name,
-    path,
-    file,
-  };
+  return importedFileRefFromFile(file, path);
 }
 
 function makeImportedFiles() {
@@ -222,22 +219,23 @@ describe("dataset indexing", () => {
     let settled = false;
     let resolveSlow: () => void = () => {};
     const slowBytes = makeEdfLikeFile("flow", new Uint8Array([1, 2, 3]));
-    const slowFile = {
-      size: slowBytes.byteLength,
-      slice: (start: number, end: number) => ({
-        arrayBuffer: () =>
-          new Promise<ArrayBuffer>((resolve) => {
-            resolveSlow = () => {
-              settled = true;
-              resolve(slowBytes.slice(start, end).buffer as ArrayBuffer);
-            };
-          }),
-      }),
-    } as unknown as File;
     const slow: ImportedFileRef = {
       name: "20260429_flow.edf",
       path: "20260429_flow.edf",
-      file: slowFile,
+      size: slowBytes.byteLength,
+      lastModified: 0,
+      read: (start = 0, end?: number) =>
+        new Promise<ArrayBuffer>((resolve) => {
+          resolveSlow = () => {
+            settled = true;
+            resolve(
+              (end === undefined
+                ? slowBytes.slice(start)
+                : slowBytes.slice(start, end)
+              ).buffer as ArrayBuffer
+            );
+          };
+        }),
     };
     const fast = imported("20260428_flow.edf", "flow", new Uint8Array([1]));
 
@@ -265,30 +263,32 @@ describe("dataset indexing", () => {
     let resolveSlow: () => void = () => {};
     const slowBytes = makeEdfLikeFile("flow", new Uint8Array([1]));
     const slowFile = {
+      name: "20260428_flow.edf",
+      path: "20260428_flow.edf",
       size: slowBytes.byteLength,
-      slice: (start: number, end: number) => ({
-        arrayBuffer: () =>
-          new Promise<ArrayBuffer>((resolve) => {
-            resolveSlow = () =>
-              resolve(slowBytes.slice(start, end).buffer as ArrayBuffer);
-          }),
-      }),
-    } as unknown as File;
-    const badFile = {
-      size: 514,
-      slice: () => ({
-        arrayBuffer: () => Promise.reject(new Error("boom")),
-      }),
-    } as unknown as File;
+      lastModified: 0,
+      read: (start = 0, end?: number) =>
+        new Promise<ArrayBuffer>((resolve) => {
+          resolveSlow = () =>
+            resolve(
+              (end === undefined
+                ? slowBytes.slice(start)
+                : slowBytes.slice(start, end)
+              ).buffer as ArrayBuffer
+            );
+        }),
+    } as unknown as ImportedFileRef;
 
     const building = buildDatasetIndex(
       [
+        slowFile,
         {
-          name: "20260428_flow.edf",
-          path: "20260428_flow.edf",
-          file: slowFile,
+          name: "20260429_flow.edf",
+          path: "20260429_flow.edf",
+          size: 514,
+          lastModified: 0,
+          read: () => Promise.reject(new Error("boom")),
         },
-        { name: "20260429_flow.edf", path: "20260429_flow.edf", file: badFile },
       ],
       (progress) => events.push(progress.completed)
     );
