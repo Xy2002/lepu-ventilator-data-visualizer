@@ -126,7 +126,6 @@ sequenceDiagram
 | `DateNavigator`   | 日期导航侧栏：跳转、前后翻页、热力图、缺失文件筛选                |
 | `SummaryCards`    | 当日摘要卡片：使用时长、AI/HI 计数、压力范围、缺失文件数          |
 | `DayCharts`       | 波形图表主面板：Tab 切换信号、事件标记、内嵌事件列表联动          |
-| `EventTable`      | 独立事件表格组件（含类型筛选和定位按钮，当前未在 App 中直接使用） |
 | `RawFileBrowser`  | 原始文件浏览器：文件详情折叠面板、BA525 配置解析、CSV 导出        |
 | `AiAnalysisPanel` | AI 分析面板：支持 OpenAI/Anthropic 流式生成，缓存报告到 IndexedDB |
 
@@ -190,7 +189,6 @@ sequenceDiagram
 | `selectedFileName` / `renderedFileName`             | DayCharts       | `useState` |
 | `focusedIndex`                                      | DayCharts       | `useState` |
 | `missingOnly` / `jumpDate`                          | DateNavigator   | `useState` |
-| `activeFilter`                                      | EventTable      | `useState` |
 | `settings` / `status` / `report`                    | AiAnalysisPanel | `useState` |
 
 **数据流向**：App 持有全局状态，通过 props 向下传递。子组件管理各自的 UI 局部状态。`useEffect` 处理副作用（文件恢复、日期切换加载详情、AI 报告缓存加载）。
