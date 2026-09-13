@@ -76,7 +76,7 @@ docker run -d -p 3000:80 ventilator-web
 
 ## 技术栈
 
-React 19 · TypeScript · Vite · Tailwind CSS 4 · ECharts 6 · HeroUI · Vitest + Testing Library
+React 19 · TypeScript · Vite · ECharts 6 · HeroUI · Vitest + Testing Library
 
 ## 数据格式
 
