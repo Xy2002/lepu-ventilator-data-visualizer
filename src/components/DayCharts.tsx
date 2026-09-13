@@ -1,23 +1,32 @@
-import { useEffect, useMemo, useState } from 'react';
-import { TabsRoot, TabListContainer, TabList, Tab, TabPanel, ChipRoot, ChipLabel } from '@heroui/react';
-import { WaveformChart } from '../charts/WaveformChart';
-import type { EventMarkerInfo } from '../charts/echartsWaveformOptions';
-import type { DayDetail } from '../types';
+import { useEffect, useMemo, useState } from "react";
+import {
+  TabsRoot,
+  TabListContainer,
+  TabList,
+  Tab,
+  TabPanel,
+  ChipRoot,
+  ChipLabel,
+} from "@heroui/react";
+import { WaveformChart } from "../charts/WaveformChart";
+import type { EventMarkerInfo } from "../charts/echartsWaveformOptions";
+import type { DayDetail } from "../types";
 
 const CHART_SWITCH_DELAY_MS = 200;
 
 const EVENT_SIGNAL_MAP: Record<string, string> = {
-  ai: 'flow',
-  hi: 'flow',
-  ascp: 'pressure',
+  ai: "flow",
+  hi: "flow",
+  csa: "flow",
+  ascp: "pressure",
 };
 
 const LABEL_NAMES: Record<string, string> = {
-  flow: '气流',
-  pressure: '压力',
-  real_pres: '实际压力',
-  real_flow: '实际气流',
-  difleak: '漏气',
+  flow: "气流",
+  pressure: "压力",
+  real_pres: "实际压力",
+  real_flow: "实际气流",
+  difleak: "漏气",
 };
 
 interface DayChartsProps {
@@ -30,14 +39,23 @@ export function DayCharts({ detail }: DayChartsProps) {
 
   const defaultSignal = detail.signals[0] ?? null;
   const selectedSignal =
-    detail.signals.find((s) => s.fileName === selectedFileName) ?? defaultSignal;
+    detail.signals.find((s) => s.fileName === selectedFileName) ??
+    defaultSignal;
   const renderedSignal =
-    detail.signals.find((s) => s.fileName === renderedFileName) ?? defaultSignal;
+    detail.signals.find((s) => s.fileName === renderedFileName) ??
+    defaultSignal;
   const isSwitching =
-    selectedSignal && renderedSignal && selectedSignal.fileName !== renderedSignal.fileName;
+    selectedSignal &&
+    renderedSignal &&
+    selectedSignal.fileName !== renderedSignal.fileName;
 
   useEffect(() => {
-    if (!selectedSignal || !renderedSignal || selectedSignal.fileName === renderedSignal.fileName) return;
+    if (
+      !selectedSignal ||
+      !renderedSignal ||
+      selectedSignal.fileName === renderedSignal.fileName
+    )
+      return;
     const timer = window.setTimeout(() => {
       setRenderedFileName(selectedSignal.fileName);
     }, CHART_SWITCH_DELAY_MS);
@@ -49,9 +67,11 @@ export function DayCharts({ detail }: DayChartsProps) {
   const activeEvents = useMemo(
     () =>
       activeLabel
-        ? detail.events.filter((e) => EVENT_SIGNAL_MAP[e.sourceLabel] === activeLabel)
+        ? detail.events.filter(
+            (e) => EVENT_SIGNAL_MAP[e.sourceLabel] === activeLabel
+          )
         : [],
-    [detail.events, activeLabel],
+    [detail.events, activeLabel]
   );
 
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
@@ -67,18 +87,28 @@ export function DayCharts({ detail }: DayChartsProps) {
         secondsFromDayStart: e.secondsFromDayStart,
         sourceLabel: e.sourceLabel,
       })),
-    [activeEvents],
+    [activeEvents]
   );
 
-  const focusedEvent = focusedIndex !== null ? activeEvents[focusedIndex] : null;
-  const isAscp = activeLabel === 'pressure';
+  const focusedEvent =
+    focusedIndex !== null ? activeEvents[focusedIndex] : null;
+  const isAscp = activeLabel === "pressure";
+  // 设备对衍生通道(difleak/mvtvbr)只在起止字段写首样本时间(start==end),
+  // 此时锚定到当日摘要起点,避免把波形错挂到首样本时刻
+  const renderedStartTime =
+    renderedSignal &&
+    renderedSignal.header.startTime === renderedSignal.header.endTime
+      ? detail.summary.startTime
+      : (renderedSignal?.header.startTime ?? null);
 
   return (
     <section className="day-charts">
-      {detail.signals.length === 0 ? <p>当前日期没有可显示的波形文件。</p> : null}
+      {detail.signals.length === 0 ? (
+        <p>当前日期没有可显示的波形文件。</p>
+      ) : null}
       {detail.signals.length > 0 ? (
         <TabsRoot
-          selectedKey={selectedSignal?.fileName ?? ''}
+          selectedKey={selectedSignal?.fileName ?? ""}
           onSelectionChange={(key) => setSelectedFileName(String(key))}
         >
           <TabListContainer>
@@ -90,7 +120,7 @@ export function DayCharts({ detail }: DayChartsProps) {
               ))}
             </TabList>
           </TabListContainer>
-          <TabPanel id={selectedSignal?.fileName ?? ''}>
+          <TabPanel id={selectedSignal?.fileName ?? ""}>
             <div className="chart-panel-stage">
               {renderedSignal ? (
                 <WaveformChart
@@ -98,7 +128,7 @@ export function DayCharts({ detail }: DayChartsProps) {
                   label={renderedSignal.header.label}
                   values={renderedSignal.values}
                   sampleRateHz={renderedSignal.header.sampleRateHz}
-                  startTime={renderedSignal.header.startTime}
+                  startTime={renderedStartTime}
                   useSessions={detail.useSessions}
                   eventMarkers={eventMarkers}
                   focusedSecond={focusedEvent?.secondsFromDayStart ?? null}
@@ -126,7 +156,7 @@ export function DayCharts({ detail }: DayChartsProps) {
         <div className="chart-events">
           <div className="chart-events-header">
             <h4>
-              {isAscp ? 'ASCP 压力记录' : 'AI/HI 事件'}
+              {isAscp ? "ASCP 压力记录" : "呼吸事件"}
               <ChipRoot variant="soft" size="sm">
                 <ChipLabel>{activeEvents.length}</ChipLabel>
               </ChipRoot>
@@ -147,26 +177,32 @@ export function DayCharts({ detail }: DayChartsProps) {
                 {activeEvents.map((event, i) => (
                   <tr
                     key={`${event.sourceLabel}-${event.timestamp}-${i}`}
-                    className={`chart-event-row${focusedIndex === i ? ' chart-event-active' : ''}`}
+                    className={`chart-event-row${focusedIndex === i ? " chart-event-active" : ""}`}
                     onClick={() => {
-                      if (typeof event.secondsFromDayStart === 'number') {
+                      if (typeof event.secondsFromDayStart === "number") {
                         setFocusedIndex(i === focusedIndex ? null : i);
                       }
                     }}
                   >
                     <td>
-                      <ChipRoot variant="soft" size="sm" className={`event-badge--${event.sourceLabel}`}>
+                      <ChipRoot
+                        variant="soft"
+                        size="sm"
+                        className={`event-badge--${event.sourceLabel}`}
+                      >
                         <ChipLabel>{event.sourceLabel.toUpperCase()}</ChipLabel>
                       </ChipRoot>
                     </td>
-                    <td className="event-time">{event.timestamp ?? '-'}</td>
+                    <td className="event-time">{event.timestamp ?? "-"}</td>
                     {isAscp ? (
                       <>
                         <td className="event-value">
-                          {(event.value1 / 10).toFixed(1)} <span className="event-unit">cmH2O</span>
+                          {(event.value1 / 10).toFixed(1)}{" "}
+                          <span className="event-unit">cmH2O</span>
                         </td>
                         <td className="event-value">
-                          {(event.value2 / 10).toFixed(1)} <span className="event-unit">cmH2O</span>
+                          {(event.value2 / 10).toFixed(1)}{" "}
+                          <span className="event-unit">cmH2O</span>
                         </td>
                       </>
                     ) : (

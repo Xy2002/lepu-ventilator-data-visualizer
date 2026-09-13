@@ -1,18 +1,20 @@
-import { useState } from 'react';
-import type { EventRecord } from '../types';
+import { useState } from "react";
+import type { EventRecord } from "../types";
 
 interface EventTableProps {
   events: EventRecord[];
   onSelectEvent: (seconds: number, timestamp: string | null) => void;
 }
 
-type EventCategory = 'all' | 'ai' | 'hi' | 'ascp' | 'usetime';
+type EventCategory = "all" | "ai" | "hi" | "csa" | "leak" | "ascp" | "usetime";
 
 const CATEGORY_META: Record<string, { label: string; color: string }> = {
-  ai: { label: 'AI 呼吸暂停', color: 'ai' },
-  hi: { label: 'HI 低通气', color: 'hi' },
-  ascp: { label: 'ASCP 压力', color: 'ascp' },
-  usetime: { label: '使用时段', color: 'usetime' },
+  ai: { label: "AI 呼吸暂停", color: "ai" },
+  hi: { label: "HI 低通气", color: "hi" },
+  csa: { label: "CSA 中枢性暂停", color: "csa" },
+  leak: { label: "LEAK 漏气", color: "leak" },
+  ascp: { label: "ASCP 压力", color: "ascp" },
+  usetime: { label: "使用时段", color: "usetime" },
 };
 
 function formatDuration(seconds: number): string {
@@ -26,13 +28,17 @@ function formatDuration(seconds: number): string {
 }
 
 function eventDetail(event: EventRecord): string {
-  if (event.sourceLabel === 'ascp') {
+  if (event.sourceLabel === "ascp") {
     return `IPAP ${(event.value1 / 10).toFixed(1)} / EPAP ${(event.value2 / 10).toFixed(1)} cmH2O`;
   }
-  if (event.sourceLabel === 'ai' || event.sourceLabel === 'hi') {
+  if (
+    event.sourceLabel === "ai" ||
+    event.sourceLabel === "hi" ||
+    event.sourceLabel === "csa"
+  ) {
     return `持续 ${event.value2}秒`;
   }
-  if (event.sourceLabel === 'usetime') {
+  if (event.sourceLabel === "usetime") {
     return `时长 ${formatDuration(event.value1)}`;
   }
   return `${event.value1} / ${event.value2}`;
@@ -41,22 +47,29 @@ function eventDetail(event: EventRecord): string {
 function TypeBadge({ sourceLabel }: { sourceLabel: string }) {
   const meta = CATEGORY_META[sourceLabel];
   if (!meta) return <span>{sourceLabel}</span>;
-  return <span className={`event-badge event-badge--${meta.color}`}>{sourceLabel.toUpperCase()}</span>;
+  return (
+    <span className={`event-badge event-badge--${meta.color}`}>
+      {sourceLabel.toUpperCase()}
+    </span>
+  );
 }
 
 export function EventTable({ events, onSelectEvent }: EventTableProps) {
-  const [activeFilter, setActiveFilter] = useState<EventCategory>('all');
+  const [activeFilter, setActiveFilter] = useState<EventCategory>("all");
 
   const counts: Record<string, number> = {};
   for (const event of events) {
     counts[event.sourceLabel] = (counts[event.sourceLabel] ?? 0) + 1;
   }
 
-  const categories = (['ai', 'hi', 'ascp', 'usetime'] as const).filter((c) => (counts[c] ?? 0) > 0);
-  const filtered = activeFilter === 'all'
-    ? events
-    : events.filter((e) => e.sourceLabel === activeFilter);
-  const isFiltered = activeFilter !== 'all';
+  const categories = (
+    ["ai", "hi", "csa", "leak", "ascp", "usetime"] as const
+  ).filter((c) => (counts[c] ?? 0) > 0);
+  const filtered =
+    activeFilter === "all"
+      ? events
+      : events.filter((e) => e.sourceLabel === activeFilter);
+  const isFiltered = activeFilter !== "all";
 
   return (
     <section className="event-table">
@@ -66,8 +79,8 @@ export function EventTable({ events, onSelectEvent }: EventTableProps) {
         <div className="event-filter-tabs">
           <button
             type="button"
-            className={`event-filter-tab ${activeFilter === 'all' ? 'active' : ''}`}
-            onClick={() => setActiveFilter('all')}
+            className={`event-filter-tab ${activeFilter === "all" ? "active" : ""}`}
+            onClick={() => setActiveFilter("all")}
           >
             全部 <span className="event-filter-count">{events.length}</span>
           </button>
@@ -75,10 +88,11 @@ export function EventTable({ events, onSelectEvent }: EventTableProps) {
             <button
               key={cat}
               type="button"
-              className={`event-filter-tab ${activeFilter === cat ? 'active' : ''}`}
+              className={`event-filter-tab ${activeFilter === cat ? "active" : ""}`}
               onClick={() => setActiveFilter(cat)}
             >
-              {cat.toUpperCase()} <span className="event-filter-count">{counts[cat]}</span>
+              {cat.toUpperCase()}{" "}
+              <span className="event-filter-count">{counts[cat]}</span>
             </button>
           ))}
         </div>
@@ -89,62 +103,118 @@ export function EventTable({ events, onSelectEvent }: EventTableProps) {
             <tr>
               <th>类型</th>
               <th>时间</th>
-              {activeFilter === 'ascp' ? <th>IPAP</th> : null}
-              {activeFilter === 'ascp' ? <th>EPAP</th> : null}
-              {(activeFilter === 'ai' || activeFilter === 'hi') ? <th>持续</th> : null}
-              {activeFilter === 'usetime' ? <th>时长</th> : null}
-              {isFiltered ? null : <th>详情</th>}
+              {activeFilter === "ascp" ? <th>IPAP</th> : null}
+              {activeFilter === "ascp" ? <th>EPAP</th> : null}
+              {activeFilter === "ai" ||
+              activeFilter === "hi" ||
+              activeFilter === "csa" ? (
+                <th>持续</th>
+              ) : null}
+              {activeFilter === "usetime" ? <th>时长</th> : null}
+              {!isFiltered || activeFilter === "leak" ? <th>详情</th> : null}
               <th />
             </tr>
           </thead>
           <tbody>
             {filtered.map((event, index) => {
               const handleSelect = () => {
-                if (typeof event.secondsFromDayStart === 'number') {
+                if (typeof event.secondsFromDayStart === "number") {
                   onSelectEvent(event.secondsFromDayStart, event.timestamp);
                 }
               };
 
-              if (activeFilter === 'ascp') {
+              if (activeFilter === "ascp") {
                 return (
                   <tr key={`${event.sourceLabel}-${event.timestamp}-${index}`}>
-                    <td><TypeBadge sourceLabel={event.sourceLabel} /></td>
-                    <td className="event-time">{event.timestamp ?? '-'}</td>
-                    <td className="event-value">{(event.value1 / 10).toFixed(1)} <span className="event-unit">cmH2O</span></td>
-                    <td className="event-value">{(event.value2 / 10).toFixed(1)} <span className="event-unit">cmH2O</span></td>
-                    <td><button type="button" className="event-locate-btn" onClick={handleSelect}>定位</button></td>
+                    <td>
+                      <TypeBadge sourceLabel={event.sourceLabel} />
+                    </td>
+                    <td className="event-time">{event.timestamp ?? "-"}</td>
+                    <td className="event-value">
+                      {(event.value1 / 10).toFixed(1)}{" "}
+                      <span className="event-unit">cmH2O</span>
+                    </td>
+                    <td className="event-value">
+                      {(event.value2 / 10).toFixed(1)}{" "}
+                      <span className="event-unit">cmH2O</span>
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="event-locate-btn"
+                        onClick={handleSelect}
+                      >
+                        定位
+                      </button>
+                    </td>
                   </tr>
                 );
               }
 
-              if (activeFilter === 'ai' || activeFilter === 'hi') {
+              if (
+                activeFilter === "ai" ||
+                activeFilter === "hi" ||
+                activeFilter === "csa"
+              ) {
                 return (
                   <tr key={`${event.sourceLabel}-${event.timestamp}-${index}`}>
-                    <td><TypeBadge sourceLabel={event.sourceLabel} /></td>
-                    <td className="event-time">{event.timestamp ?? '-'}</td>
+                    <td>
+                      <TypeBadge sourceLabel={event.sourceLabel} />
+                    </td>
+                    <td className="event-time">{event.timestamp ?? "-"}</td>
                     <td className="event-value">{event.value2}秒</td>
-                    <td><button type="button" className="event-locate-btn" onClick={handleSelect}>定位</button></td>
+                    <td>
+                      <button
+                        type="button"
+                        className="event-locate-btn"
+                        onClick={handleSelect}
+                      >
+                        定位
+                      </button>
+                    </td>
                   </tr>
                 );
               }
 
-              if (activeFilter === 'usetime') {
+              if (activeFilter === "usetime") {
                 return (
                   <tr key={`${event.sourceLabel}-${event.timestamp}-${index}`}>
-                    <td><TypeBadge sourceLabel={event.sourceLabel} /></td>
-                    <td className="event-time">{event.timestamp ?? '-'}</td>
-                    <td className="event-value">{formatDuration(event.value1)}</td>
-                    <td><button type="button" className="event-locate-btn" onClick={handleSelect}>定位</button></td>
+                    <td>
+                      <TypeBadge sourceLabel={event.sourceLabel} />
+                    </td>
+                    <td className="event-time">{event.timestamp ?? "-"}</td>
+                    <td className="event-value">
+                      {formatDuration(event.value1)}
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="event-locate-btn"
+                        onClick={handleSelect}
+                      >
+                        定位
+                      </button>
+                    </td>
                   </tr>
                 );
               }
 
               return (
                 <tr key={`${event.sourceLabel}-${event.timestamp}-${index}`}>
-                  <td><TypeBadge sourceLabel={event.sourceLabel} /></td>
-                  <td className="event-time">{event.timestamp ?? '-'}</td>
+                  <td>
+                    <TypeBadge sourceLabel={event.sourceLabel} />
+                  </td>
+                  <td className="event-time">{event.timestamp ?? "-"}</td>
                   <td className="event-value">{eventDetail(event)}</td>
-                  <td><button type="button" className="event-locate-btn" onClick={handleSelect}>定位</button></td>
+                  <td>
+                    <button
+                      type="button"
+                      className="event-locate-btn"
+                      onClick={handleSelect}
+                    >
+                      定位
+                    </button>
+                  </td>
                 </tr>
               );
             })}

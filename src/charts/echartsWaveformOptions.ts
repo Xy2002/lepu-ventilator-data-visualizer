@@ -17,6 +17,7 @@ export interface EventMarkerInfo {
 export const EVENT_STYLES: Record<string, { color: string; label: string }> = {
   ai: { color: "#d92d20", label: "AI 呼吸暂停" },
   hi: { color: "#f59e0b", label: "HI 低通气" },
+  csa: { color: "#0d9488", label: "CSA 中枢性暂停" },
   ascp: { color: "#6366f1", label: "ASCP 压力调整" },
 };
 

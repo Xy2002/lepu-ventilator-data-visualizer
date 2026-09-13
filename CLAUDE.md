@@ -52,6 +52,8 @@ Requires Node >= 20.19.0.
 | `mvtvbr`                                     | `triples_u16le`  | 6-byte records (3 × uint16 LE)                               |
 | `config`                                     | `raw_config`     | BA525 config payload                                         |
 
+Derived-channel caveats (verified over the full 711-day corpus, see issue #55): `difleak` (5s sampling) and `mvtvbr` (10s interval) headers carry `start == end` — the device writes only the first-sample time — so time axes must fall back to session time or sample index. The semantics of `mvtvbr` triples, `usetime.value2`, `leak` values, and the constant-1 `value1` of `ai`/`hi`/`csa` are NOT yet confirmed; do not invent units for them (device-assisted experiments pending).
+
 ## Tech Stack
 
 React 19 · TypeScript · Vite · Tailwind CSS 4 · ECharts 6 · HeroUI · Vitest + Testing Library
