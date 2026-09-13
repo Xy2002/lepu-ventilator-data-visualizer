@@ -201,7 +201,7 @@ sequenceDiagram
 
 - **React 19** + **TypeScript** — UI 框架
 - **Vite** — 构建工具
-- **Tailwind CSS 4** — 样式
+- **HeroUI + Tailwind CSS 4** — 组件库与样式（HeroUI 样式表经 Tailwind 编译;手写 App.css 补充布局细节）
 - **ECharts 6** — 图表渲染（按需引入：LineChart, CanvasRenderer, DataZoom, Grid, MarkLine, Toolbox, Tooltip）
 - **HeroUI** — UI 组件库（Button, Card, Chip, Tabs）
 - **react-markdown** + **remark-gfm** + **rehype-highlight** — AI 报告 Markdown 渲染
