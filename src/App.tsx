@@ -137,9 +137,13 @@ export function App() {
 
     let cancelled = false;
     setIsLoadingDay(true);
+    setError(null);
     loadDayDetail(dataset, selectedDate)
       .then((detail) => {
         if (!cancelled) setDayDetail(detail);
+      })
+      .catch(() => {
+        if (!cancelled) setError("加载所选日期数据失败，请重新导入。");
       })
       .finally(() => {
         if (!cancelled) setIsLoadingDay(false);
