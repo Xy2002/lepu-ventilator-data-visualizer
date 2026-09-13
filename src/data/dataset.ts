@@ -239,6 +239,20 @@ async function summarizeDay(
 
 export type IndexProgress = { completed: number; total: number };
 
+// 按路径推断日期并分组(供数据集索引与缓存引用切换共用)
+export function groupImportedFilesByDay(
+  files: ImportedFileRef[]
+): Record<string, ImportedFileRef[]> {
+  const filesByDay: Record<string, ImportedFileRef[]> = {};
+  for (const fileRef of files) {
+    const date = inferDateFromPath(fileRef.path || fileRef.name);
+    if (!date) continue;
+    filesByDay[date] ??= [];
+    filesByDay[date].push(fileRef);
+  }
+  return filesByDay;
+}
+
 export async function buildDatasetIndex(
   importedFiles: ImportedFileRef[],
   onProgress?: (progress: IndexProgress) => void

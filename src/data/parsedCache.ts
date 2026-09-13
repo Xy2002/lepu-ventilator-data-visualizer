@@ -4,7 +4,7 @@ import type {
   ImportedFileRef,
   ParsedVentilatorFile,
 } from "../types";
-import { inferDateFromPath } from "./dataset";
+import { groupImportedFilesByDay } from "./dataset";
 import { readImportGeneration } from "./importCache";
 
 const DB_NAME = "ventilator-parsed-cache";
@@ -242,13 +242,7 @@ export async function loadParsedDataset(
 
     await transactionDone(tx);
 
-    const filesByDay: Record<string, ImportedFileRef[]> = {};
-    for (const fileRef of files) {
-      const date = inferDateFromPath(fileRef.path || fileRef.name);
-      if (!date) continue;
-      filesByDay[date] ??= [];
-      filesByDay[date].push(fileRef);
-    }
+    const filesByDay = groupImportedFilesByDay(files);
 
     return {
       days: meta.days,

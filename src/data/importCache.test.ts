@@ -4,6 +4,7 @@ import type { ImportedFileRef } from "../types";
 import { importedFileRefFromFile } from "./importedFile";
 import {
   disposeContentsConnectionForTests,
+  holdReaderGeneration,
   invalidateImportedFiles,
   loadImportedFiles,
   saveImportedFiles,
@@ -120,6 +121,63 @@ describe("importCache", () => {
       () => true
     );
     expect(new Uint8Array(await restored.files[0].read())).toEqual(payload);
+  });
+
+  it("keeps generations held by active reader locks", async () => {
+    // 旧标签页通过读者锁声明自己仍在使用某代际:
+    // 新导入的清理必须保留它,即使它已不是"当前发布代际"
+    const held = new Map<string, Promise<unknown>>();
+    const fakeLocks = {
+      // 兼容两种签名:写锁 request(name, task) / 读者锁 request(name, options, callback)
+      request: (
+        name: string,
+        optionsOrTask: unknown,
+        maybeCallback?: () => Promise<unknown>
+      ) => {
+        const task =
+          typeof optionsOrTask === "function"
+            ? (optionsOrTask as () => Promise<unknown>)
+            : maybeCallback;
+        if (!task) return Promise.resolve();
+        const promise = task();
+        if (name.startsWith("ventilator-import-cache-reader:")) {
+          held.set(name, promise);
+        }
+        return promise;
+      },
+      query: async () => ({
+        held: [...held.keys()].map((name) => ({ name, mode: "shared" })),
+        pending: [],
+      }),
+    };
+    Object.defineProperty(navigator, "locks", {
+      configurable: true,
+      value: fakeLocks,
+    });
+
+    try {
+      const payload = new Uint8Array(600);
+      for (let i = 0; i < payload.length; i += 1) payload[i] = i % 251;
+      await saveImportedFiles([makeRef("a.edf", payload)]);
+      const restored = await loadImportedFiles();
+      holdReaderGeneration(restored.generation);
+      expect(
+        held.has(`ventilator-import-cache-reader:${restored.generation}`)
+      ).toBe(true);
+
+      // 两次后续写入:G2 发布、G3 写入被取代——G1 的读者锁让它幸存
+      await saveImportedFiles([makeRef("b.edf", new Uint8Array([9]))]);
+      await saveImportedFiles(
+        [makeRef("c.edf", new Uint8Array([8]))],
+        () => true
+      );
+      expect(new Uint8Array(await restored.files[0].read())).toEqual(payload);
+      await expect(loadImportedFiles()).resolves.toMatchObject({
+        files: [expect.objectContaining({ name: "b.edf" })],
+      });
+    } finally {
+      delete (navigator as unknown as { locks?: unknown }).locks;
+    }
   });
 
   it("treats a torn cache (meta without contents) as absent", async () => {

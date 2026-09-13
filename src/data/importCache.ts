@@ -121,11 +121,50 @@ async function readPublishedGeneration(
   return state?.generation ?? null;
 }
 
-// 清理已发布代际之外的内容记录:仍被其他标签页引用的已发布代际保留,
-// 更早的遗留代际(含写入中断的残骸)删除,磁盘占用有上界(约两份)
+// 读者锁:标签页对正在使用的代际持有共享锁,页面关闭/崩溃时自动释放;
+// 内容清理通过 locks.query() 收集所有活跃读者代际并保留它们
+const READER_LOCK_PREFIX = "ventilator-import-cache-reader:";
+
+export function holdReaderGeneration(generation: string | null): void {
+  if (
+    !generation ||
+    typeof navigator === "undefined" ||
+    !navigator.locks?.request
+  )
+    return;
+  navigator.locks
+    .request(
+      `${READER_LOCK_PREFIX}${generation}`,
+      { mode: "shared" },
+      // 永不 resolve 的回调 = 锁持有到页面生命周期结束
+      () => new Promise<void>(() => {})
+    )
+    .catch(() => {
+      /* 持锁失败仅影响旧代际保留策略,不影响功能 */
+    });
+}
+
+async function activeReaderGenerations(): Promise<Set<string>> {
+  if (typeof navigator === "undefined" || !navigator.locks?.query) {
+    return new Set();
+  }
+  const snapshot = await navigator.locks.query().catch(() => ({ held: [] }));
+  const generations = new Set<string>();
+  for (const lock of snapshot.held ?? []) {
+    const match = lock.name
+      ? /^ventilator-import-cache-reader:(.+)$/.exec(lock.name)
+      : null;
+    if (match) generations.add(match[1]);
+  }
+  return generations;
+}
+
+// 清理内容记录:保留当前已发布代际与所有仍被活跃标签页引用的代际
+// (读者锁不可用时空集合,退化为仅保留已发布代际),
+// 其余更早的遗留代际(含写入中断的残骸)删除
 async function deleteContentGenerationsExcept(
   database: IDBDatabase,
-  keepGeneration: string | null
+  keepGenerations: Set<string>
 ) {
   const transaction = database.transaction(CONTENT_STORE, "readwrite");
   const store = transaction.objectStore(CONTENT_STORE);
@@ -135,7 +174,7 @@ async function deleteContentGenerationsExcept(
     if (!cursor) return;
     const key = String(cursor.key);
     const generation = key.slice(0, key.indexOf("/"));
-    if (generation !== keepGeneration) {
+    if (!keepGenerations.has(generation)) {
       store.delete(cursor.key);
     }
     cursor.continue();
@@ -160,10 +199,12 @@ export async function saveImportedFiles(
     const database = await openImportDatabase();
 
     try {
-      // 保留已发布代际的内容(其他标签页可能正要惰性读取),
-      // 只清理更早的遗留代际;新代际写入后由下一次保存清理本代际
+      // 保留已发布代际与所有活跃读者代际的内容(其他标签页可能正要惰性读取),
+      // 只清理无人引用的遗留代际;新代际写入后由下一次保存清理本代际
       const publishedGeneration = await readPublishedGeneration(database);
-      await deleteContentGenerationsExcept(database, publishedGeneration);
+      const keepGenerations = await activeReaderGenerations();
+      if (publishedGeneration) keepGenerations.add(publishedGeneration);
+      await deleteContentGenerationsExcept(database, keepGenerations);
 
       const generation = newCacheGeneration();
       const BATCH_SIZE = 20;

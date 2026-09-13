@@ -10,11 +10,13 @@ import { SummaryCards } from "./components/SummaryCards";
 import { DatasetStatusBar } from "./components/DatasetStatusBar";
 import {
   buildDatasetIndex,
+  groupImportedFilesByDay,
   type IndexProgress,
   loadDayDetail,
 } from "./data/dataset";
 import { downloadCsv, exportDaySummaryCsv } from "./data/csv";
 import {
+  holdReaderGeneration,
   invalidateImportedFiles,
   loadImportedFiles,
   saveImportedFiles,
@@ -96,6 +98,8 @@ export function App() {
         const snapshot = await loadImportedFiles();
         if (cancelled || snapshot.files.length === 0) return;
         const cachedFiles = snapshot.files;
+        // 声明本标签页仍在使用该代际:内容清理会保留它(页面关闭自动释放)
+        holdReaderGeneration(snapshot.generation);
 
         let nextDataset = await loadParsedDataset(cachedFiles);
         if (!nextDataset) {
@@ -196,8 +200,39 @@ export function App() {
             files,
             () => cacheRun !== cacheRunRef.current
           );
-          if (cacheRun !== cacheRunRef.current) return;
-          await saveParsedDataset(files, nextDataset, generation);
+          if (cacheRun !== cacheRunRef.current || generation === null) return;
+
+          try {
+            await saveParsedDataset(files, nextDataset, generation);
+          } catch {
+            // 文件内容已 durable:解析缓存缺失只影响下次恢复速度,
+            // 刷新后自动重建索引,不需要重新导入
+            setCacheNotice(
+              "文件内容已缓存，但解析索引缓存保存失败；刷新后将自动重建。"
+            );
+          }
+
+          // 本标签页切换为缓存引用:数据源(如 SD 卡)拔除后,
+          // 未访问过的日期仍可从缓存读取
+          try {
+            const snapshot = await loadImportedFiles();
+            if (
+              snapshot.files.length > 0 &&
+              snapshot.generation === generation
+            ) {
+              holdReaderGeneration(generation);
+              setDataset((current) =>
+                current
+                  ? {
+                      ...current,
+                      filesByDay: groupImportedFilesByDay(snapshot.files),
+                    }
+                  : current
+              );
+            }
+          } catch {
+            /* best effort */
+          }
         } catch {
           // 被新导入取代的写入失败与当前数据集无关,不惊扰用户
           if (cacheRun === cacheRunRef.current) {

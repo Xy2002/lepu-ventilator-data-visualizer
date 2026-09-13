@@ -17,6 +17,7 @@ const echartsCoreMock = vi.hoisted(() => ({
 }));
 
 const importCacheMock = vi.hoisted(() => ({
+  holdReaderGeneration: vi.fn(),
   invalidateImportedFiles: vi.fn(),
   loadImportedFiles: vi.fn(),
   saveImportedFiles: vi.fn(),
@@ -99,6 +100,7 @@ function concatPayloads(...payloads: Uint8Array[]) {
 
 describe("App", () => {
   beforeEach(() => {
+    importCacheMock.holdReaderGeneration.mockReturnValue(undefined);
     importCacheMock.invalidateImportedFiles.mockResolvedValue(undefined);
     importCacheMock.loadImportedFiles.mockResolvedValue({
       files: [],
@@ -205,6 +207,28 @@ describe("App", () => {
         expect.any(Function)
       )
     );
+    // 缓存写入完成后会重新加载缓存引用以切换数据来源
+    await vi.waitFor(() =>
+      expect(
+        importCacheMock.loadImportedFiles.mock.calls.length
+      ).toBeGreaterThanOrEqual(2)
+    );
+  });
+
+  it("reports parsed-cache failures separately from file-cache failures", async () => {
+    parsedCacheMock.saveParsedDataset.mockRejectedValueOnce(
+      new Error("quota exceeded")
+    );
+
+    render(<App />);
+    await userEvent.upload(
+      screen.getByLabelText("选择 EDF 文件"),
+      edfFile("20260429_flow.edf", "flow", new Uint8Array([20, 19, 17]))
+    );
+
+    // 文件内容已 durable:提示应只针对解析缓存,不要求重新导入
+    expect(await screen.findByText(/解析索引缓存保存失败/)).toBeInTheDocument();
+    expect(screen.queryByText(/无法缓存这些文件/)).not.toBeInTheDocument();
   });
 
   it("shows a keep-source-connected notice while caching is in progress", async () => {
