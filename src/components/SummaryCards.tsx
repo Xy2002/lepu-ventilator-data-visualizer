@@ -33,7 +33,8 @@ export function SummaryCards({ summary }: SummaryCardsProps) {
         <CardContent>
           <span className="summary-label">AI / HI</span>
           <strong className="summary-value">
-            {summary.eventCounts.ai ?? 0} / {summary.eventCounts.hi ?? 0}
+            {summary.eventCounts.ai ?? "无记录"} /{" "}
+            {summary.eventCounts.hi ?? "无记录"}
           </strong>
         </CardContent>
       </CardRoot>
@@ -51,7 +52,7 @@ export function SummaryCards({ summary }: SummaryCardsProps) {
         <CardContent>
           <span className="summary-label">ASCP 事件</span>
           <strong className="summary-value">
-            {summary.eventCounts.ascp ?? 0}
+            {summary.eventCounts.ascp ?? "无记录"}
           </strong>
         </CardContent>
       </CardRoot>
