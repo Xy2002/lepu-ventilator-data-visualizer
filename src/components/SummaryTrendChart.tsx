@@ -1,6 +1,9 @@
 import { useEffect, useMemo } from "react";
 import * as echarts from "echarts/core";
-import { BarChart as EChartsBarChart } from "echarts/charts";
+import {
+  BarChart as EChartsBarChart,
+  LineChart as EChartsLineChart,
+} from "echarts/charts";
 import {
   GridComponent,
   LegendComponent,
@@ -14,6 +17,7 @@ import { useECharts } from "../charts/useECharts";
 echarts.use([
   CanvasRenderer,
   EChartsBarChart,
+  EChartsLineChart,
   GridComponent,
   LegendComponent,
   TooltipComponent,
