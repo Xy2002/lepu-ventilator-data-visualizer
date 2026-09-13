@@ -7,6 +7,7 @@ import {
 import type { ImportedFileRef } from "../types";
 import {
   buildDatasetIndex,
+  computePressureRange,
   filterDays,
   inspectDayDetailCache,
   loadDayDetail,
@@ -151,6 +152,22 @@ describe("dataset indexing", () => {
       "mystery",
     ]);
     expect(detail.summary.pressureRange).toEqual({ min: 0.1, max: 0.9 });
+  });
+
+  it("computes pressure range on demand from raw files for unloaded days", async () => {
+    const files = [
+      imported("20260429_flow.edf", "flow", new Uint8Array([1])),
+      imported(
+        "20260429_pressure.edf",
+        "pressure",
+        new Uint8Array([100, 0, 151, 0])
+      ),
+    ];
+    const index = await buildDatasetIndex(files);
+
+    // 索引阶段不扫描压力;按需计算应返回换算后的 cmH2O
+    const range = await computePressureRange(index, "2026-04-29");
+    expect(range).toEqual({ min: 10, max: 15.1 });
   });
 
   it("keeps waveform payloads out of the index and loads them on demand", async () => {

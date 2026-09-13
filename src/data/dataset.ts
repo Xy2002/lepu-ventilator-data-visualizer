@@ -303,6 +303,44 @@ export async function buildDatasetIndex(
   };
 }
 
+// 导出场景：索引阶段跳过了压力扫描，按需对单日 pressure 文件补算范围
+export async function computePressureRange(
+  index: DatasetIndex,
+  date: string
+): Promise<DaySummary["pressureRange"]> {
+  // 已完整解析的缓存条目优先(legacy 缓存或已加载的日),避免重复读盘
+  for (const file of index.parsedFilesByDay[date] ?? []) {
+    if (file.header.label !== "pressure" || file.values.length === 0) continue;
+    return scanPressureRange(file.values);
+  }
+  for (const ref of index.filesByDay[date] ?? []) {
+    const parsed = await parseImportedFile(ref);
+    if (
+      parsed.header.label !== "pressure" ||
+      parsed.kind !== "waveform_u16le"
+    ) {
+      continue;
+    }
+    return scanPressureRange(parsed.values);
+  }
+  return null;
+}
+
+function scanPressureRange(
+  values: ParsedVentilatorFile["values"]
+): DaySummary["pressureRange"] {
+  let min = Number.POSITIVE_INFINITY;
+  let max = Number.NEGATIVE_INFINITY;
+  for (const value of values) {
+    if (value < min) min = value;
+    if (value > max) max = value;
+  }
+  if (!Number.isFinite(min)) return null;
+  const toCmH2O = (value: number) =>
+    Math.round(value * PRESSURE_CMH2O_PER_UNIT * 10) / 10;
+  return { min: toCmH2O(min), max: toCmH2O(max) };
+}
+
 export function filterDays(index: DatasetIndex, filter: DateFilter) {
   return index.days.filter((day) => {
     if (filter.startDate && day < filter.startDate) return false;
