@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { downloadCsv, exportDateSummariesCsv } from "../data/csv";
 import { filterDays } from "../data/dataset";
 import type { DatasetIndex } from "../types";
 
@@ -112,6 +113,23 @@ export function DateNavigator({
       </div>
       <div className="bounded-results">
         <h3>筛选日期{missingOnly ? "（仅缺失）" : ""}</h3>
+        <button
+          type="button"
+          className="export-filtered-btn"
+          disabled={filteredDays.length === 0}
+          onClick={() => {
+            const summaries = filteredDays.map(
+              (date) => dataset.summariesByDay[date]
+            );
+            const fileName =
+              filteredDays.length > 0
+                ? `summaries-${filteredDays[0]}-to-${filteredDays[filteredDays.length - 1]}.csv`
+                : "summaries.csv";
+            downloadCsv(fileName, exportDateSummariesCsv(summaries));
+          }}
+        >
+          导出筛选日期摘要
+        </button>
         <p className="results-hint">
           共 {filteredDays.length} 天，显示最近 20 天
         </p>
