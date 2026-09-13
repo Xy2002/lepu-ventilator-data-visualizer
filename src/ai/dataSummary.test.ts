@@ -52,6 +52,18 @@ describe("buildDataSummary", () => {
     expect(result).toContain("流量波形: ✓ (125,000 采样点)");
   });
 
+  it("marks absent AI/HI categories as 无记录 on partial days", () => {
+    const partial: DaySummary = {
+      ...sampleSummary,
+      eventCounts: { hi: 5, ascp: 4 },
+    };
+    const result = buildDataSummary(partial);
+    expect(result).toContain("AHI 相关事件总计（AI + HI）: 5 次");
+    expect(result).toContain("中心性呼吸暂停 (AI): 无记录");
+    expect(result).toContain("低通气 (HI): 5 次");
+    expect(result).not.toContain("中心性呼吸暂停 (AI): 0 次");
+  });
+
   it("handles minimal data gracefully", () => {
     const minimal: DaySummary = {
       date: "2026-05-21",

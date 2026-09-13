@@ -48,16 +48,27 @@ export function buildDataSummary(summary: DaySummary): string {
 
   // Events
   lines.push("### 事件统计");
-  const aiCount = summary.eventCounts.ai ?? 0;
-  const hiCount = summary.eventCounts.hi ?? 0;
+  // eventCounts 只包含实际解析到的事件文件键；缺失的类目标“无记录”而非 0，
+  // 避免把不完整的当日数据呈现为完整统计。
+  const aiCount = summary.eventCounts.ai;
+  const hiCount = summary.eventCounts.hi;
+  const ahiTotal = (aiCount ?? 0) + (hiCount ?? 0);
   const otherEntries = Object.entries(summary.eventCounts).filter(
     ([label]) => label !== "ai" && label !== "hi"
   );
 
-  if (aiCount + hiCount > 0 || otherEntries.length > 0) {
-    lines.push(`AHI 相关事件总计（AI + HI）: ${aiCount + hiCount} 次`);
-    lines.push(`  - 中心性呼吸暂停 (AI): ${aiCount} 次`);
-    lines.push(`  - 低通气 (HI): ${hiCount} 次`);
+  if (
+    aiCount !== undefined ||
+    hiCount !== undefined ||
+    otherEntries.length > 0
+  ) {
+    lines.push(`AHI 相关事件总计（AI + HI）: ${ahiTotal} 次`);
+    lines.push(
+      `  - 中心性呼吸暂停 (AI): ${aiCount !== undefined ? `${aiCount} 次` : "无记录"}`
+    );
+    lines.push(
+      `  - 低通气 (HI): ${hiCount !== undefined ? `${hiCount} 次` : "无记录"}`
+    );
 
     if (otherEntries.length > 0) {
       lines.push("其他记录（不计入 AHI）:");
