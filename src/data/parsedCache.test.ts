@@ -176,7 +176,6 @@ describe("parsedCache", () => {
       expect(parsed).toHaveLength(1);
       expect(parsed[0].kind).toBe("waveform_u8");
       // 波形属于延迟解析类型：加载时归一化为 header-only,payload 由 importCache 按需重解析
-
       expect(parsed[0].values).toBeInstanceOf(Uint8Array);
       expect(parsed[0].values.length).toBe(0);
       expect(parsed[0].rawPayload).toBeInstanceOf(Uint8Array);

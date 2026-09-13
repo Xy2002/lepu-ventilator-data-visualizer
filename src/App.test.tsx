@@ -182,7 +182,7 @@ describe("App", () => {
       }),
       true
     );
-    expect(screen.getByText("AI/HI 事件")).toBeTruthy();
+    expect(screen.getByText("呼吸事件")).toBeTruthy();
     expect(importCacheMock.saveImportedFiles).toHaveBeenCalledWith(
       expect.arrayContaining([
         expect.objectContaining({ name: "20260429_flow.edf" }),
