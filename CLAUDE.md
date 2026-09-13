@@ -43,14 +43,14 @@ Requires Node >= 20.19.0.
 
 **File format cheat sheet:**
 
-| Label (offset 256)            | Parsed kind      | Payload encoding                                             |
-| ----------------------------- | ---------------- | ------------------------------------------------------------ |
-| `flow`, `difleak`             | `waveform_u8`    | raw bytes                                                    |
-| `pressure`, `real_pres`       | `waveform_u16le` | uint16 LE pairs                                              |
-| `real_flow`                   | `waveform_i16le` | int16 LE pairs                                               |
-| `ai`, `hi`, `ascp`, `usetime` | `events16`       | 16-byte records (value1 u32 + value2 u32 + 8-byte timestamp) |
-| `mvtvbr`                      | `triples_u16le`  | 6-byte records (3 × uint16 LE)                               |
-| `config`                      | `raw_config`     | BA525 config payload                                         |
+| Label (offset 256)                           | Parsed kind      | Payload encoding                                             |
+| -------------------------------------------- | ---------------- | ------------------------------------------------------------ |
+| `flow`, `difleak`                            | `waveform_u8`    | raw bytes                                                    |
+| `pressure`, `real_pres`                      | `waveform_u16le` | uint16 LE pairs                                              |
+| `real_flow`                                  | `waveform_i16le` | int16 LE pairs                                               |
+| `ai`, `hi`, `ascp`, `usetime`, `leak`, `csa` | `events16`       | 16-byte records (value1 u32 + value2 u32 + 8-byte timestamp) |
+| `mvtvbr`                                     | `triples_u16le`  | 6-byte records (3 × uint16 LE)                               |
+| `config`                                     | `raw_config`     | BA525 config payload                                         |
 
 ## Tech Stack
 
