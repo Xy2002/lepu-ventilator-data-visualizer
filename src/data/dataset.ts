@@ -352,8 +352,20 @@ export function filterDays(index: DatasetIndex, filter: DateFilter) {
       (summary.eventCounts[filter.requireEvent] ?? 0) === 0
     )
       return false;
+    if (filter.requireEvents) {
+      const missingRequired = filter.requireEvents.some(
+        (label) => (summary.eventCounts[label] ?? 0) === 0
+      );
+      if (missingRequired) return false;
+    }
     if (filter.missingFilesOnly && summary.missingFiles.length === 0)
       return false;
+    if (
+      filter.minUseDurationSeconds !== undefined &&
+      (summary.useDurationSeconds ?? 0) < filter.minUseDurationSeconds
+    ) {
+      return false;
+    }
 
     return true;
   });

@@ -1,12 +1,12 @@
 export type ParsedKind =
-  | 'waveform_u8'
-  | 'waveform_u16le'
-  | 'waveform_i16le'
-  | 'events16'
-  | 'triples_u16le'
-  | 'raw_config'
-  | 'raw'
-  | 'invalid';
+  | "waveform_u8"
+  | "waveform_u16le"
+  | "waveform_i16le"
+  | "events16"
+  | "triples_u16le"
+  | "raw_config"
+  | "raw"
+  | "invalid";
 
 export interface VentilatorHeader {
   version: string;
@@ -101,6 +101,10 @@ export interface DayDetail {
 export interface DateFilter {
   startDate?: string;
   endDate?: string;
-  requireEvent?: 'ai' | 'hi' | 'ascp';
+  requireEvent?: "ai" | "hi" | "ascp";
+  /** 多选事件类型:所选类型都必须有记录(与 requireEvent 并存) */
+  requireEvents?: Array<"ai" | "hi" | "ascp">;
   missingFilesOnly?: boolean;
+  /** 最短使用时长(秒);当天无使用记录视为不满足 */
+  minUseDurationSeconds?: number;
 }
