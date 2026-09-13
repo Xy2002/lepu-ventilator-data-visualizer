@@ -6,18 +6,36 @@ import type { DaySummary } from "../types";
 // 使用时长过短(不足 30 分钟)的夜晚折算值波动过大,不计算 AHI。
 const MIN_AHI_USE_HOURS = 0.5;
 
-// 当日 AI/HI 事件总数;两类事件文件都缺失时返回 null,避免把不完整数据当作 0。
-function eventTotal(summary: DaySummary): number | null {
+// AHI 分子:AI/HI 两个事件文件都已解析才计数——eventCounts 只在实际解析到
+// 对应文件时才有 key,单边缺失时把另一方当 0 会画出虚低的 AHI。
+function completeEventTotal(summary: DaySummary): number | null {
   const { ai, hi } = summary.eventCounts;
-  if (ai === undefined && hi === undefined) return null;
-  return (ai ?? 0) + (hi ?? 0);
+  if (ai === undefined || hi === undefined) return null;
+  return ai + hi;
+}
+
+// tooltip 的整晚总数:区分完整、部分缺失与无记录,避免把不完整数据呈现为完整统计。
+function eventTotalLabel(summary: DaySummary): string {
+  const { ai, hi } = summary.eventCounts;
+  if (ai === undefined && hi === undefined) return "无记录";
+  if (ai === undefined || hi === undefined) {
+    return `${ai ?? hi} 次（部分事件文件缺失）`;
+  }
+  return `${ai + hi} 次`;
 }
 
 function ahiPerHour(summary: DaySummary | undefined): number | null {
   if (!summary) return null;
-  const total = eventTotal(summary);
+  const total = completeEventTotal(summary);
   const seconds = summary.useDurationSeconds;
-  if (total === null || seconds === null) return null;
+  // useDurationSeconds 在无有效使用会话时会回退为记录跨度(含未使用时段),不能作 AHI 分母
+  if (
+    total === null ||
+    seconds === null ||
+    summary.useSessions.length === 0
+  ) {
+    return null;
+  }
   const hours = seconds / 3600;
   if (hours < MIN_AHI_USE_HOURS) return null;
   return total / hours;
@@ -40,12 +58,12 @@ function buildTooltipFormatter(
     const summary = day ? summariesByDay[day] : undefined;
     if (!day || !summary) return "";
 
-    const total = eventTotal(summary);
+    const total = eventTotalLabel(summary);
     const ahi = ahiPerHour(summary);
     return [
       `<strong>${day}</strong>`,
       `使用时长: ${formatUseHours(summary)}`,
-      `呼吸事件总数 (AI + HI): ${total === null ? "无记录" : `${total} 次`}`,
+      `呼吸事件总数 (AI + HI): ${total}`,
       `AHI: ${ahi === null ? "—" : `${ahi.toFixed(1)} 次/h`}`,
     ].join("<br/>");
   };
