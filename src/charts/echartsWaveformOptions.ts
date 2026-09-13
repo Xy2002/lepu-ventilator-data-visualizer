@@ -133,6 +133,21 @@ function buildEventMarkLineData(
   return markers;
 }
 
+/**
+ * 传感器饱和采样(削顶值)对图表无意义,掩为 null 以免把 y 轴拉伸到满量程。
+ * 语料验证(711 天):real_pres 的饱和带为 65514~65535,合理压力最高 412
+ * (0.1 cmH₂O/单位,即 41.2 cmH₂O),两者之间无任何观测值,故 u16 以半量程
+ * 32768 为界;u8/i16 通道按各自满量程端点处理。
+ */
+function isSaturatedWaveformValue(
+  value: number,
+  values: WaveformValues
+): boolean {
+  if (values instanceof Int16Array) return value === -32768 || value === 32767;
+  if (values instanceof Uint8Array) return value === 255;
+  return value >= 32768;
+}
+
 export function buildEChartsWaveformSeries(
   values: WaveformValues,
   time: WaveformTimeContext
@@ -160,9 +175,10 @@ export function buildEChartsWaveformSeries(
       );
 
       for (let offset = 0; offset < count; offset += 1) {
+        const value = values[valueIndex];
         points.push([
           sessionStartMs + (offset / sampleRateHz) * 1000,
-          values[valueIndex],
+          isSaturatedWaveformValue(value, values) ? null : value,
         ]);
         valueIndex += 1;
       }
@@ -179,13 +195,13 @@ export function buildEChartsWaveformSeries(
   if (startMs !== null && sampleRateHz && sampleRateHz > 0) {
     return Array.from(values, (value, index) => [
       startMs + (index / sampleRateHz) * 1000,
-      value,
+      isSaturatedWaveformValue(value, values) ? null : value,
     ]);
   }
 
   return Array.from(values, (value, index) => [
     sampleRateHz ? index / sampleRateHz : index,
-    value,
+    isSaturatedWaveformValue(value, values) ? null : value,
   ]);
 }
 

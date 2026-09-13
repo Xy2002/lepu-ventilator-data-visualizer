@@ -64,6 +64,39 @@ describe("buildEChartsWaveformSeries", () => {
       [1, 9],
     ]);
   });
+
+  it("masks uint16 saturation-rail samples as null so the y axis is not stretched", () => {
+    // 语料实测:real_pres 传感器饱和带为 65514~65535(2024 年 42% 天数出现,
+    // 首次饱和 2/3 落在文件开头 5 秒内),合理压力最高仅 412,中间无观测值
+    const points = buildEChartsWaveformSeries(
+      new Uint16Array([412, 65535, 100, 65534, 65514, 32768, 90]),
+      { sampleRateHz: 1 }
+    );
+    expect(points.map(([, value]) => value)).toEqual([
+      412,
+      null,
+      100,
+      null,
+      null,
+      null,
+      90,
+    ]);
+  });
+
+  it("masks uint8 rail samples in flow channels as null", () => {
+    const points = buildEChartsWaveformSeries(new Uint8Array([252, 255, 250]), {
+      sampleRateHz: 1,
+    });
+    expect(points.map(([, value]) => value)).toEqual([252, null, 250]);
+  });
+
+  it("masks int16 rail samples in signed channels as null", () => {
+    const points = buildEChartsWaveformSeries(
+      new Int16Array([-32768, 200, 32767]),
+      { sampleRateHz: 1 }
+    );
+    expect(points.map(([, value]) => value)).toEqual([null, 200, null]);
+  });
 });
 
 describe("buildEChartsWaveformOption", () => {
@@ -227,5 +260,21 @@ describe("buildEChartsWaveformOption overlay", () => {
     });
     expect(option.series).toHaveLength(1);
     expect(option.legend).toBeUndefined();
+  });
+
+  it("masks saturation rails in the overlay series as well", () => {
+    const option = buildEChartsWaveformOption({
+      label: "pressure",
+      values: new Uint16Array([100, 110]),
+      sampleRateHz: null,
+      overlay: { label: "real_pres", values: new Uint16Array([65535, 95]) },
+    });
+
+    const series = option.series as Array<{
+      name: string;
+      data: [number, number | null][];
+    }>;
+    const overlaySeries = series.find((s) => s.name === "real_pres")!;
+    expect(overlaySeries.data.map(([, value]) => value)).toEqual([null, 95]);
   });
 });

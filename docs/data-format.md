@@ -35,38 +35,38 @@ DATAFILE/
 
 除 startTime（偏移 168）和 endTime（偏移 176）为 8 字节二进制时间戳外，其余字段均为 ASCII 文本，左对齐，空格填充（0x20）。
 
-| 偏移 | 长度 | 字段 | 说明 |
-|------|------|------|------|
-| 0 | 8 | version | 版本号，如 `V2.12` |
-| 8 | 80 | patientId | 设备序列号 |
-| 88 | 80 | recordingId | 录制标识 |
-| 168 | 8 | startTime | 起始时间戳（二进制，见下方） |
-| 176 | 8 | endTime | 结束时间戳（二进制，见下方） |
-| 184 | 8 | headerBytes | header 字节数，ASCII 数字，固定为 `512`；解析器对非法值统一回退到 512 |
-| 192 | 44 | firmware | 固件版本，如 `V2.12-00001` |
-| 236 | 8 | field236 | 未知文本字段 |
-| 244 | 8 | field244 | 采样间隔（毫秒），仅对采样型文件有效（见下方） |
-| 252 | 4 | signalCount | 信号数量（ASCII 整数） |
-| 256 | 16 | **label** | 文件类型标识，决定 payload 解析方式 |
-| 352 | 8 | physicalDimension | 物理单位 |
-| 360 | 8 | physicalMin | 物理最小值 |
-| 368 | 8 | physicalMax | 物理最大值 |
-| 376 | 8 | digitalMin | 数字最小值 |
-| 384 | 8 | digitalMax | 数字最大值 |
+| 偏移 | 长度 | 字段              | 说明                                                                  |
+| ---- | ---- | ----------------- | --------------------------------------------------------------------- |
+| 0    | 8    | version           | 版本号，如 `V2.12`                                                    |
+| 8    | 80   | patientId         | 设备序列号                                                            |
+| 88   | 80   | recordingId       | 录制标识                                                              |
+| 168  | 8    | startTime         | 起始时间戳（二进制，见下方）                                          |
+| 176  | 8    | endTime           | 结束时间戳（二进制，见下方）                                          |
+| 184  | 8    | headerBytes       | header 字节数，ASCII 数字，固定为 `512`；解析器对非法值统一回退到 512 |
+| 192  | 44   | firmware          | 固件版本，如 `V2.12-00001`                                            |
+| 236  | 8    | field236          | 未知文本字段                                                          |
+| 244  | 8    | field244          | 采样间隔（毫秒），仅对采样型文件有效（见下方）                        |
+| 252  | 4    | signalCount       | 信号数量（ASCII 整数）                                                |
+| 256  | 16   | **label**         | 文件类型标识，决定 payload 解析方式                                   |
+| 352  | 8    | physicalDimension | 物理单位                                                              |
+| 360  | 8    | physicalMin       | 物理最小值                                                            |
+| 368  | 8    | physicalMax       | 物理最大值                                                            |
+| 376  | 8    | digitalMin        | 数字最小值                                                            |
+| 384  | 8    | digitalMax        | 数字最大值                                                            |
 
 > 272–351 以及 392–511 的区域在当前代码中未读取，内容未知。
 
 ### 时间戳格式（8 字节二进制）
 
-| 偏移 | 类型 | 内容 |
-|------|------|------|
-| 0 | uint16LE | 年 |
-| 2 | uint8 | 月（1–12） |
-| 3 | uint8 | 日（1–31） |
-| 4 | uint8 | 星期（解析时忽略） |
-| 5 | uint8 | 时（0–23） |
-| 6 | uint8 | 分（0–59） |
-| 7 | uint8 | 秒（0–59） |
+| 偏移 | 类型     | 内容               |
+| ---- | -------- | ------------------ |
+| 0    | uint16LE | 年                 |
+| 2    | uint8    | 月（1–12）         |
+| 3    | uint8    | 日（1–31）         |
+| 4    | uint8    | 星期（解析时忽略） |
+| 5    | uint8    | 时（0–23）         |
+| 6    | uint8    | 分（0–59）         |
+| 7    | uint8    | 秒（0–59）         |
 
 有效范围校验：年 1900–2200，月 1–12，日 1–31，时 0–23，分/秒 0–59。不满足时返回 `null`。
 
@@ -106,6 +106,20 @@ DATAFILE/
 - **payload 格式**: 小端序 int16 序列，每个采样占 2 字节（支持负值，表示双向流量）
 - **采样率**: 由 header `field244` 决定
 
+#### 波形通道的传感器饱和采样
+
+满量程端点附近的采样为传感器饱和（削顶）值，物理上不可能，图表层将其掩为 null（`src/charts/echartsWaveformOptions.ts` 的 `isSaturatedWaveformValue`），CSV 导出与统计仍使用原始值。711 天语料验证（2026-09）：
+
+| 通道                        | 饱和带（观测） | 合理值上限（观测） | 图表层掩码规则            |
+| --------------------------- | -------------- | ------------------ | ------------------------- |
+| pressure / real_pres（u16） | 65514~65535    | 412（≈41.2 cmH₂O） | ≥ 32768 掩为 null         |
+| flow / difleak（u8）        | 255            | 253                | = 255 掩为 null           |
+| real_flow（i16）            | 未观测到       | —                  | ±32767 / -32768 掩为 null |
+
+- `real_pres` 的饱和与治疗启动自检脉冲相关：318/711 天出现（2024 年 109 天、2025 年 169 天、2026 年 40 天），约 2/3 的受影响天数首次饱和落在文件开头 5 秒内
+- 饱和前的真实过冲脉冲（约 24~26.5 cmH₂O，平滑衰减）是有效数据，不掩
+- u16 合理值上限 412 与饱和带下界 65514 之间无任何观测值，故以半量程 32768 为界可零误伤
+
 ### 事件文件
 
 #### ai / hi / ascp / usetime — 16 字节事件记录
@@ -114,11 +128,11 @@ DATAFILE/
 - **kind**: `events16`
 - **payload 格式**: 每 16 字节为一条记录
 
-| 偏移（记录内） | 长度 | 类型 | 内容 |
-|----------------|------|------|------|
-| 0 | 4 | uint32LE | value1 |
-| 4 | 4 | uint32LE | value2 |
-| 8 | 8 | 时间戳 | 事件发生时间 |
+| 偏移（记录内） | 长度 | 类型     | 内容         |
+| -------------- | ---- | -------- | ------------ |
+| 0              | 4    | uint32LE | value1       |
+| 4              | 4    | uint32LE | value2       |
+| 8              | 8    | 时间戳   | 事件发生时间 |
 
 - **value1 / value2 的含义因 label 而异**：
   - `ai`（呼吸暂停事件）：value2 = 持续秒数
@@ -136,11 +150,11 @@ DATAFILE/
 - **kind**: `triples_u16le`
 - **payload 格式**: 每 6 字节为一条记录
 
-| 偏移（记录内） | 长度 | 类型 | 内容 |
-|----------------|------|------|------|
-| 0 | 2 | uint16LE | value1 |
-| 2 | 2 | uint16LE | value2 |
-| 4 | 2 | uint16LE | value3 |
+| 偏移（记录内） | 长度 | 类型     | 内容   |
+| -------------- | ---- | -------- | ------ |
+| 0              | 2    | uint16LE | value1 |
+| 2              | 2    | uint16LE | value2 |
+| 4              | 2    | uint16LE | value3 |
 
 - 用于记录分钟通气量、潮气量和呼吸频率等趋势数据
 - 尾部不足 6 字节的部分会被忽略并产生警告
@@ -163,84 +177,84 @@ config 文件的 payload 由 `ba525ConfigParser` 单独解析，结构如下。
 
 #### 设备/模式区（偏移 0–39）
 
-| 偏移 | 大小 | 类型 | 名称 | 标签 | 取值/说明 |
-|------|------|------|------|------|-----------|
-| 0 | 1 | uint8 | record_size_marker | — | 常量 `0xCC` |
-| 1 | 1 | uint8 | language | 语言 | `0`=简体中文, `2`=English |
-| 2 | 1 | uint8 | indicator_light | 指示灯 | `0`=关闭, `1`=开启 |
-| 4 | 1 | uint8 | screen_saver | 屏保 | `0`=关闭, `1`=开启 |
-| 5 | 1 | uint8 | tube_size | 管道 | `0`=22mm, `1`=15mm |
-| 6 | 1 | uint8 | face_mask | 面罩 | `0`=鼻罩, `2`=鼻枕 |
-| 7 | 1 | uint8 | smart_start | 智能启动 | `0`=关闭, `1`=开启 |
-| 8 | 1 | uint8 | smart_stop | 智能停止 | `0`=关闭, `1`=开启 |
-| 10 | 1 | uint8 | temperature_unit | 温度单位 | `0`=°C, `1`=°F |
-| 16 | 2 | uint16LE | high_pressure_alarm | 高吸气压力报警 | ×0.1 cmH₂O |
-| 18 | 1 | uint8 | low_pressure_alarm | 低气道压力报警 | `0`=关闭, `1`=开启 |
-| 28 | 2 | uint16LE | timezone | 时区 | 编码：值 = UTC偏移 + 11 |
+| 偏移 | 大小 | 类型     | 名称                | 标签           | 取值/说明                 |
+| ---- | ---- | -------- | ------------------- | -------------- | ------------------------- |
+| 0    | 1    | uint8    | record_size_marker  | —              | 常量 `0xCC`               |
+| 1    | 1    | uint8    | language            | 语言           | `0`=简体中文, `2`=English |
+| 2    | 1    | uint8    | indicator_light     | 指示灯         | `0`=关闭, `1`=开启        |
+| 4    | 1    | uint8    | screen_saver        | 屏保           | `0`=关闭, `1`=开启        |
+| 5    | 1    | uint8    | tube_size           | 管道           | `0`=22mm, `1`=15mm        |
+| 6    | 1    | uint8    | face_mask           | 面罩           | `0`=鼻罩, `2`=鼻枕        |
+| 7    | 1    | uint8    | smart_start         | 智能启动       | `0`=关闭, `1`=开启        |
+| 8    | 1    | uint8    | smart_stop          | 智能停止       | `0`=关闭, `1`=开启        |
+| 10   | 1    | uint8    | temperature_unit    | 温度单位       | `0`=°C, `1`=°F            |
+| 16   | 2    | uint16LE | high_pressure_alarm | 高吸气压力报警 | ×0.1 cmH₂O                |
+| 18   | 1    | uint8    | low_pressure_alarm  | 低气道压力报警 | `0`=关闭, `1`=开启        |
+| 28   | 2    | uint16LE | timezone            | 时区           | 编码：值 = UTC偏移 + 11   |
 
 #### 浮点校准区（偏移 40–67）
 
-| 偏移 | 大小 | 类型 | 名称 | 状态 |
-|------|------|------|------|------|
-| 40 | 4 | float32LE | calibration_pressure_peak | inferred |
-| 44 | 4 | float32LE | calibration_pressure_min | inferred |
-| 48 | 4 | float32LE | calibration_std_or_leak | inferred |
-| 52 | 4 | float32LE | calibration_pressure_95th | inferred |
-| 56 | 4 | float32LE | calibration_pressure_mean | inferred |
-| 60 | 4 | float32LE | calibration_pressure_range | inferred |
-| 64 | 4 | float32LE | calibration_sensor_coeff | inferred |
+| 偏移 | 大小 | 类型      | 名称                       | 状态     |
+| ---- | ---- | --------- | -------------------------- | -------- |
+| 40   | 4    | float32LE | calibration_pressure_peak  | inferred |
+| 44   | 4    | float32LE | calibration_pressure_min   | inferred |
+| 48   | 4    | float32LE | calibration_std_or_leak    | inferred |
+| 52   | 4    | float32LE | calibration_pressure_95th  | inferred |
+| 56   | 4    | float32LE | calibration_pressure_mean  | inferred |
+| 60   | 4    | float32LE | calibration_pressure_range | inferred |
+| 64   | 4    | float32LE | calibration_sensor_coeff   | inferred |
 
 #### 治疗参数区（偏移 96–111）
 
-| 偏移 | 大小 | 类型 | 名称 | 标签 | 取值/说明 |
-|------|------|------|------|------|-----------|
-| 96 | 1 | uint8 | therapy_mode | 治疗模式 | `0`=CPAP, `3`=Auto-S |
-| 97 | 1 | uint8 | delay_time_minutes | 延迟时间 | `0`=关闭, `N`=N 分钟 |
-| 98 | 1 | uint8 | humidifier_level | 湿化水平 | `N` 档 |
-| 102 | 1 | uint8 | epr_level | 呼气舒适度 | `0`=关闭, `N`=N 档 |
-| 103 | 1 | uint8 | ipap_sensitivity | 吸气灵敏度 | `1`=低, `2`=中, `3`=高 |
-| 105 | 1 | uint8 | rise_rate | 升压速度 | `1`=慢, `2`=中, `3`=快 |
-| 106 | 1 | uint8 | fall_rate | 降压速度 | `1`=慢, `2`=中, `3`=快 |
-| 108 | 1 | uint8 | apnea_threshold_seconds | — | 推断：呼吸暂停判定阈值秒数 |
-| 109 | 1 | uint8 | epap_sensitivity | 呼气灵敏度 | `1`=低, `2`=中, `3`=高 |
+| 偏移 | 大小 | 类型  | 名称                    | 标签       | 取值/说明                  |
+| ---- | ---- | ----- | ----------------------- | ---------- | -------------------------- |
+| 96   | 1    | uint8 | therapy_mode            | 治疗模式   | `0`=CPAP, `3`=Auto-S       |
+| 97   | 1    | uint8 | delay_time_minutes      | 延迟时间   | `0`=关闭, `N`=N 分钟       |
+| 98   | 1    | uint8 | humidifier_level        | 湿化水平   | `N` 档                     |
+| 102  | 1    | uint8 | epr_level               | 呼气舒适度 | `0`=关闭, `N`=N 档         |
+| 103  | 1    | uint8 | ipap_sensitivity        | 吸气灵敏度 | `1`=低, `2`=中, `3`=高     |
+| 105  | 1    | uint8 | rise_rate               | 升压速度   | `1`=慢, `2`=中, `3`=快     |
+| 106  | 1    | uint8 | fall_rate               | 降压速度   | `1`=慢, `2`=中, `3`=快     |
+| 108  | 1    | uint8 | apnea_threshold_seconds | —          | 推断：呼吸暂停判定阈值秒数 |
+| 109  | 1    | uint8 | epap_sensitivity        | 呼气灵敏度 | `1`=低, `2`=中, `3`=高     |
 
 #### 浮点治疗压力区（偏移 112–167）
 
 所有 float32LE，单位 cmH₂O，精度 1 位小数。
 
-| 偏移 | 名称 | 标签 | 状态 |
-|------|------|------|------|
-| 132 | epap_max | 最大呼气压力 | confirmed |
-| 136 | epap_min | 最低呼气压力 | confirmed |
-| 140 | pressure_support | 压力支持 | confirmed |
-| 144 | ramp_start_pressure | 起始压力 | diff-verified |
+| 偏移 | 名称                | 标签         | 状态          |
+| ---- | ------------------- | ------------ | ------------- |
+| 132  | epap_max            | 最大呼气压力 | confirmed     |
+| 136  | epap_min            | 最低呼气压力 | confirmed     |
+| 140  | pressure_support    | 压力支持     | confirmed     |
+| 144  | ramp_start_pressure | 起始压力     | diff-verified |
 
 偏移 112–131、148–164 为浮点压力值，具体含义尚未确认（`unknown`）。
 
 #### 其他字段
 
-| 偏移 | 大小 | 类型 | 名称 | 标签 | 说明 |
-|------|------|------|------|------|------|
-| 169 | 1 | uint8 | backlight_seconds | 背光秒数 | 单位 s |
-| 191 | 1 | uint8 | payload_xor_checksum | 校验和 | bytes[0..190] 的 XOR |
+| 偏移 | 大小 | 类型  | 名称                 | 标签     | 说明                 |
+| ---- | ---- | ----- | -------------------- | -------- | -------------------- |
+| 169  | 1    | uint8 | backlight_seconds    | 背光秒数 | 单位 s               |
+| 191  | 1    | uint8 | payload_xor_checksum | 校验和   | bytes[0..190] 的 XOR |
 
 配置记录末尾的 8 字节时间戳格式与 header 中相同。
 
 ## 文件类型汇总
 
-| label | kind | payload 类型 | 采样率 |
-|-------|------|-------------|--------|
-| flow | waveform_u8 | uint8 序列 | field244 决定 |
-| pressure | waveform_u16le | uint16LE 序列 | field244 决定 |
-| real_pres | waveform_u16le | uint16LE 序列 | field244 决定 |
-| real_flow | waveform_i16le | int16LE 序列 | field244 决定 |
-| difleak | waveform_u8 | uint8 序列 | field244 决定 |
-| mvtvbr | triples_u16le | 6 字节/条 uint16LE×3 | — |
-| ai | events16 | 16 字节/条事件记录 | — |
-| hi | events16 | 16 字节/条事件记录 | — |
-| ascp | events16 | 16 字节/条事件记录 | — |
-| usetime | events16 | 16 字节/条事件记录 | — |
-| config | raw_config | 200 字节/条配置记录 | — |
+| label     | kind           | payload 类型         | 采样率        |
+| --------- | -------------- | -------------------- | ------------- |
+| flow      | waveform_u8    | uint8 序列           | field244 决定 |
+| pressure  | waveform_u16le | uint16LE 序列        | field244 决定 |
+| real_pres | waveform_u16le | uint16LE 序列        | field244 决定 |
+| real_flow | waveform_i16le | int16LE 序列         | field244 决定 |
+| difleak   | waveform_u8    | uint8 序列           | field244 决定 |
+| mvtvbr    | triples_u16le  | 6 字节/条 uint16LE×3 | —             |
+| ai        | events16       | 16 字节/条事件记录   | —             |
+| hi        | events16       | 16 字节/条事件记录   | —             |
+| ascp      | events16       | 16 字节/条事件记录   | —             |
+| usetime   | events16       | 16 字节/条事件记录   | —             |
+| config    | raw_config     | 200 字节/条配置记录  | —             |
 
 ## 与标准 EDF 的差异
 
