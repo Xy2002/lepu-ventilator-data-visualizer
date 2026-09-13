@@ -10,8 +10,13 @@ const DB_NAME = "ventilator-parsed-cache";
 const DB_VERSION = 1;
 const STORE = "cache";
 
+// 解析器输出语义变化(如标签路由调整)时递增:旧版本写入的缓存直接作废,
+// 由调用方回退到从源文件重新解析。v2 = leak/csa 路由为 events16(issue #52)。
+export const PARSER_VERSION = 2;
+
 interface CacheManifest {
   id: "manifest";
+  parserVersion: number;
   files: Array<{ path: string; lastModified: number; size: number }>;
 }
 
@@ -127,7 +132,11 @@ export async function saveParsedDataset(
     const store = tx.objectStore(STORE);
     store.clear();
 
-    store.put({ id: "manifest", files: buildManifest(files) });
+    store.put({
+      id: "manifest",
+      parserVersion: PARSER_VERSION,
+      files: buildManifest(files),
+    });
     store.put({
       id: "meta",
       days: index.days,
@@ -159,7 +168,12 @@ export async function loadParsedDatasetDirect(): Promise<DatasetIndex | null> {
     const manifest = await requestResult<CacheManifest | undefined>(
       store.get("manifest")
     );
-    if (!manifest || manifest.files.length === 0) return null;
+    if (
+      !manifest ||
+      manifest.parserVersion !== PARSER_VERSION ||
+      manifest.files.length === 0
+    )
+      return null;
 
     const meta = await requestResult<CacheMeta | undefined>(store.get("meta"));
     if (!meta) return null;
@@ -205,7 +219,12 @@ export async function loadParsedDataset(
     const manifest = await requestResult<CacheManifest | undefined>(
       store.get("manifest")
     );
-    if (!manifest || !manifestMatches(manifest.files, files)) return null;
+    if (
+      !manifest ||
+      manifest.parserVersion !== PARSER_VERSION ||
+      !manifestMatches(manifest.files, files)
+    )
+      return null;
 
     const meta = await requestResult<CacheMeta | undefined>(store.get("meta"));
     if (!meta) return null;
