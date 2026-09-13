@@ -221,7 +221,13 @@ export function App() {
                 导出当日摘要
               </button>
             </div>
-            <SummaryCards summary={summary} />
+            <SummaryCards
+              summary={
+                dayDetail && dayDetail.summary.date === selectedDate
+                  ? dayDetail.summary
+                  : summary
+              }
+            />
             {isLoadingDay ? <Notice>正在解析当前日期...</Notice> : null}
             {dayDetail ? (
               <Suspense fallback={<Notice>正在加载专业图表...</Notice>}>
@@ -230,7 +236,11 @@ export function App() {
             ) : null}
             {dayDetail ? (
               <AiAnalysisPanel
-                summary={summary}
+                summary={
+                  dayDetail && dayDetail.summary.date === selectedDate
+                    ? dayDetail.summary
+                    : summary
+                }
                 selectedDate={selectedDate}
                 open={aiPanelOpen}
                 onToggle={() => setAiPanelOpen((o) => !o)}
