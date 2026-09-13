@@ -7,18 +7,21 @@ import {
 describe("buildEChartsWaveformSeries", () => {
   it("maps samples across real use sessions and inserts gaps between sessions", () => {
     expect(
-      buildEChartsWaveformSeries(new Uint8Array([10, 11, 20, 21]), 1, null, [
-        {
-          startTime: "2026-04-29 08:00:00",
-          endTime: "2026-04-29 08:00:02",
-          durationSeconds: 2,
-        },
-        {
-          startTime: "2026-04-29 09:00:00",
-          endTime: "2026-04-29 09:00:02",
-          durationSeconds: 2,
-        },
-      ])
+      buildEChartsWaveformSeries(new Uint8Array([10, 11, 20, 21]), {
+        sampleRateHz: 1,
+        useSessions: [
+          {
+            startTime: "2026-04-29 08:00:00",
+            endTime: "2026-04-29 08:00:02",
+            durationSeconds: 2,
+          },
+          {
+            startTime: "2026-04-29 09:00:00",
+            endTime: "2026-04-29 09:00:02",
+            durationSeconds: 2,
+          },
+        ],
+      })
     ).toEqual([
       [Date.UTC(2026, 3, 29, 8, 0, 0), 10],
       [Date.UTC(2026, 3, 29, 8, 0, 1), 11],
@@ -30,11 +33,10 @@ describe("buildEChartsWaveformSeries", () => {
 
   it("converts waveform values into real EDF timestamps when start time is available", () => {
     expect(
-      buildEChartsWaveformSeries(
-        new Int16Array([-2, 0, 4]),
-        2,
-        "2026-04-29 03:03:12.57"
-      )
+      buildEChartsWaveformSeries(new Int16Array([-2, 0, 4]), {
+        sampleRateHz: 2,
+        startTime: "2026-04-29 03:03:12.57",
+      })
     ).toEqual([
       [1777431792570, -2],
       [1777431793070, 0],
@@ -43,7 +45,11 @@ describe("buildEChartsWaveformSeries", () => {
   });
 
   it("converts waveform values into numeric second-value points for analysis charts", () => {
-    expect(buildEChartsWaveformSeries(new Int16Array([-2, 0, 4]), 2)).toEqual([
+    expect(
+      buildEChartsWaveformSeries(new Int16Array([-2, 0, 4]), {
+        sampleRateHz: 2,
+      })
+    ).toEqual([
       [0, -2],
       [0.5, 0],
       [1, 4],
@@ -51,7 +57,9 @@ describe("buildEChartsWaveformSeries", () => {
   });
 
   it("falls back to sample index when sample rate is unknown", () => {
-    expect(buildEChartsWaveformSeries(new Uint8Array([7, 9]), null)).toEqual([
+    expect(
+      buildEChartsWaveformSeries(new Uint8Array([7, 9]), { sampleRateHz: null })
+    ).toEqual([
       [0, 7],
       [1, 9],
     ]);
