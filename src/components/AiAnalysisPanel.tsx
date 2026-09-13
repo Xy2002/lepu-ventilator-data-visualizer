@@ -273,6 +273,11 @@ export function AiAnalysisPanel({
           <p className="ai-settings-notice">
             ⚠ API Key 存储在浏览器 localStorage 中。请勿在公共设备上保存密钥。
           </p>
+          <p className="ai-settings-notice">
+            ⚠ 生成分析时，当日健康数据摘要（使用时段、AI/HI
+            事件、压力范围等）将发送至上方配置的 API
+            服务商，请自行确认其隐私政策。
+          </p>
         </div>
       )}
 

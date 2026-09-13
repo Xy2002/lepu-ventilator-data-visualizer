@@ -44,7 +44,7 @@ import {
   makeEventPayload,
   makeEventPayloadAt,
 } from "./parser/fixtures";
-import type { ImportedFileRef } from "./types";
+import type { DatasetIndex, ImportedFileRef } from "./types";
 
 class ResizeObserverMock {
   observe = vi.fn();
@@ -128,7 +128,9 @@ describe("App", () => {
     expect(screen.getByText("呼吸机数据可视化")).toBeInTheDocument();
     expect(screen.getByText("导入 DATAFILE 开始查看")).toBeInTheDocument();
     expect(
-      screen.getByText("浏览器本地解析，不上传原始数据")
+      screen.getByText(
+        "浏览器本地解析，原始数据不出浏览器；启用 AI 分析时当日摘要将发送至所配服务商"
+      )
     ).toBeInTheDocument();
   });
 
@@ -173,11 +175,11 @@ describe("App", () => {
     expect(screen.getByText("0 / 1")).toBeInTheDocument();
     expect(screen.getByText("0.1 - 0.9")).toBeInTheDocument();
     expect(
-      await screen.findByRole("img", { name: "flow ECharts waveform chart" })
+      await screen.findByRole("img", { name: "flow 波形图表" })
     ).toBeInTheDocument();
     expect(chartMock.setOption).toHaveBeenCalledWith(
       expect.objectContaining({
-        xAxis: expect.objectContaining({ type: "time", name: "real time" }),
+        xAxis: expect.objectContaining({ type: "time", name: "真实时间" }),
       }),
       true
     );
@@ -207,5 +209,49 @@ describe("App", () => {
     expect(
       screen.queryByText("导入 DATAFILE 开始查看")
     ).not.toBeInTheDocument();
+  });
+
+  it("shows an error notice when loading the selected day fails", async () => {
+    const brokenBytes = new Uint8Array([1, 2, 3]);
+    const brokenFile = new File([brokenBytes], "20260429_flow.edf");
+    Object.defineProperty(brokenFile, "arrayBuffer", {
+      value: () => Promise.reject(new Error("read failed")),
+    });
+    const brokenRef: ImportedFileRef = {
+      name: "20260429_flow.edf",
+      path: "20260429_flow.edf",
+      file: brokenFile,
+    };
+    const brokenIndex: DatasetIndex = {
+      days: ["2026-04-29"],
+      dateRange: { start: "2026-04-29", end: "2026-04-29" },
+      filesByDay: { "2026-04-29": [brokenRef] },
+      summariesByDay: {
+        "2026-04-29": {
+          date: "2026-04-29",
+          startTime: null,
+          endTime: null,
+          useDurationSeconds: null,
+          useSessions: [],
+          eventCounts: {},
+          signalPresence: {},
+          sampleCounts: {},
+          pressureRange: null,
+          missingFiles: [],
+          warnings: [],
+        },
+      },
+      parsedFilesByDay: {},
+      warnings: [],
+    };
+    importCacheMock.loadImportedFiles.mockResolvedValueOnce([brokenRef]);
+    parsedCacheMock.loadParsedDataset.mockResolvedValueOnce(brokenIndex);
+
+    render(<App />);
+
+    expect(
+      await screen.findByText("加载所选日期数据失败，请重新导入。")
+    ).toBeInTheDocument();
+    expect(screen.getByText("日期导航")).toBeInTheDocument();
   });
 });

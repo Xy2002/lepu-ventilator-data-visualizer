@@ -1,16 +1,17 @@
 # 呼吸机数据可视化
 
-浏览器本地解析的乐普 BA525 呼吸机 EDF-like 数据可视化工具。所有数据在本地解析和渲染，原始数据不会上传到任何服务器。
+浏览器本地解析的乐普 BA525 呼吸机 EDF-like 数据可视化工具。所有数据在本地解析和渲染，原始数据不会上传到任何服务器。仅当你主动启用 AI 分析时，当日数据摘要（使用时段、AI/HI 事件、压力范围等）会发送至你自行配置的 AI 服务商。
 
 ## 功能
 
 - **文件夹导入** — 选择 `DATAFILE` 文件夹，自动按日期（`20260427`、`20260428` 等）分组索引
 - **日期导航** — 快速切换日期查看不同天的数据
 - **每日摘要** — 使用时长、会话数、压力范围、事件统计
-- **波形图表** — 基于 ECharts 渲染 flow、pressure、real_pres、real_flow 等波形，支持 min-max 降采样
+- **波形图表** — 基于 ECharts 渲染 flow、pressure、real_pres、real_flow 等波形，内置 LTTB 采样
 - **事件表** — 查看 AI（呼吸暂停）、HI（低通气）、ASCP 等事件记录
 - **原始文件浏览** — 查看每个文件的解析结果和原始 payload
 - **CSV 导出** — 单个波形或事件文件导出为 CSV
+- **AI 分析**（可选）— 配置 OpenAI/Anthropic 兼容 API 后，可对当日数据摘要生成流式分析报告；摘要将发送至所配服务商
 - **导入缓存** — 文件缓存至 IndexedDB，刷新页面无需重新选择
 
 ## 使用
@@ -81,14 +82,14 @@ React 19 · TypeScript · Vite · Tailwind CSS 4 · ECharts 6 · HeroUI · Vites
 
 这些 `.edf` 文件不是标准 EDF。应用按 512 字节 ASCII header + 厂商 payload 的格式解析。
 
-| Label（header offset 256） | 解析类型 | 编码方式 |
-|---|---|---|
-| `flow`, `difleak` | `waveform_u8` | unsigned 8-bit |
-| `pressure`, `real_pres` | `waveform_u16le` | uint16 little-endian |
-| `real_flow` | `waveform_i16le` | int16 little-endian |
-| `ai`, `hi`, `ascp`, `usetime` | `events16` | 16-byte 事件记录 |
-| `mvtvbr` | `triples_u16le` | 3 × uint16 LE |
-| `config` | `raw_config` | BA525 配置 payload |
+| Label（header offset 256）    | 解析类型         | 编码方式             |
+| ----------------------------- | ---------------- | -------------------- |
+| `flow`, `difleak`             | `waveform_u8`    | unsigned 8-bit       |
+| `pressure`, `real_pres`       | `waveform_u16le` | uint16 little-endian |
+| `real_flow`                   | `waveform_i16le` | int16 little-endian  |
+| `ai`, `hi`, `ascp`, `usetime` | `events16`       | 16-byte 事件记录     |
+| `mvtvbr`                      | `triples_u16le`  | 3 × uint16 LE        |
+| `config`                      | `raw_config`     | BA525 配置 payload   |
 
 ## 项目结构
 
