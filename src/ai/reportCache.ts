@@ -2,6 +2,8 @@ const DB_NAME = "ventilator-ai-report-cache";
 const DB_VERSION = 1;
 const STORE = "reports";
 
+import { buildSystemPrompt } from "./dataSummary";
+
 import { openDatabase, requestResult, transactionDone } from "../data/idb";
 
 export interface CachedReport {
@@ -30,7 +32,9 @@ export function reportCacheKey(
   customPrompt: string
 ): string {
   const promptPart = customPrompt ? `_${simpleHash(customPrompt)}` : "";
-  return `${date}_${provider}_${model}${promptPart}`;
+  // 系统提示词(安全边界/免责声明)变化时使旧报告缓存失效
+  const systemVersion = simpleHash(buildSystemPrompt());
+  return `${date}_${provider}_${model}${promptPart}_sv${systemVersion}`;
 }
 
 export async function saveReport(report: CachedReport): Promise<void> {

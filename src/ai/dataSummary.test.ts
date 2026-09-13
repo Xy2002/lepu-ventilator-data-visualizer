@@ -86,10 +86,14 @@ describe("buildDataSummary", () => {
 });
 
 describe("buildSystemPrompt", () => {
-  it("returns a system prompt for medical data analysis", () => {
+  it("returns a descriptive system prompt without medical thresholds", () => {
     const result = buildSystemPrompt();
     expect(result).toContain("呼吸机");
     expect(result).toContain("CPAP");
     expect(result.length).toBeGreaterThan(100);
+    // Non-Goal:不做诊断或临床结论,不内置正常/异常阈值
+    expect(result).not.toContain("AHI < 5");
+    expect(result).not.toContain("≥ 4 小时");
+    expect(result).toContain("不构成医疗建议");
   });
 });
