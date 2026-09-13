@@ -1,33 +1,38 @@
-import type { DatasetIndex, ImportedFileRef, ParsedVentilatorFile } from '../types';
-import { inferDateFromPath } from './dataset';
+import { openDatabase, requestResult, transactionDone } from "./idb";
+import type {
+  DatasetIndex,
+  ImportedFileRef,
+  ParsedVentilatorFile,
+} from "../types";
+import { inferDateFromPath } from "./dataset";
 
-const DB_NAME = 'ventilator-parsed-cache';
+const DB_NAME = "ventilator-parsed-cache";
 const DB_VERSION = 1;
-const STORE = 'cache';
+const STORE = "cache";
 
 interface CacheManifest {
-  id: 'manifest';
+  id: "manifest";
   files: Array<{ path: string; lastModified: number; size: number }>;
 }
 
 interface CacheMeta {
-  id: 'meta';
+  id: "meta";
   days: string[];
   dateRange: { start: string | null; end: string | null };
-  summariesByDay: DatasetIndex['summariesByDay'];
+  summariesByDay: DatasetIndex["summariesByDay"];
   warnings: string[];
 }
 
-type TypedArrayValues = ParsedVentilatorFile['values'];
+type TypedArrayValues = ParsedVentilatorFile["values"];
 
 interface SerializedParsedFile {
   fileName: string;
-  kind: ParsedVentilatorFile['kind'];
-  header: ParsedVentilatorFile['header'];
+  kind: ParsedVentilatorFile["kind"];
+  header: ParsedVentilatorFile["header"];
   payloadBytes: number;
   valuesData: ArrayBuffer;
-  valuesType: 'Uint8Array' | 'Uint16Array' | 'Int16Array';
-  records: ParsedVentilatorFile['records'];
+  valuesType: "Uint8Array" | "Uint16Array" | "Int16Array";
+  records: ParsedVentilatorFile["records"];
   rawPayloadData: ArrayBuffer;
   warnings: string[];
 }
@@ -37,47 +42,19 @@ interface CachedParsedDay {
   files: SerializedParsedFile[];
 }
 
-function openDatabase(): Promise<IDBDatabase> {
-  if (typeof indexedDB === 'undefined') {
-    return Promise.reject(new Error('IndexedDB is not available'));
-  }
-
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(STORE)) {
-        db.createObjectStore(STORE, { keyPath: 'id' });
-      }
-    };
-    request.onerror = () => reject(request.error ?? new Error('Failed to open parsed cache'));
-    request.onsuccess = () => resolve(request.result);
-  });
-}
-
-function requestResult<T>(request: IDBRequest<T>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    request.onerror = () => reject(request.error ?? new Error('IndexedDB request failed'));
-    request.onsuccess = () => resolve(request.result);
-  });
-}
-
-function transactionDone(tx: IDBTransaction): Promise<void> {
-  return new Promise((resolve, reject) => {
-    tx.onabort = () => reject(tx.error ?? new Error('Transaction aborted'));
-    tx.onerror = () => reject(tx.error ?? new Error('Transaction failed'));
-    tx.oncomplete = () => resolve();
-  });
-}
-
-function typedArrayType(values: TypedArrayValues): 'Uint8Array' | 'Uint16Array' | 'Int16Array' {
-  if (values instanceof Int16Array) return 'Int16Array';
-  if (values instanceof Uint16Array) return 'Uint16Array';
-  return 'Uint8Array';
+function typedArrayType(
+  values: TypedArrayValues
+): "Uint8Array" | "Uint16Array" | "Int16Array" {
+  if (values instanceof Int16Array) return "Int16Array";
+  if (values instanceof Uint16Array) return "Uint16Array";
+  return "Uint8Array";
 }
 
 function bufferOf(values: TypedArrayValues): ArrayBuffer {
-  return values.buffer.slice(values.byteOffset, values.byteOffset + values.byteLength) as ArrayBuffer;
+  return values.buffer.slice(
+    values.byteOffset,
+    values.byteOffset + values.byteLength
+  ) as ArrayBuffer;
 }
 
 function serializeFile(file: ParsedVentilatorFile): SerializedParsedFile {
@@ -95,8 +72,8 @@ function serializeFile(file: ParsedVentilatorFile): SerializedParsedFile {
 }
 
 function makeTypedArray(type: string, buffer: ArrayBuffer): TypedArrayValues {
-  if (type === 'Int16Array') return new Int16Array(buffer);
-  if (type === 'Uint16Array') return new Uint16Array(buffer);
+  if (type === "Int16Array") return new Int16Array(buffer);
+  if (type === "Uint16Array") return new Uint16Array(buffer);
   return new Uint8Array(buffer);
 }
 
@@ -113,7 +90,9 @@ function deserializeFile(sf: SerializedParsedFile): ParsedVentilatorFile {
   };
 }
 
-export function buildManifest(files: ImportedFileRef[]): CacheManifest['files'] {
+export function buildManifest(
+  files: ImportedFileRef[]
+): CacheManifest["files"] {
   return files
     .map((f) => ({
       path: f.path || f.name,
@@ -124,8 +103,8 @@ export function buildManifest(files: ImportedFileRef[]): CacheManifest['files'] 
 }
 
 export function manifestMatches(
-  cached: CacheManifest['files'],
-  files: ImportedFileRef[],
+  cached: CacheManifest["files"],
+  files: ImportedFileRef[]
 ): boolean {
   const current = buildManifest(files);
   if (cached.length !== current.length) return false;
@@ -133,24 +112,24 @@ export function manifestMatches(
     (entry, i) =>
       entry.path === current[i].path &&
       entry.lastModified === current[i].lastModified &&
-      entry.size === current[i].size,
+      entry.size === current[i].size
   );
 }
 
 export async function saveParsedDataset(
   files: ImportedFileRef[],
-  index: DatasetIndex,
+  index: DatasetIndex
 ): Promise<void> {
-  const db = await openDatabase();
+  const db = await openDatabase(DB_NAME, DB_VERSION, STORE, "id");
 
   try {
-    const tx = db.transaction(STORE, 'readwrite');
+    const tx = db.transaction(STORE, "readwrite");
     const store = tx.objectStore(STORE);
     store.clear();
 
-    store.put({ id: 'manifest', files: buildManifest(files) });
+    store.put({ id: "manifest", files: buildManifest(files) });
     store.put({
-      id: 'meta',
+      id: "meta",
       days: index.days,
       dateRange: index.dateRange,
       summariesByDay: index.summariesByDay,
@@ -169,24 +148,26 @@ export async function saveParsedDataset(
 }
 
 export async function loadParsedDatasetDirect(): Promise<DatasetIndex | null> {
-  if (typeof indexedDB === 'undefined') return null;
+  if (typeof indexedDB === "undefined") return null;
 
-  const db = await openDatabase();
+  const db = await openDatabase(DB_NAME, DB_VERSION, STORE, "id");
 
   try {
-    const tx = db.transaction(STORE, 'readonly');
+    const tx = db.transaction(STORE, "readonly");
     const store = tx.objectStore(STORE);
 
-    const manifest = await requestResult<CacheManifest | undefined>(store.get('manifest'));
+    const manifest = await requestResult<CacheManifest | undefined>(
+      store.get("manifest")
+    );
     if (!manifest || manifest.files.length === 0) return null;
 
-    const meta = await requestResult<CacheMeta | undefined>(store.get('meta'));
+    const meta = await requestResult<CacheMeta | undefined>(store.get("meta"));
     if (!meta) return null;
 
     const parsedFilesByDay: Record<string, ParsedVentilatorFile[]> = {};
     for (const day of meta.days) {
       const cached = await requestResult<CachedParsedDay | undefined>(
-        store.get(`parsed:${day}`),
+        store.get(`parsed:${day}`)
       );
       if (!cached) return null;
       parsedFilesByDay[day] = cached.files.map(deserializeFile);
@@ -210,27 +191,29 @@ export async function loadParsedDatasetDirect(): Promise<DatasetIndex | null> {
 }
 
 export async function loadParsedDataset(
-  files: ImportedFileRef[],
+  files: ImportedFileRef[]
 ): Promise<DatasetIndex | null> {
-  if (typeof indexedDB === 'undefined') return null;
+  if (typeof indexedDB === "undefined") return null;
   if (files.length === 0) return null;
 
-  const db = await openDatabase();
+  const db = await openDatabase(DB_NAME, DB_VERSION, STORE, "id");
 
   try {
-    const tx = db.transaction(STORE, 'readonly');
+    const tx = db.transaction(STORE, "readonly");
     const store = tx.objectStore(STORE);
 
-    const manifest = await requestResult<CacheManifest | undefined>(store.get('manifest'));
+    const manifest = await requestResult<CacheManifest | undefined>(
+      store.get("manifest")
+    );
     if (!manifest || !manifestMatches(manifest.files, files)) return null;
 
-    const meta = await requestResult<CacheMeta | undefined>(store.get('meta'));
+    const meta = await requestResult<CacheMeta | undefined>(store.get("meta"));
     if (!meta) return null;
 
     const parsedFilesByDay: Record<string, ParsedVentilatorFile[]> = {};
     for (const day of meta.days) {
       const cached = await requestResult<CachedParsedDay | undefined>(
-        store.get(`parsed:${day}`),
+        store.get(`parsed:${day}`)
       );
       if (!cached) return null;
       parsedFilesByDay[day] = cached.files.map(deserializeFile);

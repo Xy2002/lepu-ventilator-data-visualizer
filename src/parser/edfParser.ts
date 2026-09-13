@@ -1,3 +1,4 @@
+import { parseBinaryTimestamp } from "./edfTimestamp";
 import type {
   EventRecord,
   ParsedKind,
@@ -35,45 +36,6 @@ function parseInteger(text: string) {
   return Number.parseInt(trimmed, 10);
 }
 
-function parseHeaderBytes(text: string) {
-  const headerBytes = parseInteger(text);
-  return headerBytes === HEADER_BYTES ? headerBytes : HEADER_BYTES;
-}
-
-function parseTimestamp(raw: Uint8Array) {
-  if (raw.length !== 8) return null;
-
-  const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
-  const year = view.getUint16(0, true);
-  const month = raw[2];
-  const day = raw[3];
-  const hour = raw[5];
-  const minute = raw[6];
-  const second = raw[7];
-
-  if (
-    year < 1900 ||
-    year > 2200 ||
-    month < 1 ||
-    month > 12 ||
-    day < 1 ||
-    day > 31 ||
-    hour > 23 ||
-    minute > 59 ||
-    second > 59
-  ) {
-    return null;
-  }
-
-  const yyyy = year.toString().padStart(4, "0");
-  const mm = month.toString().padStart(2, "0");
-  const dd = day.toString().padStart(2, "0");
-  const hh = hour.toString().padStart(2, "0");
-  const min = minute.toString().padStart(2, "0");
-  const ss = second.toString().padStart(2, "0");
-  return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
-}
-
 export function parseHeader(raw: Uint8Array): VentilatorHeader {
   if (raw.length < HEADER_BYTES) {
     throw new Error(`file is too short for a ${HEADER_BYTES}-byte header`);
@@ -91,9 +53,9 @@ export function parseHeader(raw: Uint8Array): VentilatorHeader {
     version: ascii(raw, 0, 8),
     patientId: ascii(raw, 8, 88),
     recordingId: ascii(raw, 88, 168),
-    startTime: parseTimestamp(raw.slice(168, 176)),
-    endTime: parseTimestamp(raw.slice(176, 184)),
-    headerBytes: parseHeaderBytes(ascii(raw, 184, 192)),
+    startTime: parseBinaryTimestamp(raw.slice(168, 176)),
+    endTime: parseBinaryTimestamp(raw.slice(176, 184)),
+    headerBytes: HEADER_BYTES,
     firmware: ascii(raw, 192, 236),
     field236: ascii(raw, 236, 244),
     field244,
@@ -175,7 +137,7 @@ function parseEvents16(label: string, payload: Uint8Array, warnings: string[]) {
       sourceLabel: label,
       value1: view.getUint32(offset, true),
       value2: view.getUint32(offset + 4, true),
-      timestamp: parseTimestamp(payload.slice(offset + 8, offset + 16)),
+      timestamp: parseBinaryTimestamp(payload.slice(offset + 8, offset + 16)),
     });
   }
 
@@ -236,9 +198,10 @@ export function parseVentilatorFile(
     };
   }
 
-  const header = parseHeader(raw.slice(0, HEADER_BYTES));
+  const headerRaw = raw.slice(0, HEADER_BYTES);
+  const header = parseHeader(headerRaw);
   const warnings: string[] = [];
-  warnAboutInvalidHeaderBytes(ascii(raw, 184, 192), warnings);
+  warnAboutInvalidHeaderBytes(ascii(headerRaw, 184, 192), warnings);
   const payload = raw.slice(header.headerBytes);
   let kind: ParsedKind = "raw";
   let values: ParsedVentilatorFile["values"] = new Uint8Array();
