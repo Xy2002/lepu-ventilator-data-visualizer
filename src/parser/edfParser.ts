@@ -1,16 +1,30 @@
+import { parseBinaryTimestamp } from "./edfTimestamp";
 import type {
   EventRecord,
   ParsedKind,
   ParsedVentilatorFile,
   TripleRecord,
   VentilatorHeader,
-} from '../types';
+} from "../types";
 
 const HEADER_BYTES = 512;
-const sampledPayloadLabels = new Set(['flow', 'pressure', 'real_pres', 'real_flow', 'difleak', 'mvtvbr']);
-const waveformSampleRateLabels = new Set(['flow', 'pressure', 'real_pres', 'real_flow', 'difleak']);
-const event16Labels = new Set(['ai', 'hi', 'ascp', 'usetime']);
-const decoder = new TextDecoder('ascii');
+const sampledPayloadLabels = new Set([
+  "flow",
+  "pressure",
+  "real_pres",
+  "real_flow",
+  "difleak",
+  "mvtvbr",
+]);
+const waveformSampleRateLabels = new Set([
+  "flow",
+  "pressure",
+  "real_pres",
+  "real_flow",
+  "difleak",
+]);
+const event16Labels = new Set(["ai", "hi", "ascp", "usetime"]);
+const decoder = new TextDecoder("ascii");
 
 function ascii(raw: Uint8Array, start: number, end: number) {
   return decoder.decode(raw.slice(start, end)).trim();
@@ -27,40 +41,6 @@ function parseHeaderBytes(text: string) {
   return headerBytes === HEADER_BYTES ? headerBytes : HEADER_BYTES;
 }
 
-function parseTimestamp(raw: Uint8Array) {
-  if (raw.length !== 8) return null;
-
-  const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
-  const year = view.getUint16(0, true);
-  const month = raw[2];
-  const day = raw[3];
-  const hour = raw[5];
-  const minute = raw[6];
-  const second = raw[7];
-
-  if (
-    year < 1900 ||
-    year > 2200 ||
-    month < 1 ||
-    month > 12 ||
-    day < 1 ||
-    day > 31 ||
-    hour > 23 ||
-    minute > 59 ||
-    second > 59
-  ) {
-    return null;
-  }
-
-  const yyyy = year.toString().padStart(4, '0');
-  const mm = month.toString().padStart(2, '0');
-  const dd = day.toString().padStart(2, '0');
-  const hh = hour.toString().padStart(2, '0');
-  const min = minute.toString().padStart(2, '0');
-  const ss = second.toString().padStart(2, '0');
-  return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
-}
-
 export function parseHeader(raw: Uint8Array): VentilatorHeader {
   if (raw.length < HEADER_BYTES) {
     throw new Error(`file is too short for a ${HEADER_BYTES}-byte header`);
@@ -69,14 +49,17 @@ export function parseHeader(raw: Uint8Array): VentilatorHeader {
   const label = ascii(raw, 256, 272);
   const field244 = ascii(raw, 244, 252);
   const field244Value = parseInteger(field244);
-  const sampleIntervalMs = sampledPayloadLabels.has(label) && field244Value && field244Value > 0 ? field244Value : null;
+  const sampleIntervalMs =
+    sampledPayloadLabels.has(label) && field244Value && field244Value > 0
+      ? field244Value
+      : null;
 
   return {
     version: ascii(raw, 0, 8),
     patientId: ascii(raw, 8, 88),
     recordingId: ascii(raw, 88, 168),
-    startTime: parseTimestamp(raw.slice(168, 176)),
-    endTime: parseTimestamp(raw.slice(176, 184)),
+    startTime: parseBinaryTimestamp(raw.slice(168, 176)),
+    endTime: parseBinaryTimestamp(raw.slice(176, 184)),
     headerBytes: parseHeaderBytes(ascii(raw, 184, 192)),
     firmware: ascii(raw, 192, 236),
     field236: ascii(raw, 236, 244),
@@ -90,17 +73,23 @@ export function parseHeader(raw: Uint8Array): VentilatorHeader {
     digitalMax: ascii(raw, 384, 392),
     sampleIntervalMs,
     sampleRateHz:
-      waveformSampleRateLabels.has(label) && sampleIntervalMs ? 1000 / sampleIntervalMs : null,
+      waveformSampleRateLabels.has(label) && sampleIntervalMs
+        ? 1000 / sampleIntervalMs
+        : null,
   };
 }
 
 function trailingWarning(byteCount: number) {
   return byteCount === 1
-    ? 'Ignored 1 trailing payload byte'
+    ? "Ignored 1 trailing payload byte"
     : `Ignored ${byteCount} trailing payload bytes`;
 }
 
-function warnAboutTrailingBytes(payload: Uint8Array, recordBytes: number, warnings: string[]) {
+function warnAboutTrailingBytes(
+  payload: Uint8Array,
+  recordBytes: number,
+  warnings: string[]
+) {
   const trailingBytes = payload.length % recordBytes;
   if (trailingBytes > 0) {
     warnings.push(trailingWarning(trailingBytes));
@@ -110,7 +99,11 @@ function warnAboutTrailingBytes(payload: Uint8Array, recordBytes: number, warnin
 function parseUint16Values(payload: Uint8Array, warnings: string[]) {
   warnAboutTrailingBytes(payload, 2, warnings);
   const values = new Uint16Array(Math.floor(payload.length / 2));
-  const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
+  const view = new DataView(
+    payload.buffer,
+    payload.byteOffset,
+    payload.byteLength
+  );
 
   for (let index = 0; index < values.length; index += 1) {
     values[index] = view.getUint16(index * 2, true);
@@ -122,7 +115,11 @@ function parseUint16Values(payload: Uint8Array, warnings: string[]) {
 function parseInt16Values(payload: Uint8Array, warnings: string[]) {
   warnAboutTrailingBytes(payload, 2, warnings);
   const values = new Int16Array(Math.floor(payload.length / 2));
-  const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
+  const view = new DataView(
+    payload.buffer,
+    payload.byteOffset,
+    payload.byteLength
+  );
 
   for (let index = 0; index < values.length; index += 1) {
     values[index] = view.getInt16(index * 2, true);
@@ -134,14 +131,18 @@ function parseInt16Values(payload: Uint8Array, warnings: string[]) {
 function parseEvents16(label: string, payload: Uint8Array, warnings: string[]) {
   warnAboutTrailingBytes(payload, 16, warnings);
   const records: EventRecord[] = [];
-  const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
+  const view = new DataView(
+    payload.buffer,
+    payload.byteOffset,
+    payload.byteLength
+  );
 
   for (let offset = 0; offset + 16 <= payload.length; offset += 16) {
     records.push({
       sourceLabel: label,
       value1: view.getUint32(offset, true),
       value2: view.getUint32(offset + 4, true),
-      timestamp: parseTimestamp(payload.slice(offset + 8, offset + 16)),
+      timestamp: parseBinaryTimestamp(payload.slice(offset + 8, offset + 16)),
     });
   }
 
@@ -151,7 +152,11 @@ function parseEvents16(label: string, payload: Uint8Array, warnings: string[]) {
 function parseTriples(payload: Uint8Array, warnings: string[]) {
   warnAboutTrailingBytes(payload, 6, warnings);
   const records: TripleRecord[] = [];
-  const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
+  const view = new DataView(
+    payload.buffer,
+    payload.byteOffset,
+    payload.byteLength
+  );
 
   for (let offset = 0; offset + 6 <= payload.length; offset += 6) {
     records.push({
@@ -170,23 +175,31 @@ function makeBlankHeader() {
   return parseHeader(raw);
 }
 
-function warnAboutInvalidHeaderBytes(rawHeaderBytes: string, warnings: string[]) {
+function warnAboutInvalidHeaderBytes(
+  rawHeaderBytes: string,
+  warnings: string[]
+) {
   if (parseInteger(rawHeaderBytes) !== HEADER_BYTES) {
-    warnings.push(`Invalid header byte count "${rawHeaderBytes}"; using ${HEADER_BYTES}`);
+    warnings.push(
+      `Invalid header byte count "${rawHeaderBytes}"; using ${HEADER_BYTES}`
+    );
   }
 }
 
-export function parseVentilatorFile(fileName: string, raw: Uint8Array): ParsedVentilatorFile {
+export function parseVentilatorFile(
+  fileName: string,
+  raw: Uint8Array
+): ParsedVentilatorFile {
   if (raw.length < HEADER_BYTES) {
     return {
       fileName,
-      kind: 'invalid',
+      kind: "invalid",
       header: makeBlankHeader(),
       payloadBytes: 0,
       values: new Uint8Array(),
       records: [],
       rawPayload: new Uint8Array(),
-      warnings: ['File is shorter than 512-byte header'],
+      warnings: ["File is shorter than 512-byte header"],
     };
   }
 
@@ -194,27 +207,27 @@ export function parseVentilatorFile(fileName: string, raw: Uint8Array): ParsedVe
   const warnings: string[] = [];
   warnAboutInvalidHeaderBytes(ascii(raw, 184, 192), warnings);
   const payload = raw.slice(header.headerBytes);
-  let kind: ParsedKind = 'raw';
-  let values: ParsedVentilatorFile['values'] = new Uint8Array();
-  let records: ParsedVentilatorFile['records'] = [];
+  let kind: ParsedKind = "raw";
+  let values: ParsedVentilatorFile["values"] = new Uint8Array();
+  let records: ParsedVentilatorFile["records"] = [];
 
-  if (header.label === 'flow' || header.label === 'difleak') {
-    kind = 'waveform_u8';
+  if (header.label === "flow" || header.label === "difleak") {
+    kind = "waveform_u8";
     values = payload;
-  } else if (header.label === 'pressure' || header.label === 'real_pres') {
-    kind = 'waveform_u16le';
+  } else if (header.label === "pressure" || header.label === "real_pres") {
+    kind = "waveform_u16le";
     values = parseUint16Values(payload, warnings);
-  } else if (header.label === 'real_flow') {
-    kind = 'waveform_i16le';
+  } else if (header.label === "real_flow") {
+    kind = "waveform_i16le";
     values = parseInt16Values(payload, warnings);
-  } else if (header.label === 'mvtvbr') {
-    kind = 'triples_u16le';
+  } else if (header.label === "mvtvbr") {
+    kind = "triples_u16le";
     records = parseTriples(payload, warnings);
   } else if (event16Labels.has(header.label)) {
-    kind = 'events16';
+    kind = "events16";
     records = parseEvents16(header.label, payload, warnings);
-  } else if (header.label === 'config') {
-    kind = 'raw_config';
+  } else if (header.label === "config") {
+    kind = "raw_config";
   }
 
   return {
