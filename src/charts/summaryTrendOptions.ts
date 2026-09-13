@@ -44,7 +44,12 @@ function ahiPerHour(summary: DaySummary | undefined): number | null {
 function formatUseHours(summary: DaySummary): string {
   const seconds = summary.useDurationSeconds;
   if (seconds === null) return "无记录";
-  return `${(seconds / 3600).toFixed(1)} h`;
+  const hours = (seconds / 3600).toFixed(1);
+  // 无使用会话时该值回退为记录跨度(含未使用时段),如实标注,避免被当作使用时长
+  if (summary.useSessions.length === 0) {
+    return `无记录（仅记录跨度 ${hours} h）`;
+  }
+  return `${hours} h`;
 }
 
 function buildTooltipFormatter(

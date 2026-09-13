@@ -128,4 +128,19 @@ describe("buildSummaryTrendOption", () => {
       "呼吸事件总数 (AI + HI): 无记录"
     );
   });
+
+  it("labels the header span as a recording span when no use sessions exist", () => {
+    // useDurationSeconds 在无使用会话时是记录跨度,不能标成使用时长
+    const option = buildSummaryTrendOption(["2026-04-28"], {
+      "2026-04-28": summary("2026-04-28", 28800, 3, 5),
+    });
+
+    const tooltip = option.tooltip as {
+      formatter: (params: unknown) => string;
+    };
+    const html = tooltip.formatter([{ dataIndex: 0 }]);
+    expect(html).toContain("使用时长: 无记录（仅记录跨度 8.0 h）");
+    expect(html).not.toContain("使用时长: 8.0 h");
+    expect(html).toContain("AHI: —");
+  });
 });
