@@ -1,4 +1,5 @@
 import { parseVentilatorFile } from "../parser/edfParser";
+import { parseEdfTimestampMs } from "../parser/edfTimestamp";
 import type {
   DatasetIndex,
   DateFilter,
@@ -43,30 +44,6 @@ export function inferDateFromPath(path: string) {
   return null;
 }
 
-function parseTimestamp(timestamp: string | null) {
-  if (!timestamp) return null;
-  const match = timestamp.match(
-    /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?$/
-  );
-  if (!match) return null;
-
-  const [, year, month, day, hour, minute, second, fraction = "0"] = match;
-  const millisecond = Number(fraction.padEnd(3, "0").slice(0, 3));
-  const date = new Date(
-    Date.UTC(
-      Number(year),
-      Number(month) - 1,
-      Number(day),
-      Number(hour),
-      Number(minute),
-      Number(second),
-      millisecond
-    )
-  );
-
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
 function formatTimestamp(date: Date) {
   const pad = (value: number, length = 2) =>
     value.toString().padStart(length, "0");
@@ -76,11 +53,11 @@ function formatTimestamp(date: Date) {
 }
 
 export function secondsBetween(start: string | null, end: string | null) {
-  const startDate = parseTimestamp(start);
-  const endDate = parseTimestamp(end);
-  if (!startDate || !endDate) return null;
+  const startMs = parseEdfTimestampMs(start);
+  const endMs = parseEdfTimestampMs(end);
+  if (startMs === null || endMs === null) return null;
 
-  const seconds = (endDate.getTime() - startDate.getTime()) / 1000;
+  const seconds = (endMs - startMs) / 1000;
   return seconds >= 0 ? seconds : null;
 }
 
@@ -111,10 +88,10 @@ function buildUseSession(record: EventRecord): UseSession | null {
   )
     return null;
 
-  const endDate = parseTimestamp(record.timestamp);
-  if (!endDate) return null;
+  const endMs = parseEdfTimestampMs(record.timestamp);
+  if (endMs === null) return null;
 
-  const startDate = new Date(endDate.getTime() - record.value1 * 1000);
+  const startDate = new Date(endMs - record.value1 * 1000);
   return {
     startTime: formatTimestamp(startDate),
     endTime: record.timestamp,
