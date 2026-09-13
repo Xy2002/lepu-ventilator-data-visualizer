@@ -1,4 +1,4 @@
-import { parseVentilatorFile } from '../parser/edfParser';
+import { parseVentilatorFile } from "../parser/edfParser";
 import type {
   DatasetIndex,
   DateFilter,
@@ -8,9 +8,9 @@ import type {
   ImportedFileRef,
   ParsedVentilatorFile,
   UseSession,
-} from '../types';
+} from "../types";
 
-const expectedSignalLabels = ['flow', 'pressure', 'real_pres', 'real_flow'];
+const expectedSignalLabels = ["flow", "pressure", "real_pres", "real_flow"];
 
 function normalizeDate(year: string, month: string, day: string) {
   const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
@@ -26,12 +26,16 @@ function normalizeDate(year: string, month: string, day: string) {
 }
 
 export function inferDateFromPath(path: string) {
-  const compactMatch = path.match(/(?:^|[^\d])(\d{4})(\d{2})(\d{2})(?:[^\d]|$)/);
+  const compactMatch = path.match(
+    /(?:^|[^\d])(\d{4})(\d{2})(\d{2})(?:[^\d]|$)/
+  );
   if (compactMatch) {
     return normalizeDate(compactMatch[1], compactMatch[2], compactMatch[3]);
   }
 
-  const dashedMatch = path.match(/(?:^|[^\d])(\d{4})-(\d{2})-(\d{2})(?:[^\d]|$)/);
+  const dashedMatch = path.match(
+    /(?:^|[^\d])(\d{4})-(\d{2})-(\d{2})(?:[^\d]|$)/
+  );
   if (dashedMatch) {
     return normalizeDate(dashedMatch[1], dashedMatch[2], dashedMatch[3]);
   }
@@ -42,12 +46,12 @@ export function inferDateFromPath(path: string) {
 function parseTimestamp(timestamp: string | null) {
   if (!timestamp) return null;
   const match = timestamp.match(
-    /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?$/,
+    /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?$/
   );
   if (!match) return null;
 
-  const [, year, month, day, hour, minute, second, fraction = '0'] = match;
-  const millisecond = Number(fraction.padEnd(3, '0').slice(0, 3));
+  const [, year, month, day, hour, minute, second, fraction = "0"] = match;
+  const millisecond = Number(fraction.padEnd(3, "0").slice(0, 3));
   const date = new Date(
     Date.UTC(
       Number(year),
@@ -56,17 +60,18 @@ function parseTimestamp(timestamp: string | null) {
       Number(hour),
       Number(minute),
       Number(second),
-      millisecond,
-    ),
+      millisecond
+    )
   );
 
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function formatTimestamp(date: Date) {
-  const pad = (value: number, length = 2) => value.toString().padStart(length, '0');
+  const pad = (value: number, length = 2) =>
+    value.toString().padStart(length, "0");
   return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())} ${pad(
-    date.getUTCHours(),
+    date.getUTCHours()
   )}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}`;
 }
 
@@ -84,16 +89,27 @@ async function parseImportedFile(fileRef: ImportedFileRef) {
   return parseVentilatorFile(fileRef.name, new Uint8Array(buffer));
 }
 
-function isEventRecord(record: ParsedVentilatorFile['records'][number]): record is EventRecord {
-  return 'sourceLabel' in record;
+function isEventRecord(
+  record: ParsedVentilatorFile["records"][number]
+): record is EventRecord {
+  return "sourceLabel" in record;
 }
 
 function isSignal(file: ParsedVentilatorFile) {
-  return file.kind === 'waveform_u8' || file.kind === 'waveform_u16le' || file.kind === 'waveform_i16le';
+  return (
+    file.kind === "waveform_u8" ||
+    file.kind === "waveform_u16le" ||
+    file.kind === "waveform_i16le"
+  );
 }
 
 function buildUseSession(record: EventRecord): UseSession | null {
-  if (record.sourceLabel !== 'usetime' || record.value1 <= 0 || !record.timestamp) return null;
+  if (
+    record.sourceLabel !== "usetime" ||
+    record.value1 <= 0 ||
+    !record.timestamp
+  )
+    return null;
 
   const endDate = parseTimestamp(record.timestamp);
   if (!endDate) return null;
@@ -122,7 +138,9 @@ function makeEmptySummary(date: string): DaySummary {
     useDurationSeconds: null,
     useSessions: [],
     eventCounts: {},
-    signalPresence: Object.fromEntries(expectedSignalLabels.map((label) => [label, false])),
+    signalPresence: Object.fromEntries(
+      expectedSignalLabels.map((label) => [label, false])
+    ),
     sampleCounts: {},
     pressureRange: null,
     missingFiles: [...expectedSignalLabels],
@@ -130,17 +148,26 @@ function makeEmptySummary(date: string): DaySummary {
   };
 }
 
+// pressure 通道原始采样以 0.1 cmH2O 为分辨率（与 config 字段、ascp 记录的 ×10 编码一致，
+// 见 docs/data-format.md），摘要统一换算为 cmH2O 存储。
+const PRESSURE_CMH2O_PER_UNIT = 0.1;
+
 function addPressureValue(summary: DaySummary, value: number) {
+  const cmH2O = Math.round(value * PRESSURE_CMH2O_PER_UNIT * 10) / 10;
   if (summary.pressureRange) {
-    summary.pressureRange.min = Math.min(summary.pressureRange.min, value);
-    summary.pressureRange.max = Math.max(summary.pressureRange.max, value);
+    summary.pressureRange.min = Math.min(summary.pressureRange.min, cmH2O);
+    summary.pressureRange.max = Math.max(summary.pressureRange.max, cmH2O);
     return;
   }
 
-  summary.pressureRange = { min: value, max: value };
+  summary.pressureRange = { min: cmH2O, max: cmH2O };
 }
 
-async function summarizeDay(date: string, fileRefs: ImportedFileRef[], skipPressureScan: boolean) {
+async function summarizeDay(
+  date: string,
+  fileRefs: ImportedFileRef[],
+  skipPressureScan: boolean
+) {
   const summary = makeEmptySummary(date);
   const files = await Promise.all(fileRefs.map(parseImportedFile));
 
@@ -149,26 +176,33 @@ async function summarizeDay(date: string, fileRefs: ImportedFileRef[], skipPress
 
     summary.warnings.push(...parsed.warnings);
 
-    if (parsed.header.startTime && (!summary.startTime || parsed.header.startTime < summary.startTime)) {
+    if (
+      parsed.header.startTime &&
+      (!summary.startTime || parsed.header.startTime < summary.startTime)
+    ) {
       summary.startTime = parsed.header.startTime;
     }
 
-    if (parsed.header.endTime && (!summary.endTime || parsed.header.endTime > summary.endTime)) {
+    if (
+      parsed.header.endTime &&
+      (!summary.endTime || parsed.header.endTime > summary.endTime)
+    ) {
       summary.endTime = parsed.header.endTime;
     }
 
     if (isSignal(parsed)) {
       summary.signalPresence[label] = true;
-      summary.sampleCounts[label] = (summary.sampleCounts[label] ?? 0) + parsed.values.length;
+      summary.sampleCounts[label] =
+        (summary.sampleCounts[label] ?? 0) + parsed.values.length;
 
-      if (!skipPressureScan && label === 'pressure') {
+      if (!skipPressureScan && label === "pressure") {
         for (const value of parsed.values) {
           addPressureValue(summary, value);
         }
       }
     }
 
-    if (parsed.kind === 'events16') {
+    if (parsed.kind === "events16") {
       const count = parsed.records.filter(isEventRecord).length;
       summary.eventCounts[label] = (summary.eventCounts[label] ?? 0) + count;
     }
@@ -177,12 +211,21 @@ async function summarizeDay(date: string, fileRefs: ImportedFileRef[], skipPress
   summary.useSessions = buildUseSessions(files);
   if (summary.useSessions.length > 0) {
     summary.startTime = summary.useSessions[0].startTime;
-    summary.endTime = summary.useSessions[summary.useSessions.length - 1].endTime;
-    summary.useDurationSeconds = summary.useSessions.reduce((total, session) => total + session.durationSeconds, 0);
+    summary.endTime =
+      summary.useSessions[summary.useSessions.length - 1].endTime;
+    summary.useDurationSeconds = summary.useSessions.reduce(
+      (total, session) => total + session.durationSeconds,
+      0
+    );
   } else {
-    summary.useDurationSeconds = secondsBetween(summary.startTime, summary.endTime);
+    summary.useDurationSeconds = secondsBetween(
+      summary.startTime,
+      summary.endTime
+    );
   }
-  summary.missingFiles = expectedSignalLabels.filter((label) => !summary.signalPresence[label]);
+  summary.missingFiles = expectedSignalLabels.filter(
+    (label) => !summary.signalPresence[label]
+  );
 
   return { summary, files };
 }
@@ -191,7 +234,7 @@ export type IndexProgress = { completed: number; total: number };
 
 export async function buildDatasetIndex(
   importedFiles: ImportedFileRef[],
-  onProgress?: (progress: IndexProgress) => void,
+  onProgress?: (progress: IndexProgress) => void
 ): Promise<DatasetIndex> {
   const filesByDay: Record<string, ImportedFileRef[]> = {};
   const warnings: string[] = [];
@@ -213,7 +256,7 @@ export async function buildDatasetIndex(
   const parsedFilesByDay: Record<string, ParsedVentilatorFile[]> = {};
 
   const results = await Promise.all(
-    days.map((day) => summarizeDay(day, filesByDay[day], true)),
+    days.map((day) => summarizeDay(day, filesByDay[day], true))
   );
 
   for (let i = 0; i < days.length; i++) {
@@ -242,36 +285,56 @@ export function filterDays(index: DatasetIndex, filter: DateFilter) {
     if (filter.endDate && day > filter.endDate) return false;
 
     const summary = index.summariesByDay[day];
-    if (filter.requireEvent && (summary.eventCounts[filter.requireEvent] ?? 0) === 0) return false;
-    if (filter.missingFilesOnly && summary.missingFiles.length === 0) return false;
+    if (
+      filter.requireEvent &&
+      (summary.eventCounts[filter.requireEvent] ?? 0) === 0
+    )
+      return false;
+    if (filter.missingFilesOnly && summary.missingFiles.length === 0)
+      return false;
 
     return true;
   });
 }
 
-function secondsFromDayStart(timestamp: string | null, startTime: string | null) {
+function secondsFromDayStart(
+  timestamp: string | null,
+  startTime: string | null
+) {
   return secondsBetween(startTime, timestamp) ?? undefined;
 }
 
-function withSecondsFromDayStart(record: EventRecord, startTime: string | null): EventRecord {
+function withSecondsFromDayStart(
+  record: EventRecord,
+  startTime: string | null
+): EventRecord {
   const seconds = secondsFromDayStart(record.timestamp, startTime);
-  return seconds === undefined ? record : { ...record, secondsFromDayStart: seconds };
+  return seconds === undefined
+    ? record
+    : { ...record, secondsFromDayStart: seconds };
 }
 
-export async function loadDayDetail(index: DatasetIndex, date: string): Promise<DayDetail> {
+export async function loadDayDetail(
+  index: DatasetIndex,
+  date: string
+): Promise<DayDetail> {
   const cached = index.parsedFilesByDay[date];
-  const files = cached ?? await Promise.all((index.filesByDay[date] ?? []).map(parseImportedFile));
+  const files =
+    cached ??
+    (await Promise.all((index.filesByDay[date] ?? []).map(parseImportedFile)));
   const summary = index.summariesByDay[date];
   const signals = files.filter(isSignal);
   const useSessions = buildUseSessions(files);
   const events = files.flatMap((file) =>
-    file.records.filter(isEventRecord).map((record) => withSecondsFromDayStart(record, summary.startTime)),
+    file.records
+      .filter(isEventRecord)
+      .map((record) => withSecondsFromDayStart(record, summary.startTime))
   );
 
   // Compute pressure range on demand if not available
   if (summary && !summary.pressureRange) {
     for (const signal of signals) {
-      if (signal.header.label === 'pressure') {
+      if (signal.header.label === "pressure") {
         for (const value of signal.values) {
           addPressureValue(summary, value);
         }
