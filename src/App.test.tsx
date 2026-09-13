@@ -173,11 +173,11 @@ describe("App", () => {
     expect(screen.getByText("0 / 1")).toBeInTheDocument();
     expect(screen.getByText("0.1 - 0.9")).toBeInTheDocument();
     expect(
-      await screen.findByRole("img", { name: "flow ECharts waveform chart" })
+      await screen.findByRole("img", { name: "flow 波形图表" })
     ).toBeInTheDocument();
     expect(chartMock.setOption).toHaveBeenCalledWith(
       expect.objectContaining({
-        xAxis: expect.objectContaining({ type: "time", name: "real time" }),
+        xAxis: expect.objectContaining({ type: "time", name: "真实时间" }),
       }),
       true
     );

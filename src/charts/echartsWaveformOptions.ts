@@ -1,8 +1,11 @@
-import type { EChartsOption } from 'echarts';
-import type { UseSession } from '../types';
-import type { WaveformValues } from './waveformData';
+import type { EChartsOption } from "echarts";
+import type { UseSession } from "../types";
+import type { WaveformValues } from "./waveformData";
 
-export type EChartsWaveformPoint = [secondsOrIndex: number, value: number | null];
+export type EChartsWaveformPoint = [
+  secondsOrIndex: number,
+  value: number | null,
+];
 
 export interface EventMarkerInfo {
   timestamp?: string;
@@ -11,9 +14,9 @@ export interface EventMarkerInfo {
 }
 
 export const EVENT_STYLES: Record<string, { color: string; label: string }> = {
-  ai: { color: '#d92d20', label: 'AI 呼吸暂停' },
-  hi: { color: '#f59e0b', label: 'HI 低通气' },
-  ascp: { color: '#6366f1', label: 'ASCP 压力调整' },
+  ai: { color: "#d92d20", label: "AI 呼吸暂停" },
+  hi: { color: "#f59e0b", label: "HI 低通气" },
+  ascp: { color: "#6366f1", label: "ASCP 压力调整" },
 };
 
 interface BuildEChartsWaveformOptionParams {
@@ -26,7 +29,8 @@ interface BuildEChartsWaveformOptionParams {
   pixelWidth?: number;
 }
 
-const timestampPattern = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?$/;
+const timestampPattern =
+  /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?$/;
 
 export function parseEdfTimestampMs(timestamp: string | null | undefined) {
   if (!timestamp) return null;
@@ -34,8 +38,8 @@ export function parseEdfTimestampMs(timestamp: string | null | undefined) {
   const match = timestamp.match(timestampPattern);
   if (!match) return null;
 
-  const [, year, month, day, hour, minute, second, fraction = '0'] = match;
-  const millisecond = Number(fraction.padEnd(3, '0').slice(0, 3));
+  const [, year, month, day, hour, minute, second, fraction = "0"] = match;
+  const millisecond = Number(fraction.padEnd(3, "0").slice(0, 3));
   const value = Date.UTC(
     Number(year),
     Number(month) - 1,
@@ -43,14 +47,14 @@ export function parseEdfTimestampMs(timestamp: string | null | undefined) {
     Number(hour),
     Number(minute),
     Number(second),
-    millisecond,
+    millisecond
   );
 
   return Number.isNaN(value) ? null : value;
 }
 
 function pad(value: number, length = 2) {
-  return value.toString().padStart(length, '0');
+  return value.toString().padStart(length, "0");
 }
 
 function formatEdfClockTime(value: number): string {
@@ -73,7 +77,7 @@ function buildTimestampMarkLineData(
   eventMarkers: EventMarkerInfo[],
   chartStartMs: number,
   chartEndMs: number,
-  pixelWidth: number,
+  pixelWidth: number
 ): MarkLineItem[] {
   if (pixelWidth <= 0 || chartEndMs <= chartStartMs) return [];
 
@@ -86,10 +90,18 @@ function buildTimestampMarkLineData(
     .sort((a, b) => a.ms - b.ms);
 
   for (const marker of sorted) {
-    if (marker.ms < chartStartMs || marker.ms > chartStartMs + visibleMs) continue;
+    if (marker.ms < chartStartMs || marker.ms > chartStartMs + visibleMs)
+      continue;
 
-    const style = EVENT_STYLES[marker.sourceLabel] ?? { color: '#d92d20', label: marker.sourceLabel.toUpperCase() };
-    markers.push({ xAxis: marker.ms, name: style.label, lineStyle: { color: style.color } });
+    const style = EVENT_STYLES[marker.sourceLabel] ?? {
+      color: "#d92d20",
+      label: marker.sourceLabel.toUpperCase(),
+    };
+    markers.push({
+      xAxis: marker.ms,
+      name: style.label,
+      lineStyle: { color: style.color },
+    });
   }
 
   return markers;
@@ -99,7 +111,7 @@ function buildEventMarkLineData(
   eventMarkers: EventMarkerInfo[],
   sampleRateHz: number | null,
   valuesLength: number,
-  pixelWidth: number,
+  pixelWidth: number
 ): MarkLineItem[] {
   if (!sampleRateHz || pixelWidth <= 0) return [];
 
@@ -107,15 +119,24 @@ function buildEventMarkLineData(
   const markers: MarkLineItem[] = [];
 
   const sorted = [...eventMarkers]
-    .filter((m) => typeof m.secondsFromDayStart === 'number')
-    .sort((a, b) => (a.secondsFromDayStart ?? 0) - (b.secondsFromDayStart ?? 0));
+    .filter((m) => typeof m.secondsFromDayStart === "number")
+    .sort(
+      (a, b) => (a.secondsFromDayStart ?? 0) - (b.secondsFromDayStart ?? 0)
+    );
 
   for (const marker of sorted) {
     const second = marker.secondsFromDayStart!;
     if (second < 0 || second > visibleSeconds) continue;
 
-    const style = EVENT_STYLES[marker.sourceLabel] ?? { color: '#d92d20', label: marker.sourceLabel.toUpperCase() };
-    markers.push({ xAxis: second, name: style.label, lineStyle: { color: style.color } });
+    const style = EVENT_STYLES[marker.sourceLabel] ?? {
+      color: "#d92d20",
+      label: marker.sourceLabel.toUpperCase(),
+    };
+    markers.push({
+      xAxis: second,
+      name: style.label,
+      lineStyle: { color: style.color },
+    });
   }
 
   return markers;
@@ -125,13 +146,17 @@ export function buildEChartsWaveformSeries(
   values: WaveformValues,
   sampleRateHz: number | null,
   startTime?: string | null,
-  useSessions: UseSession[] = [],
+  useSessions: UseSession[] = []
 ): EChartsWaveformPoint[] {
   if (sampleRateHz && sampleRateHz > 0 && useSessions.length > 0) {
     const points: EChartsWaveformPoint[] = [];
     let valueIndex = 0;
 
-    for (let sessionIndex = 0; sessionIndex < useSessions.length && valueIndex < values.length; sessionIndex += 1) {
+    for (
+      let sessionIndex = 0;
+      sessionIndex < useSessions.length && valueIndex < values.length;
+      sessionIndex += 1
+    ) {
       const session = useSessions[sessionIndex];
       const sessionStartMs = parseEdfTimestampMs(session.startTime);
       const sessionEndMs = parseEdfTimestampMs(session.endTime);
@@ -139,10 +164,16 @@ export function buildEChartsWaveformSeries(
 
       const remaining = values.length - valueIndex;
       const expectedCount = Math.floor(session.durationSeconds * sampleRateHz);
-      const count = Math.min(remaining, sessionIndex === useSessions.length - 1 ? remaining : expectedCount);
+      const count = Math.min(
+        remaining,
+        sessionIndex === useSessions.length - 1 ? remaining : expectedCount
+      );
 
       for (let offset = 0; offset < count; offset += 1) {
-        points.push([sessionStartMs + (offset / sampleRateHz) * 1000, values[valueIndex]]);
+        points.push([
+          sessionStartMs + (offset / sampleRateHz) * 1000,
+          values[valueIndex],
+        ]);
         valueIndex += 1;
       }
 
@@ -156,10 +187,16 @@ export function buildEChartsWaveformSeries(
 
   const startMs = parseEdfTimestampMs(startTime);
   if (startMs !== null && sampleRateHz && sampleRateHz > 0) {
-    return Array.from(values, (value, index) => [startMs + (index / sampleRateHz) * 1000, value]);
+    return Array.from(values, (value, index) => [
+      startMs + (index / sampleRateHz) * 1000,
+      value,
+    ]);
   }
 
-  return Array.from(values, (value, index) => [sampleRateHz ? index / sampleRateHz : index, value]);
+  return Array.from(values, (value, index) => [
+    sampleRateHz ? index / sampleRateHz : index,
+    value,
+  ]);
 }
 
 export function buildEChartsWaveformOption({
@@ -173,9 +210,15 @@ export function buildEChartsWaveformOption({
 }: BuildEChartsWaveformOptionParams): EChartsOption {
   const startMs = parseEdfTimestampMs(startTime);
   const firstSessionStartMs = parseEdfTimestampMs(useSessions[0]?.startTime);
-  const lastSessionEndMs = parseEdfTimestampMs(useSessions[useSessions.length - 1]?.endTime);
-  const usesSessionTime = firstSessionStartMs !== null && lastSessionEndMs !== null && Boolean(sampleRateHz && sampleRateHz > 0);
-  const usesHeaderTime = startMs !== null && Boolean(sampleRateHz && sampleRateHz > 0);
+  const lastSessionEndMs = parseEdfTimestampMs(
+    useSessions[useSessions.length - 1]?.endTime
+  );
+  const usesSessionTime =
+    firstSessionStartMs !== null &&
+    lastSessionEndMs !== null &&
+    Boolean(sampleRateHz && sampleRateHz > 0);
+  const usesHeaderTime =
+    startMs !== null && Boolean(sampleRateHz && sampleRateHz > 0);
   const usesRealTime = usesSessionTime || usesHeaderTime;
   const chartStartMs = usesSessionTime ? firstSessionStartMs : startMs;
   const chartEndMs =
@@ -186,24 +229,43 @@ export function buildEChartsWaveformOption({
         : null;
   const markLineData =
     usesRealTime && chartStartMs !== null && chartEndMs !== null
-      ? buildTimestampMarkLineData(eventMarkers, chartStartMs, chartEndMs, pixelWidth)
-      : buildEventMarkLineData(eventMarkers, sampleRateHz, values.length, pixelWidth);
-  const data = buildEChartsWaveformSeries(values, sampleRateHz, startTime, useSessions);
-  const xAxisName = usesRealTime ? 'real time' : sampleRateHz ? 'seconds' : 'sample index';
+      ? buildTimestampMarkLineData(
+          eventMarkers,
+          chartStartMs,
+          chartEndMs,
+          pixelWidth
+        )
+      : buildEventMarkLineData(
+          eventMarkers,
+          sampleRateHz,
+          values.length,
+          pixelWidth
+        );
+  const data = buildEChartsWaveformSeries(
+    values,
+    sampleRateHz,
+    startTime,
+    useSessions
+  );
+  const xAxisName = usesRealTime
+    ? "真实时间"
+    : sampleRateHz
+      ? "秒"
+      : "采样序号";
 
   const series: Record<string, unknown> = {
     name: label,
-    type: 'line',
+    type: "line",
     data,
-    symbol: 'none',
+    symbol: "none",
     showSymbol: false,
-    sampling: 'lttb',
+    sampling: "lttb",
     animation: false,
     progressive: 8000,
     progressiveThreshold: 20000,
     lineStyle: {
       width: 1.2,
-      color: '#0a72ef',
+      color: "#0a72ef",
     },
     emphasis: {
       disabled: true,
@@ -213,17 +275,17 @@ export function buildEChartsWaveformOption({
   if (markLineData.length > 0) {
     series.markLine = {
       silent: true,
-      symbol: 'none',
+      symbol: "none",
       lineStyle: {
         opacity: 0.55,
         width: 1,
-        type: 'dashed',
+        type: "dashed",
       },
       label: {
         show: true,
-        position: 'insideStartTop',
+        position: "insideStartTop",
         fontSize: 10,
-        formatter: '{b}',
+        formatter: "{b}",
       },
       data: markLineData,
     };
@@ -231,7 +293,7 @@ export function buildEChartsWaveformOption({
 
   return {
     animation: false,
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
     useUTC: usesRealTime ? true : undefined,
     grid: {
       top: 16,
@@ -241,11 +303,12 @@ export function buildEChartsWaveformOption({
       containLabel: false,
     },
     tooltip: {
-      trigger: 'axis',
-      axisPointer: { type: 'cross' },
+      trigger: "axis",
+      axisPointer: { type: "cross" },
       confine: true,
-      renderMode: 'html',
-      valueFormatter: (value) => (typeof value === 'number' ? value.toFixed(2) : String(value)),
+      renderMode: "html",
+      valueFormatter: (value) =>
+        typeof value === "number" ? value.toFixed(2) : String(value),
     },
     toolbox: {
       show: true,
@@ -253,44 +316,50 @@ export function buildEChartsWaveformOption({
       top: 0,
       itemSize: 14,
       feature: {
-        dataZoom: { yAxisIndex: 'none' },
+        dataZoom: { yAxisIndex: "none" },
         restore: {},
         saveAsImage: { pixelRatio: 2 },
       },
     },
     xAxis: {
-      type: usesRealTime ? 'time' : 'value',
+      type: usesRealTime ? "time" : "value",
       name: xAxisName,
-      min: 'dataMin',
-      max: 'dataMax',
+      min: "dataMin",
+      max: "dataMax",
       axisLabel: {
-        formatter: usesRealTime ? formatEdfClockTime : sampleRateHz ? formatAxisSecond : undefined,
+        formatter: usesRealTime
+          ? formatEdfClockTime
+          : sampleRateHz
+            ? formatAxisSecond
+            : undefined,
       },
-      axisLine: { lineStyle: { color: '#c9c9c9' } },
-      splitLine: { lineStyle: { color: 'rgba(0, 0, 0, 0.06)' } },
+      axisLine: { lineStyle: { color: "#c9c9c9" } },
+      splitLine: { lineStyle: { color: "rgba(0, 0, 0, 0.06)" } },
     },
     yAxis: {
-      type: 'value',
+      type: "value",
       scale: true,
-      min: 'dataMin',
-      max: 'dataMax',
-      axisLine: { lineStyle: { color: '#c9c9c9' } },
-      splitLine: { lineStyle: { color: 'rgba(0, 0, 0, 0.08)', type: 'dashed' } },
+      min: "dataMin",
+      max: "dataMax",
+      axisLine: { lineStyle: { color: "#c9c9c9" } },
+      splitLine: {
+        lineStyle: { color: "rgba(0, 0, 0, 0.08)", type: "dashed" },
+      },
     },
     dataZoom: [
       {
-        type: 'inside',
+        type: "inside",
         xAxisIndex: 0,
-        filterMode: 'none',
+        filterMode: "none",
         zoomOnMouseWheel: true,
         moveOnMouseMove: true,
         moveOnMouseWheel: false,
         preventDefaultMouseMove: true,
       },
       {
-        type: 'slider',
+        type: "slider",
         xAxisIndex: 0,
-        filterMode: 'none',
+        filterMode: "none",
         height: 20,
         bottom: 10,
         brushSelect: true,
