@@ -208,7 +208,7 @@ export function App() {
               <h2>{selectedDate}</h2>
               {usageWindow(summary)}
             </div>
-            <SummaryCards summary={summary} />
+            <SummaryCards summary={dayDetail?.summary ?? summary} />
             {isLoadingDay ? <Notice>正在解析当前日期...</Notice> : null}
             {dayDetail ? (
               <Suspense fallback={<Notice>正在加载专业图表...</Notice>}>
@@ -217,7 +217,7 @@ export function App() {
             ) : null}
             {dayDetail ? (
               <AiAnalysisPanel
-                summary={summary}
+                summary={dayDetail?.summary ?? summary}
                 selectedDate={selectedDate}
                 open={aiPanelOpen}
                 onToggle={() => setAiPanelOpen((o) => !o)}
