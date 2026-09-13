@@ -100,8 +100,11 @@ function concatPayloads(...payloads: Uint8Array[]) {
 describe("App", () => {
   beforeEach(() => {
     importCacheMock.invalidateImportedFiles.mockResolvedValue(undefined);
-    importCacheMock.loadImportedFiles.mockResolvedValue([]);
-    importCacheMock.saveImportedFiles.mockResolvedValue(undefined);
+    importCacheMock.loadImportedFiles.mockResolvedValue({
+      files: [],
+      generation: null,
+    });
+    importCacheMock.saveImportedFiles.mockResolvedValue("test-generation");
     parsedCacheMock.invalidateParsedDataset.mockResolvedValue(undefined);
     parsedCacheMock.loadParsedDataset.mockResolvedValue(null);
     parsedCacheMock.saveParsedDataset.mockResolvedValue(undefined);
@@ -208,8 +211,8 @@ describe("App", () => {
     let resolveSave: (() => void) | undefined;
     importCacheMock.saveImportedFiles.mockImplementation(
       () =>
-        new Promise<void>((resolve) => {
-          resolveSave = resolve;
+        new Promise<string | null>((resolve) => {
+          resolveSave = () => resolve("test-generation");
         })
     );
 
@@ -229,14 +232,17 @@ describe("App", () => {
   });
 
   it("restores the last imported files from browser cache on startup", async () => {
-    importCacheMock.loadImportedFiles.mockResolvedValueOnce([
-      importedFile("20260429_flow.edf", "flow", new Uint8Array([20, 19, 17])),
-      importedFile(
-        "20260429_pressure.edf",
-        "pressure",
-        new Uint8Array([1, 0, 9, 0])
-      ),
-    ]);
+    importCacheMock.loadImportedFiles.mockResolvedValueOnce({
+      files: [
+        importedFile("20260429_flow.edf", "flow", new Uint8Array([20, 19, 17])),
+        importedFile(
+          "20260429_pressure.edf",
+          "pressure",
+          new Uint8Array([1, 0, 9, 0])
+        ),
+      ],
+      generation: "test-generation",
+    });
 
     render(<App />);
 
@@ -284,7 +290,10 @@ describe("App", () => {
       },
       warnings: [],
     };
-    importCacheMock.loadImportedFiles.mockResolvedValueOnce([brokenRef]);
+    importCacheMock.loadImportedFiles.mockResolvedValueOnce({
+      files: [brokenRef],
+      generation: "test-generation",
+    });
     parsedCacheMock.loadParsedDataset.mockResolvedValueOnce(brokenIndex);
 
     render(<App />);
