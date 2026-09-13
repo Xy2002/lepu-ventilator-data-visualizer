@@ -4,6 +4,7 @@ import type { ImportedFileRef } from "../types";
 import { importedFileRefFromFile } from "./importedFile";
 import {
   disposeContentsConnectionForTests,
+  invalidateImportedFiles,
   loadImportedFiles,
   saveImportedFiles,
 } from "./importCache";
@@ -95,6 +96,26 @@ describe("importCache", () => {
 
     expect(new Uint8Array(await restored[0].read())).toEqual(payload);
     await expect(loadImportedFiles()).resolves.toHaveLength(1);
+  });
+
+  it("keeps published contents readable even after meta invalidation", async () => {
+    // App 作废 meta 后,其他标签页仍持有旧代际引用:
+    // 发布代际存于 state store(不随 meta 一起消失),
+    // 后续写入的清理不得删掉它们正要读取的内容
+    const payload = new Uint8Array(600);
+    for (let i = 0; i < payload.length; i += 1) payload[i] = i % 251;
+    await saveImportedFiles([makeRef("a.edf", payload)]);
+    const restored = await loadImportedFiles();
+    expect(restored).toHaveLength(1);
+
+    await invalidateImportedFiles();
+    await expect(loadImportedFiles()).resolves.toEqual([]);
+
+    await saveImportedFiles(
+      [makeRef("b.edf", new Uint8Array([9]))],
+      () => true
+    );
+    expect(new Uint8Array(await restored[0].read())).toEqual(payload);
   });
 
   it("treats a torn cache (meta without contents) as absent", async () => {
@@ -209,7 +230,11 @@ describe("importCache", () => {
       { name: "contents", keyPath: "path" },
     ]);
     // objectStoreNames 按 IDB 规范以字母序返回
-    expect([...database.objectStoreNames]).toEqual(["contents", "meta"]);
+    expect([...database.objectStoreNames]).toEqual([
+      "contents",
+      "meta",
+      "state",
+    ]);
     database.close();
   });
 });

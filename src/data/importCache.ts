@@ -6,6 +6,7 @@ const DB_NAME = "ventilator-web-visualizer-import-cache";
 const DB_VERSION = 2;
 const META_STORE = "meta";
 const CONTENT_STORE = "contents";
+const STATE_STORE = "state";
 
 // 元数据(path/name/size/lastModified/512B 头部)与文件内容分库存储:
 // 恢复路径只读 meta(getAll 为毫秒级),内容按需经 read() 从 contents 读取,
@@ -41,7 +42,10 @@ function openImportDatabase() {
     DB_VERSION,
     META_STORE,
     "path",
-    [{ name: CONTENT_STORE, keyPath: "path" }],
+    [
+      { name: CONTENT_STORE, keyPath: "path" },
+      { name: STATE_STORE, keyPath: "id" },
+    ],
     ["files"]
   );
 }
@@ -103,19 +107,18 @@ function newCacheGeneration() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-// 读取已发布的 cache generation(全部 meta 记录同代际)
+// 读取已发布的 cache generation。发布信息存于独立的 state store:
+// 新导入作废 meta 后、下一次发布前,其他标签页仍可能持有旧代际引用,
+// 此时代际不能随 meta 一起消失,否则内容清理会删掉它们正要读取的记录
 async function readPublishedGeneration(
   database: IDBDatabase
 ): Promise<string | null> {
-  const transaction = database.transaction(META_STORE, "readonly");
-  const metas = await requestResult<CachedFileMeta[]>(
-    transaction.objectStore(META_STORE).getAll()
-  );
+  const transaction = database.transaction(STATE_STORE, "readonly");
+  const state = await requestResult<
+    { id: "published"; generation: string } | undefined
+  >(transaction.objectStore(STATE_STORE).get("published"));
   await transactionDone(transaction);
-  const contentKey = metas[0]?.contentKey;
-  if (!contentKey) return null;
-  const separator = contentKey.indexOf("/");
-  return separator > 0 ? contentKey.slice(0, separator) : null;
+  return state?.generation ?? null;
 }
 
 // 清理已发布代际之外的内容记录:仍被其他标签页引用的已发布代际保留,
@@ -188,12 +191,19 @@ export async function saveImportedFiles(
 
     if (shouldAbort?.()) return;
 
-    const metaTransaction = database.transaction(META_STORE, "readwrite");
+    // 发布:meta 与"已发布代际"同事务原子切换
+    const metaTransaction = database.transaction(
+      [META_STORE, STATE_STORE],
+      "readwrite"
+    );
     const metaStore = metaTransaction.objectStore(META_STORE);
     metaStore.clear();
     for (const meta of metaRecords) {
       metaStore.put(meta);
     }
+    metaTransaction
+      .objectStore(STATE_STORE)
+      .put({ id: "published", generation });
     await transactionDone(metaTransaction);
   } finally {
     database.close();

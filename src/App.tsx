@@ -161,19 +161,21 @@ export function App() {
     setError(null);
     setCacheNotice(null);
     setIndexProgress(null);
-    const cacheRun = ++cacheRunRef.current;
 
     try {
-      // 新导入即刻作废两套缓存(毫秒级):此后任何时刻刷新都不会恢复出旧数据集,
-      // 也避免"导入缓存已发布、解析缓存未更新"的窗口用旧摘要配新内容字节。
+      const nextDataset = await buildDatasetIndex(files, setIndexProgress);
+      // 索引成功后才递增 runId 并作废旧缓存:导入失败(源不可读等)不得
+      // 破坏既有缓存、也不得中止仍在前台运行的旧写入。
+      // 此后任何时刻刷新都不会恢复出旧数据集,也避免"导入缓存已发布、
+      // 解析缓存未更新"的窗口用旧摘要配新内容字节。
       // 作废失败(IDB 拒绝访问等)不阻断导入本身——此时旧缓存同样不可达
+      const cacheRun = ++cacheRunRef.current;
       await Promise.all([
         invalidateImportedFiles(),
         invalidateParsedDataset(),
       ]).catch(() => {
         /* best effort */
       });
-      const nextDataset = await buildDatasetIndex(files, setIndexProgress);
       // 数据集就绪立即展示;缓存写入(文件内容进 IndexedDB,可能上 GB)后台进行,
       // 不阻塞首屏交互。失败仅提示,不影响本次使用。
       setDataset(nextDataset);

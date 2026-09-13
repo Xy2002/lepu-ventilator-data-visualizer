@@ -56,15 +56,20 @@ function prepareDataDir() {
 }
 
 async function main() {
-  const dataDir = prepareDataDir();
-  const dayDirs = readdirSync(dataDir, { withFileTypes: true }).filter((d) =>
-    d.isDirectory()
-  );
-  const files = dayDirs.flatMap((d) =>
-    readdirSync(path.join(dataDir, d.name))
-      .filter((name) => name.endsWith(".edf"))
-      .map((name) => path.join(dataDir, d.name, name))
-  );
+  // 恢复-only 模式不需要源目录:源盘移除/卸载后仍可对已播种的 profile 计时
+  const dataDir = skipImport ? null : prepareDataDir();
+  const dayDirs = dataDir
+    ? readdirSync(dataDir, { withFileTypes: true }).filter((d) =>
+        d.isDirectory()
+      )
+    : [];
+  const files = dataDir
+    ? dayDirs.flatMap((d) =>
+        readdirSync(path.join(dataDir, d.name))
+          .filter((name) => name.endsWith(".edf"))
+          .map((name) => path.join(dataDir, d.name, name))
+      )
+    : [];
   console.log(
     `[perf] files=${files.length} dayDirs=${dayDirs.length} limitDays=${limitDays} skipImport=${skipImport}`
   );
