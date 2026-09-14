@@ -247,9 +247,23 @@ async function deleteContentGenerationsExcept(
 // 另一个标签页仍在写入、尚未发布的代际(Web Locks 不可用时退化为单标签假设)
 const CACHE_WRITE_LOCK = "ventilator-import-cache-write";
 
-async function withCacheWriteLock<T>(task: () => Promise<T>): Promise<T> {
+// 清理协调锁:串行化「GC 的读者查询+删除」与「加载的内容键校验」。
+// 读者锁获取本身不需要它:恢复流程先获取读者锁、再在校验(持协调锁)中
+// 复核内容仍在——B 的删除若发生在 A 获取锁之后,query 能看到 A 的锁;
+// 若发生在校验之前,校验失败使恢复放弃。两条路径都不会留下悬空引用
+const CACHE_GC_LOCK = "ventilator-import-cache-gc";
+
+async function withLock<T>(name: string, task: () => Promise<T>): Promise<T> {
   if (typeof navigator === "undefined" || !navigator.locks) return task();
-  return navigator.locks.request(CACHE_WRITE_LOCK, task) as Promise<T>;
+  return navigator.locks.request(name, task) as Promise<T>;
+}
+
+async function withCacheWriteLock<T>(task: () => Promise<T>): Promise<T> {
+  return withLock(CACHE_WRITE_LOCK, task);
+}
+
+async function withCacheGcLock<T>(task: () => Promise<T>): Promise<T> {
+  return withLock(CACHE_GC_LOCK, task);
 }
 
 export async function saveImportedFiles(
@@ -267,9 +281,12 @@ export async function saveImportedFiles(
 
       // 内容清理只保留活跃读者代际:无读者锁钉住的已发布代际一并删除,
       // 替换导入不再要求设备装得下两份完整数据集(见下方发布注释)。
-      // 其他标签页持有的引用由读者锁保护,与发布代际无关
-      const keepGenerations = await activeReaderGenerations();
-      await deleteContentGenerationsExcept(database, keepGenerations);
+      // 其他标签页持有的引用由读者锁保护,与发布代际无关。
+      // 查询+删除在协调锁下进行,与加载校验互斥(见 CACHE_GC_LOCK 注释)
+      await withCacheGcLock(async () => {
+        const readers = await activeReaderGenerations();
+        await deleteContentGenerationsExcept(database, readers);
+      });
 
       const generation = newCacheGeneration();
       const BATCH_SIZE = 20;
@@ -380,35 +397,45 @@ export async function loadImportedFiles(): Promise<ImportedFilesSnapshot> {
 
   const database = await openImportDatabase();
 
+  let snapshot: ImportedFilesSnapshot = { files: [], generation: null };
+
   try {
-    const transaction = database.transaction(
-      [META_STORE, CONTENT_STORE, STATE_STORE],
-      "readonly"
-    );
-    const metas = await requestResult<CachedFileMeta[]>(
-      transaction.objectStore(META_STORE).getAll()
-    );
-    // 只取键不取内容,用于校验缓存完整性(每条 meta 的 contentKey 都必须存在)
-    const contentKeys = await requestResult<IDBValidKey[]>(
-      transaction.objectStore(CONTENT_STORE).getAllKeys()
-    );
-    const published = await requestResult<
-      { id: "published"; generation: string } | undefined
-    >(transaction.objectStore(STATE_STORE).get("published"));
-    await transactionDone(transaction);
+    // 校验在清理协调锁下进行:与 GC 的「读者查询+删除」互斥,
+    // 防止校验通过后、读者锁获取生效前的删除留下悬空引用。
+    // (恢复流程先获取读者锁再调用本函数;删除若发生在校验前,
+    //  校验失败使恢复放弃,不会带着失效引用继续)
+    await withCacheGcLock(async () => {
+      const transaction = database.transaction(
+        [META_STORE, CONTENT_STORE, STATE_STORE],
+        "readonly"
+      );
+      const metas = await requestResult<CachedFileMeta[]>(
+        transaction.objectStore(META_STORE).getAll()
+      );
+      // 只取键不取内容,用于校验缓存完整性(每条 meta 的 contentKey 都必须存在)
+      const contentKeys = await requestResult<IDBValidKey[]>(
+        transaction.objectStore(CONTENT_STORE).getAllKeys()
+      );
+      const published = await requestResult<
+        { id: "published"; generation: string } | undefined
+      >(transaction.objectStore(STATE_STORE).get("published"));
+      await transactionDone(transaction);
 
-    const generation = published?.generation ?? null;
-    // meta 与 contents 不对应(写入被打断/代际不符)= 残缺缓存,视同未缓存
-    const available = new Set(contentKeys);
-    if (
-      metas.length > 0 &&
-      (generation === null ||
-        !metas.every((meta) => available.has(meta.contentKey)))
-    ) {
-      return { files: [], generation };
-    }
+      const generation = published?.generation ?? null;
+      // meta 与 contents 不对应(写入被打断/代际不符)= 残缺缓存,视同未缓存
+      const available = new Set(contentKeys);
+      if (
+        metas.length > 0 &&
+        (generation === null ||
+          !metas.every((meta) => available.has(meta.contentKey)))
+      ) {
+        snapshot = { files: [], generation };
+        return;
+      }
 
-    return { files: metas.map(makeCachedRef), generation };
+      snapshot = { files: metas.map(makeCachedRef), generation };
+    });
+    return snapshot;
   } finally {
     database.close();
   }
@@ -435,10 +462,13 @@ export async function reclaimUnreferencedContents(): Promise<void> {
   await withCacheWriteLock(async () => {
     const database = await openImportDatabase();
     try {
-      const publishedGeneration = await readPublishedGeneration(database);
-      const keepGenerations = await activeReaderGenerations();
-      if (publishedGeneration) keepGenerations.add(publishedGeneration);
-      await deleteContentGenerationsExcept(database, keepGenerations);
+      // 查询+删除与加载校验共用协调锁(见 CACHE_GC_LOCK 注释)
+      await withCacheGcLock(async () => {
+        const publishedGeneration = await readPublishedGeneration(database);
+        const keepGenerations = await activeReaderGenerations();
+        if (publishedGeneration) keepGenerations.add(publishedGeneration);
+        await deleteContentGenerationsExcept(database, keepGenerations);
+      });
     } finally {
       database.close();
     }

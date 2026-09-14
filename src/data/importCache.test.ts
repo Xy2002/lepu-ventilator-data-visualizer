@@ -256,6 +256,92 @@ describe("importCache", () => {
     }
   });
 
+  it("serializes cache validation with an in-flight content cleanup", async () => {
+    // GC 持协调锁期间,加载校验必须排队等它完成:
+    // 否则校验可能在删除前通过、随后内容被删,恢复带着悬空引用继续
+    await saveImportedFiles([makeRef("a.edf", new Uint8Array([1, 2, 3]))]);
+
+    let gcTaskStarted = false;
+    // 模拟 Web Locks 的排队授予:第一个 gc 任务挂起直到 openGcGate,
+    // 完成后按序授予队列中的后续请求(模拟真实锁语义)
+    const gcQueue: Array<() => void> = [];
+    let gated = false;
+    let gcRunning = false;
+    let openGcGate = () => {};
+    let gcGate = new Promise<void>((r) => {
+      openGcGate = r;
+    });
+    const fakeLocks = {
+      request: (
+        name: string,
+        optionsOrTask: unknown,
+        maybeCallback?: () => Promise<unknown>
+      ) => {
+        const task =
+          typeof optionsOrTask === "function"
+            ? (optionsOrTask as () => Promise<unknown>)
+            : maybeCallback;
+        if (!task) return Promise.resolve();
+        if (name === "ventilator-import-cache-gc") {
+          gcTaskStarted = true;
+          return new Promise((resolve, reject) => {
+            const runTask = () =>
+              Promise.resolve()
+                .then(task)
+                .then(resolve, reject)
+                .finally(() => {
+                  gcRunning = false;
+                  const next = gcQueue.shift();
+                  if (next) next();
+                });
+            if (gcRunning) {
+              gcQueue.push(runTask);
+              return;
+            }
+            gcRunning = true;
+            if (!gated) {
+              gated = true;
+              gcQueue.unshift(() => gcGate.then(runTask));
+            } else {
+              gcQueue.push(runTask);
+            }
+            const start = gcQueue.shift();
+            if (start) start();
+          });
+        }
+        return task();
+      },
+      query: async () => ({ held: [], pending: [] }),
+    };
+    Object.defineProperty(navigator, "locks", {
+      configurable: true,
+      value: fakeLocks,
+    });
+
+    try {
+      await invalidateImportedFiles(); // epoch+meta 清空;a.edf 不再被引用
+
+      const reclaiming = reclaimUnreferencedContents();
+      await vi.waitFor(() => expect(gcTaskStarted).toBe(true));
+
+      const loading = loadImportedFiles();
+      let settled = false;
+      void loading.then(() => {
+        settled = true;
+      });
+      await new Promise((r) => setTimeout(r, 50));
+      expect(settled).toBe(false); // 仍被协调锁挡住
+
+      openGcGate();
+      await reclaiming;
+      // 排队等到删除完成后才校验:看到的是删除后的空缓存
+      await expect(loading).resolves.toMatchObject({ files: [] });
+    } finally {
+      openGcGate();
+      removeLockFake();
+    }
+  });
+
   it("aborts an in-flight writer superseded by a concurrent invalidation", async () => {
     // 标签页 A 拷贝中、标签页 B 免锁作废:A 的发布事务必须因纪元推进而中止,
     // 否则 A 会把被取代的旧数据集重新发布,B 刷新时恢复出错误数据
