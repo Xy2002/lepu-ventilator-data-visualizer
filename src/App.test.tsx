@@ -256,6 +256,22 @@ describe("App", () => {
     expect(await screen.findByText(/未能切换到缓存引用/)).toBeInTheDocument();
   });
 
+  it("skips the cache write when the invalidation returns no epoch", async () => {
+    // 作废失败 → 拿不到可绑定的基线纪元:不得入队无基线的写入
+    // (会被其他标签页的作废利用),直接报告未缓存
+    importCacheMock.invalidateImportedFiles.mockResolvedValue(null);
+
+    render(<App />);
+    await userEvent.upload(
+      screen.getByLabelText("选择 EDF 文件"),
+      edfFile("20260429_flow.edf", "flow", new Uint8Array([20, 19, 17]))
+    );
+    expect(await screen.findByText("日期导航")).toBeInTheDocument();
+
+    expect(await screen.findByText(/无法缓存这些文件/)).toBeInTheDocument();
+    expect(importCacheMock.saveImportedFiles).not.toHaveBeenCalled();
+  });
+
   it("reports parsed-cache failures separately from file-cache failures", async () => {
     parsedCacheMock.saveParsedDataset.mockRejectedValueOnce(
       new Error("quota exceeded")

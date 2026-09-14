@@ -243,6 +243,14 @@ export function App() {
       // 立即释放读者锁,替换拷贝期间不为其保留整份旧数据
       // (其他标签页的读者锁仍会保护它们自己引用的代际)
       releaseReaderGeneration();
+      if (baselineEpoch === null) {
+        // 本次作废失败(或 IndexedDB 不可用)→ 拿不到可绑定的基线纪元:
+        // 无基线的写入会被其他标签页的作废利用,宁可不入队,直接报告未缓存
+        setCacheNotice(
+          "已导入，但浏览器无法缓存这些文件；刷新后需要重新选择。"
+        );
+        return;
+      }
       setIsCaching(true);
       cacheWriteRef.current = cacheWriteRef.current.then(async () => {
         try {
@@ -251,7 +259,7 @@ export function App() {
           const generation = await saveImportedFiles(
             files,
             () => cacheRun !== cacheRunRef.current,
-            baselineEpoch !== null ? baselineEpoch : undefined
+            baselineEpoch
           );
           if (cacheRun !== cacheRunRef.current) return;
           if (generation === null) {
