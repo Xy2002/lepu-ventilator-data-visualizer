@@ -199,9 +199,11 @@ async function pinReaderGeneration(generation: string): Promise<void> {
     })
     .catch(() => {
       // 请求被拒绝(文档失活等)时回调不会执行:
-      // 记录失败并落地等待,由下方传播给调用方
+      // 记录失败并落地等待,由下方传播给调用方。
+      // activeReaderLock 已被本调用覆写——恢复 previous,
+      // 否则仍被持有的旧代际丢失释放句柄,被钉住到页面关闭
       acquireFailed = true;
-      if (activeReaderLock?.generation === generation) activeReaderLock = null;
+      activeReaderLock = previous ?? null;
       markAcquired?.();
       markFailed?.();
     });
@@ -232,7 +234,9 @@ async function activeReaderGenerations(): Promise<Set<string>> {
   if (typeof navigator === "undefined" || !navigator.locks?.query) {
     return new Set();
   }
-  const snapshot = await navigator.locks.query().catch(() => ({ held: [] }));
+  // 查询失败必须向上传播:把"未知读者集合"当成空集合,
+  // 会让清理误删其他标签页正被读者锁保护的内容
+  const snapshot = await navigator.locks.query();
   const generations = new Set<string>();
   for (const lock of snapshot.held ?? []) {
     const match = lock.name
@@ -334,10 +338,13 @@ export async function saveImportedFiles(
       // 内容清理只保留活跃读者代际:无读者锁钉住的已发布代际一并删除,
       // 替换导入不再要求设备装得下两份完整数据集(见下方发布注释)。
       // 其他标签页持有的引用由读者锁保护,与发布代际无关。
-      // 查询+删除在协调锁下进行,与加载校验互斥(见 CACHE_GC_LOCK 注释)
+      // 查询+删除在协调锁下进行,与加载校验互斥(见 CACHE_GC_LOCK 注释)。
+      // 读者枚举失败时保守跳过清理(宁多留不误删),由拷贝继续
       await withCacheGcLock(async () => {
         const readers = await activeReaderGenerations();
         await deleteContentGenerationsExcept(database, readers);
+      }).catch(() => {
+        /* 清理失败不影响本次写入 */
       });
 
       const generation = newCacheGeneration();
@@ -463,16 +470,22 @@ export interface ImportedFilesSnapshot {
   files: ImportedFileRef[];
   /** 恢复所处的导入代际:解析缓存以它绑定摘要与内容代际 */
   generation: string | null;
+  /** 快照加载时的作废纪元:安装恢复前复核,防止安装已被取代的数据集 */
+  epoch: number;
 }
 
 export async function loadImportedFiles(): Promise<ImportedFilesSnapshot> {
   if (typeof indexedDB === "undefined") {
-    return { files: [], generation: null };
+    return { files: [], generation: null, epoch: 0 };
   }
 
   const database = await openImportDatabase();
 
-  let snapshot: ImportedFilesSnapshot = { files: [], generation: null };
+  let snapshot: ImportedFilesSnapshot = {
+    files: [],
+    generation: null,
+    epoch: 0,
+  };
 
   try {
     // 校验在清理协调锁下进行:与 GC 的「读者查询+删除」互斥,
@@ -494,6 +507,12 @@ export async function loadImportedFiles(): Promise<ImportedFilesSnapshot> {
       const published = await requestResult<
         { id: "published"; generation: string } | undefined
       >(transaction.objectStore(STATE_STORE).get("published"));
+      const epoch = await new Promise<number>((resolve, reject) => {
+        const request = transaction.objectStore(STATE_STORE).get("epoch");
+        request.onsuccess = () =>
+          resolve((request.result as EpochRecord | undefined)?.value ?? 0);
+        request.onerror = () => reject(request.error);
+      });
       await transactionDone(transaction);
 
       const generation = published?.generation ?? null;
@@ -504,7 +523,7 @@ export async function loadImportedFiles(): Promise<ImportedFilesSnapshot> {
         (generation === null ||
           !metas.every((meta) => available.has(meta.contentKey)))
       ) {
-        snapshot = { files: [], generation };
+        snapshot = { files: [], generation, epoch };
         return;
       }
 
@@ -518,11 +537,11 @@ export async function loadImportedFiles(): Promise<ImportedFilesSnapshot> {
         try {
           await pinReaderGeneration(generation);
         } catch {
-          snapshot = { files: [], generation };
+          snapshot = { files: [], generation, epoch };
           return;
         }
       }
-      snapshot = { files: metas.map(makeCachedRef), generation };
+      snapshot = { files: metas.map(makeCachedRef), generation, epoch };
     });
     return snapshot;
   } finally {

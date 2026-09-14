@@ -19,6 +19,7 @@ import { downloadCsv, exportDaySummaryCsv } from "./data/csv";
 import {
   invalidateImportedFiles,
   loadImportedFiles,
+  readImportEpoch,
   readImportGeneration,
   reclaimUnreferencedContents,
   releaseReaderGeneration,
@@ -125,16 +126,19 @@ export function App() {
         }
         if (cancelled) return;
 
-        // 恢复期间的新导入(本地轮次变化,或发布代际已变)使恢复过时:
-        // 放弃恢复并释放"快照代际"的读者锁——本标签页不再引用该代际。
+        // 恢复期间的新导入(本地轮次变化,或发布代际/作废纪元已变)使恢复
+        // 过时:放弃恢复并释放"快照代际"的读者锁。纪元核对补上
+        // "已作废、替换拷贝进行中"的窗口——该窗口内发布代际刻意保持不变。
         // 条件释放:后台交接可能已把当前锁换成新导入的代际,不能误放。
         // 复查必须在写解析缓存之前:慢重建跑输新导入时,
         // 不得用旧代际的解析索引覆盖新代际的有效索引
         const currentGeneration = await readImportGeneration();
+        const currentEpoch = await readImportEpoch();
         if (
           cancelled ||
           cacheRunRef.current !== restoreRun ||
-          currentGeneration !== snapshot.generation
+          currentGeneration !== snapshot.generation ||
+          currentEpoch !== snapshot.epoch
         ) {
           if (!cancelled) releaseReaderGeneration(snapshot.generation);
           return;
@@ -263,10 +267,13 @@ export function App() {
             await saveParsedDataset(files, nextDataset, generation);
           } catch {
             // 文件内容已 durable:解析缓存缺失只影响下次恢复速度,
-            // 刷新后自动重建索引,不需要重新导入
-            setCacheNotice(
-              "文件内容已缓存，但解析索引缓存保存失败；刷新后将自动重建。"
-            );
+            // 刷新后自动重建索引,不需要重新导入。
+            // 被新导入取代的写入不再提示(当前导入的写入负责 UX)
+            if (cacheRun === cacheRunRef.current) {
+              setCacheNotice(
+                "文件内容已缓存，但解析索引缓存保存失败；刷新后将自动重建。"
+              );
+            }
           }
 
           // 本标签页切换为缓存引用:数据源(如 SD 卡)拔除后,

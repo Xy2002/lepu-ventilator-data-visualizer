@@ -307,6 +307,7 @@ describe("App", () => {
         ),
       ],
       generation: "test-generation",
+      epoch: 1,
     });
     importCacheMock.readImportGeneration.mockResolvedValue("test-generation");
 
@@ -326,6 +327,7 @@ describe("App", () => {
     let resolveRestoreLoad:
       | ((value: {
           files: ImportedFileRef[];
+          epoch: number;
           generation: string | null;
         }) => void)
       | undefined;
@@ -348,6 +350,7 @@ describe("App", () => {
     resolveRestoreLoad?.({
       files: [importedFile("20260101_flow.edf", "flow", new Uint8Array([7]))],
       generation: "old-generation",
+      epoch: 5,
     });
     await new Promise((resolve) => setTimeout(resolve, 50));
 
@@ -372,6 +375,7 @@ describe("App", () => {
     let resolveRestoreLoad:
       | ((value: {
           files: ImportedFileRef[];
+          epoch: number;
           generation: string | null;
         }) => void)
       | undefined;
@@ -394,6 +398,7 @@ describe("App", () => {
     resolveRestoreLoad?.({
       files: [importedFile("20260101_flow.edf", "flow", new Uint8Array([7]))],
       generation: "same-generation",
+      epoch: 1,
     });
     await new Promise((resolve) => setTimeout(resolve, 50));
 
@@ -445,6 +450,7 @@ describe("App", () => {
     importCacheMock.loadImportedFiles.mockResolvedValueOnce({
       files: [brokenRef],
       generation: "test-generation",
+      epoch: 1,
     });
     importCacheMock.readImportGeneration.mockResolvedValue("test-generation");
     parsedCacheMock.loadParsedDataset.mockResolvedValueOnce(brokenIndex);
