@@ -130,40 +130,17 @@ async function main() {
     report.importMs = Date.now() - t0;
     console.log(`[perf] importMs=${report.importMs}`);
 
-    // 导入完成后数据集立即展示,缓存内容转后台写入;刷新前等待写完,
-    // 否则测到的"恢复"是写缓存被 unload 打断的残缺状态。
-    // 连续两次采样(间隔 1s)都达到总数才算稳定,避免读到上一轮残留的幽灵数据
+    // 等待应用自身的"正在缓存文件"提示消失:
+    // 该提示在导入缓存、解析缓存与引用交接全部完成后才收起,
+    // 仅等 raw meta 数量会让刷新打断解析缓存/交接,测到半完成状态
     const t1 = Date.now();
-    const readMetaCount = () =>
-      page.evaluate(async () => {
-        const db = await new Promise((res, rej) => {
-          const req = indexedDB.open(
-            "ventilator-web-visualizer-import-cache",
-            2
-          );
-          req.onsuccess = () => res(req.result);
-          req.onerror = () => rej(req.error);
-        });
-        const count = await new Promise((res, rej) => {
-          const tx = db.transaction("meta", "readonly");
-          const req = tx.objectStore("meta").count();
-          req.onsuccess = () => res(req.result);
-          req.onerror = () => rej(req.error);
-        });
-        db.close();
-        return count;
-      });
-    let firstSample = null;
-    while (Date.now() - t1 < 300_000) {
-      const count = await readMetaCount();
-      if (count >= files.length) {
-        if (firstSample !== null && Date.now() - firstSample >= 1000) break;
-        firstSample ??= Date.now();
-      } else {
-        firstSample = null;
-      }
-      await new Promise((r) => setTimeout(r, 300));
-    }
+    await page.waitForFunction(
+      () =>
+        ![...window.document.querySelectorAll(".notice-stack .notice")].some(
+          (el) => el.textContent?.includes("正在缓存文件")
+        ),
+      { timeout: 300_000, polling: 500 }
+    );
     report.cacheWriteSettleMs = Date.now() - t1;
     console.log(`[perf] cacheWriteSettleMs=${report.cacheWriteSettleMs}`);
   } else {

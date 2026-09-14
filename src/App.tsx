@@ -118,9 +118,29 @@ export function App() {
         }
 
         let nextDataset = await loadParsedDataset(cachedFiles);
+        const parsedFromCache = nextDataset !== null;
         if (!nextDataset) {
           nextDataset = await buildDatasetIndex(cachedFiles);
           if (cancelled) return;
+        }
+        if (cancelled) return;
+
+        // 恢复期间的新导入(本地轮次变化,或发布代际已变)使恢复过时:
+        // 放弃恢复并释放"快照代际"的读者锁——本标签页不再引用该代际。
+        // 条件释放:后台交接可能已把当前锁换成新导入的代际,不能误放。
+        // 复查必须在写解析缓存之前:慢重建跑输新导入时,
+        // 不得用旧代际的解析索引覆盖新代际的有效索引
+        const currentGeneration = await readImportGeneration();
+        if (
+          cancelled ||
+          cacheRunRef.current !== restoreRun ||
+          currentGeneration !== snapshot.generation
+        ) {
+          if (!cancelled) releaseReaderGeneration(snapshot.generation);
+          return;
+        }
+
+        if (!parsedFromCache) {
           try {
             await saveParsedDataset(
               cachedFiles,
@@ -130,20 +150,6 @@ export function App() {
           } catch {
             /* best effort */
           }
-        }
-        if (cancelled) return;
-
-        // 恢复期间的新导入(本地轮次变化,或发布代际已变)使恢复过时:
-        // 放弃恢复并释放"快照代际"的读者锁——本标签页不再引用该代际。
-        // 条件释放:后台交接可能已把当前锁换成新导入的代际,不能误放
-        const currentGeneration = await readImportGeneration();
-        if (
-          cancelled ||
-          cacheRunRef.current !== restoreRun ||
-          currentGeneration !== snapshot.generation
-        ) {
-          if (!cancelled) releaseReaderGeneration(snapshot.generation);
-          return;
         }
 
         setDataset(nextDataset);
@@ -302,7 +308,15 @@ export function App() {
               }
             }
           } catch {
-            /* best effort */
+            // 交接异常(加载/协调锁失败)时展示中的数据集仍是源文件引用:
+            // 保留警告,避免用户以为缓存完成而拔除数据源
+            if (cacheRun === cacheRunRef.current) {
+              setCacheNotice(
+                (prev) =>
+                  prev ??
+                  "文件已缓存，但本页未能切换到缓存引用；请保持数据源连接，刷新后可从缓存恢复。"
+              );
+            }
           }
         } catch {
           // 被新导入取代的写入失败与当前数据集无关,不惊扰用户

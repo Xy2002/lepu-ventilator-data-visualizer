@@ -240,6 +240,22 @@ describe("App", () => {
     expect(await screen.findByText(/无法缓存这些文件/)).toBeInTheDocument();
   });
 
+  it("warns when the cached-reference handoff fails", async () => {
+    // 交接中的加载/协调锁异常不得静默:提示用户保持数据源连接
+    importCacheMock.loadImportedFiles
+      .mockResolvedValueOnce({ files: [], generation: null }) // 启动恢复:无缓存
+      .mockRejectedValueOnce(new Error("gc lock failed")); // 交接重取失败
+
+    render(<App />);
+    await userEvent.upload(
+      screen.getByLabelText("选择 EDF 文件"),
+      edfFile("20260429_flow.edf", "flow", new Uint8Array([20, 19, 17]))
+    );
+    expect(await screen.findByText("日期导航")).toBeInTheDocument();
+
+    expect(await screen.findByText(/未能切换到缓存引用/)).toBeInTheDocument();
+  });
+
   it("reports parsed-cache failures separately from file-cache failures", async () => {
     parsedCacheMock.saveParsedDataset.mockRejectedValueOnce(
       new Error("quota exceeded")
@@ -342,6 +358,12 @@ describe("App", () => {
     expect(screen.getAllByText("2026-04-29").length).toBeGreaterThan(0);
     // 恢复放弃后必须释放读者锁,否则被放弃的代际被钉住到页面关闭
     expect(importCacheMock.releaseReaderGeneration).toHaveBeenCalled();
+    // 过时恢复不得把旧代际的解析索引写进缓存(导入自身的写入除外)
+    expect(parsedCacheMock.saveParsedDataset).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      "old-generation"
+    );
   });
 
   it("abandons a restore superseded by a local import even when the generation is unchanged", async () => {
