@@ -239,18 +239,12 @@ export function App() {
       // 解析缓存未更新"的窗口用旧摘要配新内容字节。
       // 作废失败(IDB 拒绝访问等)不阻断导入本身——此时旧缓存同样不可达
       const cacheRun = ++cacheRunRef.current;
-      // 两项作废必须各自等完(allSettled):任一失败立即放行的话,
-      // 基线纪元可能在另一项作废提交前捕获,保存会带着旧纪元中止,
-      // 令本可有效的导入被误报为未缓存
-      const settled = await Promise.allSettled([
-        invalidateImportedFiles(),
-        invalidateParsedDataset(),
-      ]);
       // 基线纪元绑定到作废事务返回值(而非事后再读一次):
       // 保存回调可能延迟很久才执行,再读一次会吸收排队期间
       // 其他标签页的作废,让被取代的旧数据集"最后发布"
-      const baselineEpoch =
-        settled[0].status === "fulfilled" ? settled[0].value : null;
+      const baselineEpoch = await invalidateImportedFiles().catch(() => null);
+      // 解析缓存的作废绑定同一纪元:已被更新的导入取代时跳过清空
+      await invalidateParsedDataset(baselineEpoch).catch(() => {});
       // 数据集就绪立即展示;缓存写入(文件内容进 IndexedDB,可能上 GB)后台进行,
       // 不阻塞首屏交互。失败仅提示,不影响本次使用。
       setDataset(nextDataset);

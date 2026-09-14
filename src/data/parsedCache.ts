@@ -5,7 +5,7 @@ import type {
   ParsedVentilatorFile,
 } from "../types";
 import { groupImportedFilesByDay } from "./dataset";
-import { readImportGeneration } from "./importCache";
+import { readImportEpoch, readImportGeneration } from "./importCache";
 
 const DB_NAME = "ventilator-parsed-cache";
 const DB_VERSION = 1;
@@ -184,9 +184,17 @@ export async function saveParsedDataset(
 }
 
 // 新导入开始时作废旧解析结果:防止关闭发生在"导入缓存已发布、
-// 解析缓存未更新"之间时,旧摘要/头部配上按需读取的新内容字节
-export async function invalidateParsedDataset(): Promise<void> {
+// 解析缓存未更新"之间时,旧摘要/头部配上按需读取的新内容字节。
+// baselineEpoch 绑定本次导入的作废纪元:已被更新的导入取代
+// (纪元已推进)时跳过清空,保留他们的有效解析索引
+export async function invalidateParsedDataset(
+  baselineEpoch?: number | null
+): Promise<void> {
   if (typeof indexedDB === "undefined") return;
+
+  // 纪元读取必须在打开事务之前(跨库 await 会使事务失活)
+  const currentEpoch = baselineEpoch != null ? await readImportEpoch() : null;
+  if (baselineEpoch != null && currentEpoch !== baselineEpoch) return;
 
   const db = await openDatabase(DB_NAME, DB_VERSION, STORE, "id");
   try {
