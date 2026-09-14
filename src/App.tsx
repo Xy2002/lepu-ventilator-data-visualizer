@@ -88,6 +88,9 @@ export function App() {
   // runId 递增使被新导入取代的排队写入自动跳过
   const cacheWriteRef = useRef<Promise<void>>(Promise.resolve());
   const cacheRunRef = useRef(0);
+  // 当前数据集身份的同步镜像:交接守卫需要在无 await 的临界区内比对,
+  // 不能依赖 React 状态(函数式 updater 的执行时机不可控)
+  const datasetRef = useRef<DatasetIndex | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -146,6 +149,7 @@ export function App() {
         }
 
         setDataset(nextDataset);
+        datasetRef.current = nextDataset;
         setSelectedDate(nextDataset.days[nextDataset.days.length - 1] ?? null);
         setCacheNotice("已恢复上次导入的文件。");
       } catch {
@@ -219,6 +223,7 @@ export function App() {
       // 数据集就绪立即展示;缓存写入(文件内容进 IndexedDB,可能上 GB)后台进行,
       // 不阻塞首屏交互。失败仅提示,不影响本次使用。
       setDataset(nextDataset);
+      datasetRef.current = nextDataset;
       setSelectedDate(nextDataset.days[nextDataset.days.length - 1] ?? null);
       setIsCaching(true);
       cacheWriteRef.current = cacheWriteRef.current.then(async () => {
@@ -229,7 +234,15 @@ export function App() {
             files,
             () => cacheRun !== cacheRunRef.current
           );
-          if (cacheRun !== cacheRunRef.current || generation === null) return;
+          if (cacheRun !== cacheRunRef.current) return;
+          if (generation === null) {
+            // 本地轮次未变却被中止 = 另一标签页作废了缓存(纪元推进):
+            // 展示中的数据集未缓存、刷新不可恢复,必须告知用户
+            setCacheNotice(
+              "已导入，但浏览器无法缓存这些文件；刷新后需要重新选择。"
+            );
+            return;
+          }
 
           try {
             await saveParsedDataset(files, nextDataset, generation);
@@ -243,28 +256,38 @@ export function App() {
 
           // 本标签页切换为缓存引用:数据源(如 SD 卡)拔除后,
           // 未访问过的日期仍可从缓存读取。
-          // 仅当展示中的数据集仍是本次导入产出时才交接,
-          // 防止把新代际的引用铺到其他来源的数据集上(如未完成的恢复)
+          // 仅当展示中的数据集仍是本次导入产出且轮次未变时才交接,
+          // 防止把引用铺到其他来源的数据集上、或为过时代际切换读者锁
+          // (过时锁会让新导入的清理多保留一整份旧数据)
           try {
             const snapshot = await loadImportedFiles();
             if (
               snapshot.files.length > 0 &&
-              snapshot.generation === generation
+              snapshot.generation === generation &&
+              cacheRun === cacheRunRef.current &&
+              datasetRef.current === nextDataset
             ) {
               await holdReaderGeneration(generation);
-              setDataset((current) => {
-                if (current !== nextDataset) return current;
+              // 获取锁后再同步复查(期间无 await,JS 单线程保证原子):
+              // 被取代则立即释放,不为过时代际留下读者锁
+              if (
+                cacheRun !== cacheRunRef.current ||
+                datasetRef.current !== nextDataset
+              ) {
+                releaseReaderGeneration(generation);
+              } else {
                 const replaced = {
-                  ...current,
+                  ...nextDataset,
                   filesByDay: groupImportedFilesByDay(snapshot.files),
                 };
                 // 新身份会丢掉按日 WeakMap 缓存,迁移以保留已解析的天
-                migrateDayDetailCache(current, replaced);
-                return replaced;
-              });
-              // 本标签页已不再引用被取代的代际:立即回收
-              // (发布代际与其他标签页读者锁持有的代际仍会保留)
-              await reclaimUnreferencedContents();
+                migrateDayDetailCache(nextDataset, replaced);
+                datasetRef.current = replaced;
+                setDataset(replaced);
+                // 本标签页已不再引用被取代的代际:立即回收
+                // (发布代际与其他标签页读者锁持有的代际仍会保留)
+                await reclaimUnreferencedContents();
+              }
             }
           } catch {
             /* best effort */

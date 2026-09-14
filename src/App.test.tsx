@@ -221,6 +221,21 @@ describe("App", () => {
     );
   });
 
+  it("warns when a cross-tab invalidation cancels the active cache write", async () => {
+    // 本地轮次未变但写入因另一标签页作废(纪元推进)返回 null:
+    // 不能静默收场——展示的数据集未缓存,刷新不可恢复,必须告知
+    importCacheMock.saveImportedFiles.mockResolvedValue(null);
+
+    render(<App />);
+    await userEvent.upload(
+      screen.getByLabelText("选择 EDF 文件"),
+      edfFile("20260429_flow.edf", "flow", new Uint8Array([20, 19, 17]))
+    );
+    expect(await screen.findByText("日期导航")).toBeInTheDocument();
+
+    expect(await screen.findByText(/无法缓存这些文件/)).toBeInTheDocument();
+  });
+
   it("reports parsed-cache failures separately from file-cache failures", async () => {
     parsedCacheMock.saveParsedDataset.mockRejectedValueOnce(
       new Error("quota exceeded")
