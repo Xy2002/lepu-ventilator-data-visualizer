@@ -190,8 +190,18 @@ export function App() {
 
     restoreImport();
 
+    // 其他标签页关闭后,它们钉住的代际失去读者:
+    // 借可见性变化做一次尽力而为的回收,避免多份数据集长期占用配额
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void reclaimUnreferencedContents().catch(() => {});
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
     return () => {
       cancelled = true;
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, []);
 

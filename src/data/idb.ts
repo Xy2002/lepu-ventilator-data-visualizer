@@ -19,6 +19,18 @@ export function openDatabase(
 
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(dbName, dbVersion);
+    // blocked 已报告失败后,升级仍可能在阻塞方关闭后成功:
+    // 晚到的连接必须立即关闭,否则会阻塞后续的删除/升级
+    let settled = false;
+
+    request.onblocked = () => {
+      settled = true;
+      reject(
+        new Error(
+          `数据库 ${dbName} 的升级被其他标签页阻塞，请关闭其他标签页后重试`
+        )
+      );
+    };
 
     request.onupgradeneeded = () => {
       const database = request.result;
@@ -36,15 +48,16 @@ export function openDatabase(
         }
       }
     };
-    request.onblocked = () =>
-      reject(
-        new Error(
-          `数据库 ${dbName} 的升级被其他标签页阻塞，请关闭其他标签页后重试`
-        )
-      );
     request.onerror = () =>
       reject(request.error ?? new Error(`Failed to open ${dbName}`));
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      if (settled) {
+        request.result.close();
+        return;
+      }
+      settled = true;
+      resolve(request.result);
+    };
   });
 }
 
