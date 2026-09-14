@@ -26,6 +26,52 @@ function makeRef(
   );
 }
 
+interface FakeLocks {
+  request: (
+    name: string,
+    optionsOrTask: unknown,
+    maybeCallback?: () => Promise<unknown>
+  ) => Promise<unknown>;
+  query: () => Promise<{
+    held: Array<{ name: string; mode: string }>;
+    pending: never[];
+  }>;
+}
+
+/** 模拟 Web Locks:写锁立即执行任务,读者锁记录持有并在释放时移除 */
+function readerLockFake(held: Map<string, Promise<unknown>>): FakeLocks {
+  return {
+    request: (name, optionsOrTask, maybeCallback) => {
+      const task =
+        typeof optionsOrTask === "function"
+          ? (optionsOrTask as () => Promise<unknown>)
+          : maybeCallback;
+      if (!task) return Promise.resolve();
+      const promise = task();
+      if (name.startsWith("ventilator-import-cache-reader:")) {
+        held.set(name, promise);
+        promise.finally(() => held.delete(name)).catch(() => {});
+      }
+      return promise;
+    },
+    query: async () => ({
+      held: [...held.keys()].map((name) => ({ name, mode: "shared" })),
+      pending: [],
+    }),
+  };
+}
+
+function installReaderLockFake(held: Map<string, Promise<unknown>>) {
+  Object.defineProperty(navigator, "locks", {
+    configurable: true,
+    value: readerLockFake(held),
+  });
+}
+
+function removeLockFake() {
+  delete (navigator as unknown as { locks?: unknown }).locks;
+}
+
 describe("importCache", () => {
   it("round-trips file metadata and content through IndexedDB", async () => {
     const payload = new Uint8Array(1024);
@@ -83,46 +129,84 @@ describe("importCache", () => {
     await expect(loadImportedFiles()).resolves.toMatchObject({ files: [] });
   });
 
-  it("keeps the published generation's contents while caching a new import", async () => {
-    // 其他标签页可能仍持有旧代际的引用并按需读取:
-    // 新导入开始时不得清掉"已发布代际"的内容
+  it("keeps reader-pinned contents while caching a new import", async () => {
+    // 其他标签页通过读者锁钉住旧代际的引用并按需读取:
+    // 新导入开始时不得清掉被钉住代际的内容
     const payload = new Uint8Array(600);
     for (let i = 0; i < payload.length; i += 1) payload[i] = i % 251;
     await saveImportedFiles([makeRef("a.edf", payload)]);
     const restored = await loadImportedFiles();
     expect(restored.files).toHaveLength(1);
 
-    // 新导入(不同文件)的写入在发布前被取代:旧代际内容必须仍然可读
-    await saveImportedFiles(
-      [makeRef("b.edf", new Uint8Array([9]))],
-      () => true
-    );
+    const held = new Map<string, Promise<unknown>>();
+    installReaderLockFake(held);
 
-    expect(new Uint8Array(await restored.files[0].read())).toEqual(payload);
-    // 被取代的写入未发布:缓存仍是原代际的单文件数据集
-    await expect(loadImportedFiles()).resolves.toMatchObject({
-      files: [expect.objectContaining({ name: "a.edf" })],
-    });
+    try {
+      await holdReaderGeneration(restored.generation);
+
+      // 新导入(不同文件)的写入在发布前被取代:钉住代际内容必须仍然可读
+      await saveImportedFiles(
+        [makeRef("b.edf", new Uint8Array([9]))],
+        () => true
+      );
+
+      expect(new Uint8Array(await restored.files[0].read())).toEqual(payload);
+      // 被取代的写入未发布:缓存仍是原代际的单文件数据集
+      await expect(loadImportedFiles()).resolves.toMatchObject({
+        files: [expect.objectContaining({ name: "a.edf" })],
+      });
+    } finally {
+      releaseReaderGeneration();
+      removeLockFake();
+    }
   });
 
   it("keeps published contents readable even after meta invalidation", async () => {
-    // App 作废 meta 后,其他标签页仍持有旧代际引用:
-    // 发布代际存于 state store(不随 meta 一起消失),
-    // 后续写入的清理不得删掉它们正要读取的内容
+    // App 作废 meta 后,本标签页仍钉住快照代际的读者锁:
+    // 后续写入的清理必须保留读者钉住的代际,它们正要惰性读取
     const payload = new Uint8Array(600);
     for (let i = 0; i < payload.length; i += 1) payload[i] = i % 251;
     await saveImportedFiles([makeRef("a.edf", payload)]);
     const restored = await loadImportedFiles();
     expect(restored.files).toHaveLength(1);
 
-    await invalidateImportedFiles();
-    await expect(loadImportedFiles()).resolves.toMatchObject({ files: [] });
+    const held = new Map<string, Promise<unknown>>();
+    Object.defineProperty(navigator, "locks", {
+      configurable: true,
+      value: readerLockFake(held),
+    });
+
+    try {
+      await holdReaderGeneration(restored.generation);
+
+      await invalidateImportedFiles();
+      await expect(loadImportedFiles()).resolves.toMatchObject({ files: [] });
+
+      await saveImportedFiles(
+        [makeRef("b.edf", new Uint8Array([9]))],
+        () => true
+      );
+      expect(new Uint8Array(await restored.files[0].read())).toEqual(payload);
+    } finally {
+      releaseReaderGeneration();
+      delete (navigator as unknown as { locks?: unknown }).locks;
+    }
+  });
+
+  it("discards the unreferenced published generation before copying", async () => {
+    // 无读者锁钉住的已发布代际在替换写入前即可删除:
+    // 否则替换导入要求设备装得下两份完整数据集,配额小的设备写入必败。
+    // 代价是拷贝期间刷新会看到"缓存缺失"(meta 有、内容无 → 视同未缓存)
+    await saveImportedFiles([makeRef("a.edf", new Uint8Array([1, 2, 3]))]);
+    const restoredA = await loadImportedFiles();
 
     await saveImportedFiles(
       [makeRef("b.edf", new Uint8Array([9]))],
       () => true
     );
-    expect(new Uint8Array(await restored.files[0].read())).toEqual(payload);
+    await expect(restoredA.files[0].read()).rejects.toThrow(
+      "缓存中缺少文件内容"
+    );
   });
 
   it("invalidates without waiting for another tab's write lock", async () => {
@@ -236,21 +320,21 @@ describe("importCache", () => {
       for (let i = 0; i < payload.length; i += 1) payload[i] = i % 251;
       await saveImportedFiles([makeRef("a.edf", payload)]);
       const restored = await loadImportedFiles();
-      holdReaderGeneration(restored.generation);
+      await holdReaderGeneration(restored.generation);
       expect(
         held.has(`ventilator-import-cache-reader:${restored.generation}`)
       ).toBe(true);
 
-      // 两次后续写入:G2 发布、G3 写入被取代——G1 的读者锁让它幸存
+      // G2 发布、G3 写入被取代——被读者锁钉住的 G1 在两次写入中幸存
       await saveImportedFiles([makeRef("b.edf", new Uint8Array([9]))]);
       await saveImportedFiles(
         [makeRef("c.edf", new Uint8Array([8]))],
         () => true
       );
       expect(new Uint8Array(await restored.files[0].read())).toEqual(payload);
-      await expect(loadImportedFiles()).resolves.toMatchObject({
-        files: [expect.objectContaining({ name: "b.edf" })],
-      });
+      // G2 无读者钉住:G3 的清理预删了它的内容,meta 残留使其视同未缓存
+      // (单锁语义下这是预期;切换后的保护由交接时的新读者锁承担)
+      await expect(loadImportedFiles()).resolves.toMatchObject({ files: [] });
     } finally {
       delete (navigator as unknown as { locks?: unknown }).locks;
     }
@@ -313,6 +397,39 @@ describe("importCache", () => {
     } finally {
       releaseReaderGeneration();
       delete (navigator as unknown as { locks?: unknown }).locks;
+    }
+  });
+
+  it("releases only the expected generation when asked", async () => {
+    // 过时的恢复放弃时只释放自己钉住的代际:
+    // 若当前锁已被交接换成新代际,不能误放导致展示中的引用失去保护
+    const held = new Map<string, Promise<unknown>>();
+    installReaderLockFake(held);
+
+    try {
+      await saveImportedFiles([makeRef("a.edf", new Uint8Array([1]))]);
+      const restoredA = await loadImportedFiles();
+      await holdReaderGeneration(restoredA.generation);
+
+      await saveImportedFiles([makeRef("b.edf", new Uint8Array([9]))]);
+      const restoredB = await loadImportedFiles();
+      await holdReaderGeneration(restoredB.generation);
+
+      // 旧代际的迟到放弃:期望代际不匹配,当前锁(G2)不受影响
+      releaseReaderGeneration(restoredA.generation);
+      expect(
+        held.has(`ventilator-import-cache-reader:${restoredB.generation}`)
+      ).toBe(true);
+
+      // 期望代际匹配才释放(释放经微任务生效)
+      releaseReaderGeneration(restoredB.generation);
+      await new Promise((r) => setTimeout(r, 0));
+      expect(
+        held.has(`ventilator-import-cache-reader:${restoredB.generation}`)
+      ).toBe(false);
+    } finally {
+      releaseReaderGeneration();
+      removeLockFake();
     }
   });
 

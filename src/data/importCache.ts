@@ -147,13 +147,22 @@ interface ActiveReaderLock {
 }
 let activeReaderLock: ActiveReaderLock | null = null;
 
-/** 释放本标签页当前的读者锁(如恢复被取代后不再引用该代际) */
-export function releaseReaderGeneration(): void {
+/** 释放本标签页的读者锁;传入期望代际时仅在该代际仍是当前持有时释放 */
+export function releaseReaderGeneration(
+  expectedGeneration?: string | null
+): void {
+  if (
+    expectedGeneration !== undefined &&
+    activeReaderLock?.generation !== expectedGeneration
+  )
+    return;
   activeReaderLock?.release();
   activeReaderLock = null;
 }
 
-export function holdReaderGeneration(generation: string | null): void {
+export async function holdReaderGeneration(
+  generation: string | null
+): Promise<void> {
   if (
     !generation ||
     typeof navigator === "undefined" ||
@@ -166,21 +175,28 @@ export function holdReaderGeneration(generation: string | null): void {
   const released = new Promise<void>((resolve) => {
     release = resolve;
   });
+  // 等待锁真正获取(回调被调用)后才算持有:
+  // 免等即放旧锁会让清理在 query() 里看不到新代际而误删其内容
+  let markAcquired: (() => void) | undefined;
+  const acquired = new Promise<void>((resolve) => {
+    markAcquired = resolve;
+  });
   const previous = activeReaderLock;
   navigator.locks
-    .request(
-      `${READER_LOCK_PREFIX}${generation}`,
-      { mode: "shared" },
-      () => released
-    )
+    .request(`${READER_LOCK_PREFIX}${generation}`, { mode: "shared" }, () => {
+      markAcquired?.();
+      return released;
+    })
     .then(() => {
       // 锁因释放而结束时清理本标签页的记录(而非被切换走)
       if (activeReaderLock?.generation === generation) activeReaderLock = null;
     })
     .catch(() => {
       /* 持锁失败仅影响旧代际保留策略,不影响功能 */
+      if (activeReaderLock?.generation === generation) activeReaderLock = null;
     });
   activeReaderLock = { generation, release: release! };
+  await acquired;
   previous?.release();
 }
 
@@ -244,16 +260,17 @@ export async function saveImportedFiles(
     const database = await openImportDatabase();
 
     try {
-      // 保留已发布代际与所有活跃读者代际的内容(其他标签页可能正要惰性读取),
-      // 只清理无人引用的遗留代际;新代际写入后由下一次保存清理本代际
-      const publishedGeneration = await readPublishedGeneration(database);
+      // 纪元必须在任何 await(清理/读者查询)之前捕获:
+      // 免锁作废可能正插在这些 await 之间提交,晚捕获会把已推进的纪元
+      // 当成基线,发布复查就会放过被取代的写入
+      const startEpoch = await readEpoch(database);
+
+      // 内容清理只保留活跃读者代际:无读者锁钉住的已发布代际一并删除,
+      // 替换导入不再要求设备装得下两份完整数据集(见下方发布注释)。
+      // 其他标签页持有的引用由读者锁保护,与发布代际无关
       const keepGenerations = await activeReaderGenerations();
-      if (publishedGeneration) keepGenerations.add(publishedGeneration);
       await deleteContentGenerationsExcept(database, keepGenerations);
 
-      // 捕获作废纪元:其他标签页的免锁作废会使纪元推进,
-      // 发布事务内复查不一致即中止(跨标签页版的 shouldAbort)
-      const startEpoch = await readEpoch(database);
       const generation = newCacheGeneration();
       const BATCH_SIZE = 20;
       // 内容先行写入,最后单事务写元数据发布:

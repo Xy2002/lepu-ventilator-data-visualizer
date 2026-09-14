@@ -11,6 +11,7 @@ import { DatasetStatusBar } from "./components/DatasetStatusBar";
 import {
   buildDatasetIndex,
   groupImportedFilesByDay,
+  migrateDayDetailCache,
   type IndexProgress,
   loadDayDetail,
 } from "./data/dataset";
@@ -96,6 +97,8 @@ export function App() {
       // 捕获启动时的导入轮次(必须在首个 await 之前,否则会读到导入后的新值):
       // 本地导入完成后轮次递增,即使发布代际尚未切换也能识别"被本地导入取代"
       const restoreRun = cacheRunRef.current;
+      // 恢复所钉住的代际(catch 中也要能条件释放,故提升到 try 外)
+      let snapshotGeneration: string | null = null;
 
       try {
         // 两阶段解析：恢复时只加载文件句柄与摘要索引，波形 payload 按需解析。
@@ -104,8 +107,14 @@ export function App() {
         const snapshot = await loadImportedFiles();
         if (cancelled || snapshot.files.length === 0) return;
         const cachedFiles = snapshot.files;
-        // 声明本标签页仍在使用该代际:内容清理会保留它(页面关闭自动释放)
-        holdReaderGeneration(snapshot.generation);
+        snapshotGeneration = snapshot.generation;
+        // 声明本标签页仍在使用该代际:内容清理会保留它(页面关闭自动释放)。
+        // 等待锁真正获取后才继续,后续的解析/读取才有保护
+        await holdReaderGeneration(snapshot.generation);
+        if (cancelled) {
+          releaseReaderGeneration(snapshot.generation);
+          return;
+        }
 
         let nextDataset = await loadParsedDataset(cachedFiles);
         if (!nextDataset) {
@@ -124,15 +133,15 @@ export function App() {
         if (cancelled) return;
 
         // 恢复期间的新导入(本地轮次变化,或发布代际已变)使恢复过时:
-        // 放弃恢复并释放读者锁——本标签页不再引用该代际,
-        // 不释放会把约整份数据集钉住到页面关闭
+        // 放弃恢复并释放"快照代际"的读者锁——本标签页不再引用该代际。
+        // 条件释放:后台交接可能已把当前锁换成新导入的代际,不能误放
         const currentGeneration = await readImportGeneration();
         if (
           cancelled ||
           cacheRunRef.current !== restoreRun ||
           currentGeneration !== snapshot.generation
         ) {
-          if (!cancelled) releaseReaderGeneration();
+          if (!cancelled) releaseReaderGeneration(snapshot.generation);
           return;
         }
 
@@ -140,7 +149,7 @@ export function App() {
         setSelectedDate(nextDataset.days[nextDataset.days.length - 1] ?? null);
         setCacheNotice("已恢复上次导入的文件。");
       } catch {
-        releaseReaderGeneration();
+        releaseReaderGeneration(snapshotGeneration ?? undefined);
         if (!cancelled)
           setCacheNotice(
             "无法恢复上次导入的文件，请重新选择 DATAFILE 文件夹。"
@@ -242,15 +251,17 @@ export function App() {
               snapshot.files.length > 0 &&
               snapshot.generation === generation
             ) {
-              holdReaderGeneration(generation);
-              setDataset((current) =>
-                current === nextDataset
-                  ? {
-                      ...current,
-                      filesByDay: groupImportedFilesByDay(snapshot.files),
-                    }
-                  : current
-              );
+              await holdReaderGeneration(generation);
+              setDataset((current) => {
+                if (current !== nextDataset) return current;
+                const replaced = {
+                  ...current,
+                  filesByDay: groupImportedFilesByDay(snapshot.files),
+                };
+                // 新身份会丢掉按日 WeakMap 缓存,迁移以保留已解析的天
+                migrateDayDetailCache(current, replaced);
+                return replaced;
+              });
               // 本标签页已不再引用被取代的代际:立即回收
               // (发布代际与其他标签页读者锁持有的代际仍会保留)
               await reclaimUnreferencedContents();

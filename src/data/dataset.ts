@@ -417,6 +417,20 @@ export function inspectDayDetailCache(index: DatasetIndex) {
   };
 }
 
+/**
+ * 把 source 的按日解析缓存迁移到 target(引用交接场景):
+ * 交接会生成新的 DatasetIndex 身份,不迁移的话 WeakMap 缓存全部失效,
+ * 已打开过的日期都要从 IndexedDB 重新读取解析
+ */
+export function migrateDayDetailCache(
+  source: DatasetIndex,
+  target: DatasetIndex
+) {
+  if (source === target) return;
+  const perIndex = dayDetailCache.get(source);
+  if (perIndex) dayDetailCache.set(target, new Map(perIndex));
+}
+
 async function resolveDayFiles(
   index: DatasetIndex,
   date: string

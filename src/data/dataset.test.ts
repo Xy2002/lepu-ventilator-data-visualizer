@@ -12,6 +12,7 @@ import {
   filterDays,
   inspectDayDetailCache,
   loadDayDetail,
+  migrateDayDetailCache,
   type IndexProgress,
 } from "./dataset";
 
@@ -212,6 +213,24 @@ describe("dataset indexing", () => {
     for (const day of index.days.slice(1)) await loadDayDetail(index, day);
     expect(inspectDayDetailCache(index).size).toBe(4);
     expect(inspectDayDetailCache(index).keys).not.toContain("2026-04-21");
+  });
+
+  it("migrateDayDetailCache transfers hydrated days to the replacement index", async () => {
+    const files = ["20260421", "20260422"].map((day) =>
+      imported(`${day}_flow.edf`, "flow", new Uint8Array([7, 8, 9]))
+    );
+    const index = await buildDatasetIndex(files);
+    await loadDayDetail(index, "2026-04-21");
+    expect(inspectDayDetailCache(index).keys).toContain("2026-04-21");
+
+    // 引用交接生成的替换身份:缓存迁移后,已解析的天不丢
+    const replaced = { ...index, filesByDay: index.filesByDay };
+    migrateDayDetailCache(index, replaced);
+
+    expect(inspectDayDetailCache(replaced).keys).toContain("2026-04-21");
+    // 同一对象调用是空操作
+    migrateDayDetailCache(replaced, replaced);
+    expect(inspectDayDetailCache(replaced).keys).toContain("2026-04-21");
   });
 
   it("fires onProgress as each day completes, not after all days", async () => {
