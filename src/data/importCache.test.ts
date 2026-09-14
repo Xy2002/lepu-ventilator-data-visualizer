@@ -7,6 +7,7 @@ import {
   holdReaderGeneration,
   invalidateImportedFiles,
   loadImportedFiles,
+  reclaimUnreferencedContents,
   resetReaderLockForTests,
   saveImportedFiles,
 } from "./importCache";
@@ -230,6 +231,61 @@ describe("importCache", () => {
 
       // 旧代际失去读者:下一次写入的 GC 回收它;新代际仍受保护
       await saveImportedFiles([makeRef("c.edf", new Uint8Array([8]))]);
+      await expect(restoredA.files[0].read()).rejects.toThrow(
+        "缓存中缺少文件内容"
+      );
+      expect(new Uint8Array(await restoredB.files[0].read())).toEqual(
+        new Uint8Array([9])
+      );
+    } finally {
+      resetReaderLockForTests();
+      delete (navigator as unknown as { locks?: unknown }).locks;
+    }
+  });
+
+  it("reclaims the superseded generation via reclaimUnreferencedContents", async () => {
+    const held = new Map<string, Promise<unknown>>();
+    const fakeLocks = {
+      request: (
+        name: string,
+        optionsOrTask: unknown,
+        maybeCallback?: () => Promise<unknown>
+      ) => {
+        const task =
+          typeof optionsOrTask === "function"
+            ? (optionsOrTask as () => Promise<unknown>)
+            : maybeCallback;
+        if (!task) return Promise.resolve();
+        const promise = task();
+        if (name.startsWith("ventilator-import-cache-reader:")) {
+          held.set(name, promise);
+          promise.finally(() => held.delete(name)).catch(() => {});
+        }
+        return promise;
+      },
+      query: async () => ({
+        held: [...held.keys()].map((name) => ({ name, mode: "shared" })),
+        pending: [],
+      }),
+    };
+    Object.defineProperty(navigator, "locks", {
+      configurable: true,
+      value: fakeLocks,
+    });
+
+    try {
+      // G1 缓存并切换读者锁到 G2(重导入场景):发布代际 + 活跃读者保留
+      await saveImportedFiles([makeRef("a.edf", new Uint8Array([1, 2, 3]))]);
+      const restoredA = await loadImportedFiles();
+      holdReaderGeneration(restoredA.generation);
+
+      await saveImportedFiles([makeRef("b.edf", new Uint8Array([9]))]);
+      const restoredB = await loadImportedFiles();
+      holdReaderGeneration(restoredB.generation);
+      await new Promise((r) => setTimeout(r, 0));
+
+      // 无需等到下一次写入:发布后立即回收被取代的代际
+      await reclaimUnreferencedContents();
       await expect(restoredA.files[0].read()).rejects.toThrow(
         "缓存中缺少文件内容"
       );

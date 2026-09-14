@@ -20,6 +20,8 @@ const importCacheMock = vi.hoisted(() => ({
   holdReaderGeneration: vi.fn(),
   invalidateImportedFiles: vi.fn(),
   loadImportedFiles: vi.fn(),
+  readImportGeneration: vi.fn(),
+  reclaimUnreferencedContents: vi.fn(),
   saveImportedFiles: vi.fn(),
 }));
 
@@ -106,6 +108,8 @@ describe("App", () => {
       files: [],
       generation: null,
     });
+    importCacheMock.readImportGeneration.mockResolvedValue(null);
+    importCacheMock.reclaimUnreferencedContents.mockResolvedValue(undefined);
     importCacheMock.saveImportedFiles.mockResolvedValue("test-generation");
     parsedCacheMock.invalidateParsedDataset.mockResolvedValue(undefined);
     parsedCacheMock.loadParsedDataset.mockResolvedValue(null);
@@ -267,6 +271,7 @@ describe("App", () => {
       ],
       generation: "test-generation",
     });
+    importCacheMock.readImportGeneration.mockResolvedValue("test-generation");
 
     render(<App />);
 
@@ -276,6 +281,44 @@ describe("App", () => {
     expect(
       screen.queryByText("导入 DATAFILE 开始查看")
     ).not.toBeInTheDocument();
+  });
+
+  it("abandons a stale restore superseded by a newer import", async () => {
+    // 恢复还在重建旧数据集时用户导入了新数据集:
+    // 发布代际已变,恢复必须放弃,不得覆盖新导入的显示
+    let resolveRestoreLoad:
+      | ((value: {
+          files: ImportedFileRef[];
+          generation: string | null;
+        }) => void)
+      | undefined;
+    importCacheMock.loadImportedFiles.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRestoreLoad = resolve;
+        })
+    );
+    importCacheMock.readImportGeneration.mockResolvedValue("new-generation");
+
+    render(<App />);
+    await userEvent.upload(
+      screen.getByLabelText("选择 EDF 文件"),
+      edfFile("20260429_flow.edf", "flow", new Uint8Array([20, 19, 17]))
+    );
+    expect(await screen.findByText("日期导航")).toBeInTheDocument();
+
+    // 旧快照迟到:其代际与当前发布代际不符,恢复应静默放弃
+    resolveRestoreLoad?.({
+      files: [importedFile("20260101_flow.edf", "flow", new Uint8Array([7]))],
+      generation: "old-generation",
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(
+      screen.queryByText("已恢复上次导入的文件。")
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/2026-01-01/)).not.toBeInTheDocument();
+    expect(screen.getAllByText("2026-04-29").length).toBeGreaterThan(0);
   });
 
   it("shows an error notice when loading the selected day fails", async () => {
@@ -318,6 +361,7 @@ describe("App", () => {
       files: [brokenRef],
       generation: "test-generation",
     });
+    importCacheMock.readImportGeneration.mockResolvedValue("test-generation");
     parsedCacheMock.loadParsedDataset.mockResolvedValueOnce(brokenIndex);
 
     render(<App />);

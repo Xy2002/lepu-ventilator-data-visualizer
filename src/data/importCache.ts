@@ -364,3 +364,22 @@ export async function readImportGeneration(): Promise<string | null> {
     database.close();
   }
 }
+
+// 回收无人引用的内容代际:保留当前发布代际与活跃读者代际。
+// 供调用方在切换读者锁之后调用——发布即被取代的代际立即回收,
+// 而不是等下一次写入(否则稳态常驻两份完整数据集,配额小的设备放不下)
+export async function reclaimUnreferencedContents(): Promise<void> {
+  if (typeof indexedDB === "undefined") return;
+
+  await withCacheWriteLock(async () => {
+    const database = await openImportDatabase();
+    try {
+      const publishedGeneration = await readPublishedGeneration(database);
+      const keepGenerations = await activeReaderGenerations();
+      if (publishedGeneration) keepGenerations.add(publishedGeneration);
+      await deleteContentGenerationsExcept(database, keepGenerations);
+    } finally {
+      database.close();
+    }
+  });
+}

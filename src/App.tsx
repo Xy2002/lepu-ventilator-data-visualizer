@@ -19,6 +19,8 @@ import {
   holdReaderGeneration,
   invalidateImportedFiles,
   loadImportedFiles,
+  readImportGeneration,
+  reclaimUnreferencedContents,
   saveImportedFiles,
 } from "./data/importCache";
 import {
@@ -117,6 +119,11 @@ export function App() {
         }
         if (cancelled) return;
 
+        // 恢复期间用户可能导入了新数据集:发布代际不再是快照代际时放弃恢复,
+        // 避免旧数据集覆盖新导入的显示(新导入自行负责展示与缓存)
+        const currentGeneration = await readImportGeneration();
+        if (cancelled || currentGeneration !== snapshot.generation) return;
+
         setDataset(nextDataset);
         setSelectedDate(nextDataset.days[nextDataset.days.length - 1] ?? null);
         setCacheNotice("已恢复上次导入的文件。");
@@ -213,7 +220,9 @@ export function App() {
           }
 
           // 本标签页切换为缓存引用:数据源(如 SD 卡)拔除后,
-          // 未访问过的日期仍可从缓存读取
+          // 未访问过的日期仍可从缓存读取。
+          // 仅当展示中的数据集仍是本次导入产出时才交接,
+          // 防止把新代际的引用铺到其他来源的数据集上(如未完成的恢复)
           try {
             const snapshot = await loadImportedFiles();
             if (
@@ -222,13 +231,16 @@ export function App() {
             ) {
               holdReaderGeneration(generation);
               setDataset((current) =>
-                current
+                current === nextDataset
                   ? {
                       ...current,
                       filesByDay: groupImportedFilesByDay(snapshot.files),
                     }
                   : current
               );
+              // 本标签页已不再引用被取代的代际:立即回收
+              // (发布代际与其他标签页读者锁持有的代际仍会保留)
+              await reclaimUnreferencedContents();
             }
           } catch {
             /* best effort */
