@@ -174,7 +174,11 @@ export function App() {
         setSelectedDate(nextDataset.days[nextDataset.days.length - 1] ?? null);
         setCacheNotice("已恢复上次导入的文件。");
       } catch {
-        releaseReaderGeneration(snapshotGeneration ?? undefined);
+        // 仅当本恢复实际记录了代际(load 已返回并钉住)才释放:
+        // load 拒绝时 snapshotGeneration 为 null,无条件释放会
+        // 误放交接刚安装的新代际读者锁
+        if (snapshotGeneration !== null)
+          releaseReaderGeneration(snapshotGeneration);
         if (!cancelled)
           setCacheNotice(
             "无法恢复上次导入的文件，请重新选择 DATAFILE 文件夹。"
@@ -320,9 +324,9 @@ export function App() {
               migrateDayDetailCache(nextDataset, replaced);
               datasetRef.current = replaced;
               setDataset(replaced);
-              // 本标签页已不再引用被取代的代际:立即回收
-              // (发布代际与其他标签页读者锁持有的代际仍会保留)
-              await reclaimUnreferencedContents();
+              // 回收是独立的尽力而为操作:失败不得触发"未切换"警告
+              // (此时引用与读者锁已安装,惰性读取已在用缓存)
+              await reclaimUnreferencedContents().catch(() => {});
             } else {
               releaseReaderGeneration(snapshot.generation);
               // 本地更新的导入接管 UX 时保持静默;跨标签页变化导致的
