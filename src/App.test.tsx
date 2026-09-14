@@ -321,6 +321,44 @@ describe("App", () => {
     expect(screen.getAllByText("2026-04-29").length).toBeGreaterThan(0);
   });
 
+  it("abandons a restore superseded by a local import even when the generation is unchanged", async () => {
+    // 发布代际在导入作废后刻意保持不变(为了其他标签页),
+    // 因此本地导入还必须通过轮次号取消恢复
+    let resolveRestoreLoad:
+      | ((value: {
+          files: ImportedFileRef[];
+          generation: string | null;
+        }) => void)
+      | undefined;
+    importCacheMock.loadImportedFiles.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRestoreLoad = resolve;
+        })
+    );
+    // 代际与快照一致:若只依赖代际复查,恢复会错误地覆盖新导入
+    importCacheMock.readImportGeneration.mockResolvedValue("same-generation");
+
+    render(<App />);
+    await userEvent.upload(
+      screen.getByLabelText("选择 EDF 文件"),
+      edfFile("20260429_flow.edf", "flow", new Uint8Array([20, 19, 17]))
+    );
+    expect(await screen.findByText("日期导航")).toBeInTheDocument();
+
+    resolveRestoreLoad?.({
+      files: [importedFile("20260101_flow.edf", "flow", new Uint8Array([7]))],
+      generation: "same-generation",
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(
+      screen.queryByText("已恢复上次导入的文件。")
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/2026-01-01/)).not.toBeInTheDocument();
+    expect(screen.getAllByText("2026-04-29").length).toBeGreaterThan(0);
+  });
+
   it("shows an error notice when loading the selected day fails", async () => {
     const brokenRef: ImportedFileRef = {
       name: "20260429_flow.edf",

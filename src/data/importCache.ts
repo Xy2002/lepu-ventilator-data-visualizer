@@ -289,21 +289,22 @@ export async function saveImportedFiles(
   });
 }
 
-// 作废当前缓存(meta 清空即失效;已发布代际记录保留在 state store,
-// 供旧标签页的内容读取继续使用,内容由下一次保存的清理回收)
+// 作废当前缓存:单事务清空 meta,原子且与保存发布的任何交错都一致
+// (发布先提交则缓存整体可见后作废,作废先提交则发布后缓存即新数据集),
+// 因此不取全局写锁——另一标签页正在做长时间拷贝时,本地导入不必等它。
+// 已发布代际记录保留在 state store,供旧标签页的内容读取继续使用,
+// 内容由下一次保存的清理回收
 export async function invalidateImportedFiles(): Promise<void> {
   if (typeof indexedDB === "undefined") return;
 
-  await withCacheWriteLock(async () => {
-    const database = await openImportDatabase();
-    try {
-      const transaction = database.transaction(META_STORE, "readwrite");
-      transaction.objectStore(META_STORE).clear();
-      await transactionDone(transaction);
-    } finally {
-      database.close();
-    }
-  });
+  const database = await openImportDatabase();
+  try {
+    const transaction = database.transaction(META_STORE, "readwrite");
+    transaction.objectStore(META_STORE).clear();
+    await transactionDone(transaction);
+  } finally {
+    database.close();
+  }
 }
 
 export interface ImportedFilesSnapshot {

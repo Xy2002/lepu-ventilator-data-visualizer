@@ -265,7 +265,15 @@ async function main() {
   });
   console.log("[perf] probes=", JSON.stringify(report.probes, null, 2));
 
-  // 预算约束每一次恢复测量(含冷启动):末轮快不代表没有间歇性/冷启动回归
+  // 预算约束每一次恢复测量(含冷启动):末轮快不代表没有间歇性/冷启动回归。
+  // 捕获到的页面错误(懒加载/图表/请求失败)同样判红——计时选择器命中
+  // 不代表页面没有坏,过滤已知噪音(favicon、HMR websocket)
+  const relevantErrors = pageErrors.filter(
+    (message) =>
+      !/favicon/i.test(message) &&
+      !/websocket|hmr/i.test(message) &&
+      !/Failed to load resource.*net::ERR_ABORTED/i.test(message)
+  );
   const restoreTimes = report.restoreRuns
     .map((run) => run.restoreMs)
     .filter((ms) => typeof ms === "number");
@@ -277,7 +285,11 @@ async function main() {
     (!skipImport && report.importMs > IMPORT_BUDGET_MS) ||
     anyRestoreFailed ||
     restoreTimes.length === 0 ||
-    restoreTimes.some((ms) => ms > RESTORE_BUDGET_MS);
+    restoreTimes.some((ms) => ms > RESTORE_BUDGET_MS) ||
+    relevantErrors.length > 0;
+  if (relevantErrors.length > 0) {
+    console.log(`[perf] relevant page errors:`, relevantErrors.slice(0, 5));
+  }
   console.log(
     `[perf] RED=${report.red} (budgets: import<=${IMPORT_BUDGET_MS}ms restore<=${RESTORE_BUDGET_MS}ms)`
   );

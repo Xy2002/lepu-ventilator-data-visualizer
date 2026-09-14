@@ -125,6 +125,53 @@ describe("importCache", () => {
     expect(new Uint8Array(await restored.files[0].read())).toEqual(payload);
   });
 
+  it("invalidates without waiting for another tab's write lock", async () => {
+    // 另一标签页的长时间拷贝持有全局写锁时,
+    // 本地导入的作废(单事务清 meta)不应被阻塞
+    // 种子缓存先完成(此时还未装 fake)
+    await saveImportedFiles([makeRef("a.edf", new Uint8Array([1]))]);
+
+    let releaseWriteLock: (() => void) | undefined;
+    const fakeLocks = {
+      request: (
+        name: string,
+        optionsOrTask: unknown,
+        maybeCallback?: () => Promise<unknown>
+      ) => {
+        const task =
+          typeof optionsOrTask === "function"
+            ? (optionsOrTask as () => Promise<unknown>)
+            : maybeCallback;
+        if (!task) return Promise.resolve();
+        if (name === "ventilator-import-cache-write") {
+          return new Promise((resolve) => {
+            releaseWriteLock = () => resolve(task());
+          });
+        }
+        return task();
+      },
+      query: async () => ({ held: [], pending: [] }),
+    };
+    Object.defineProperty(navigator, "locks", {
+      configurable: true,
+      value: fakeLocks,
+    });
+
+    try {
+      const invalidated = invalidateImportedFiles();
+      const loser = Promise.race([
+        invalidated.then(() => "invalidated"),
+        new Promise((resolve) => setTimeout(() => resolve("timeout"), 200)),
+      ]);
+      await expect(loser).resolves.toBe("invalidated");
+
+      releaseWriteLock?.();
+      await invalidated;
+    } finally {
+      delete (navigator as unknown as { locks?: unknown }).locks;
+    }
+  });
+
   it("keeps generations held by active reader locks", async () => {
     // 旧标签页通过读者锁声明自己仍在使用某代际:
     // 新导入的清理必须保留它,即使它已不是"当前发布代际"

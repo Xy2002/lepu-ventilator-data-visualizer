@@ -92,6 +92,9 @@ export function App() {
 
     async function restoreImport() {
       setIsRestoringImport(true);
+      // 捕获启动时的导入轮次(必须在首个 await 之前,否则会读到导入后的新值):
+      // 本地导入完成后轮次递增,即使发布代际尚未切换也能识别"被本地导入取代"
+      const restoreRun = cacheRunRef.current;
 
       try {
         // 两阶段解析：恢复时只加载文件句柄与摘要索引，波形 payload 按需解析。
@@ -119,10 +122,15 @@ export function App() {
         }
         if (cancelled) return;
 
-        // 恢复期间用户可能导入了新数据集:发布代际不再是快照代际时放弃恢复,
-        // 避免旧数据集覆盖新导入的显示(新导入自行负责展示与缓存)
+        // 恢复期间的新导入(本地轮次变化,或发布代际已变)使恢复过时:
+        // 放弃恢复,避免旧数据集覆盖新导入的显示(新导入自行负责展示与缓存)
         const currentGeneration = await readImportGeneration();
-        if (cancelled || currentGeneration !== snapshot.generation) return;
+        if (
+          cancelled ||
+          cacheRunRef.current !== restoreRun ||
+          currentGeneration !== snapshot.generation
+        )
+          return;
 
         setDataset(nextDataset);
         setSelectedDate(nextDataset.days[nextDataset.days.length - 1] ?? null);
