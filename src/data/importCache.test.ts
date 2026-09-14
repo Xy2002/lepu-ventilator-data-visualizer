@@ -7,6 +7,7 @@ import {
   holdReaderGeneration,
   invalidateImportedFiles,
   loadImportedFiles,
+  readImportEpoch,
   reclaimUnreferencedContents,
   releaseReaderGeneration,
   saveImportedFiles,
@@ -218,6 +219,73 @@ describe("importCache", () => {
     await expect(restoredA.files[0].read()).rejects.toThrow(
       "缓存中缺少文件内容"
     );
+  });
+
+  it("does not pin a generation for an empty snapshot", async () => {
+    // meta 被其他标签页作废后,快照为空但发布记录仍在:
+    // 恢复会空手返回,此时钉住旧代际只会让替换写入多保留一整份数据
+    const held = new Map<string, Promise<unknown>>();
+    installReaderLockFake(held);
+
+    try {
+      await saveImportedFiles([makeRef("a.edf", new Uint8Array([1, 2, 3]))]);
+      await invalidateImportedFiles();
+
+      await expect(loadImportedFiles()).resolves.toMatchObject({ files: [] });
+      expect(held.size).toBe(0);
+    } finally {
+      removeLockFake();
+    }
+  });
+
+  it("reclaims partial contents when a copy fails mid-way", async () => {
+    // 第 1 批提交后源读取失败(如数据源拔除):
+    // 未发布的半成品代际必须立即回收,不能一直占用配额
+    const files = Array.from({ length: 21 }, (_, i) =>
+      makeRef(`f${i}.edf`, new Uint8Array([i]))
+    );
+    files[20] = {
+      name: "f20.edf",
+      path: "DATAFILE/20260429/f20.edf",
+      size: 3,
+      lastModified: 0,
+      read: () => Promise.reject(new Error("media removed")),
+    };
+
+    await expect(saveImportedFiles(files)).rejects.toThrow("media removed");
+
+    const database = await openDatabase(
+      DB_NAME,
+      DB_VERSION,
+      "contents",
+      "path"
+    );
+    const count = await new Promise<number>((resolve, reject) => {
+      const tx = database.transaction("contents", "readonly");
+      const req = tx.objectStore("contents").count();
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    database.close();
+    expect(count).toBe(0);
+  });
+
+  it("aborts a save whose baseline epoch predates an invalidation", async () => {
+    // 基线纪元在作废时绑定:保存回调迟到执行时,
+    // 中间发生的其他标签页作废必须使发布中止,而不是被算进基线
+    await saveImportedFiles([makeRef("a.edf", new Uint8Array([1, 2, 3]))]);
+    const baseline = await readImportEpoch();
+
+    await invalidateImportedFiles(); // 另一标签页的作废推进纪元
+
+    await expect(
+      saveImportedFiles(
+        [makeRef("b.edf", new Uint8Array([9]))],
+        undefined,
+        baseline
+      )
+    ).resolves.toBeNull();
+    await expect(loadImportedFiles()).resolves.toMatchObject({ files: [] });
   });
 
   it("invalidates without waiting for another tab's write lock", async () => {

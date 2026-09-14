@@ -283,14 +283,23 @@ async function readEpochStandalone(): Promise<number> {
   }
 }
 
+/** 当前作废纪元;导入在作废后立即捕获并传给保存作基线(见 saveImportedFiles) */
+export async function readImportEpoch(): Promise<number> {
+  if (typeof indexedDB === "undefined") return 0;
+  return readEpochStandalone();
+}
+
 export async function saveImportedFiles(
   files: ImportedFileRef[],
-  shouldAbort?: () => boolean
+  shouldAbort?: () => boolean,
+  baselineEpoch?: number
 ): Promise<string | null> {
-  // 纪元在等待写锁之前捕获:本保存可能排在另一标签页的长拷贝后面,
-  // 排队期间发生的免锁作废(更新的导入)必须使本次发布中止——
-  // 进锁后才捕获会把作废后的纪元当基线,被取代的旧数据集会重新发布
-  const startEpoch = await readEpochStandalone();
+  // 纪元基线:调用方(导入流程)在作废后立即捕获并穿队列传入——
+  // 保存回调可能经本地队列延迟到很久之后才执行,届时再捕获会把
+  // 中间发生的其他标签页作废算进基线,被取代的旧数据集会"最后发布"。
+  // 未传基线的调用方退回为进锁前捕获
+  const startEpoch =
+    baselineEpoch !== undefined ? baselineEpoch : await readEpochStandalone();
 
   return withCacheWriteLock(async () => {
     const database = await openImportDatabase();
@@ -365,6 +374,19 @@ export async function saveImportedFiles(
       stateStore.put({ id: "published", generation });
       await transactionDone(metaTransaction);
       return generation;
+    } catch (err) {
+      // 拷贝中途失败(如数据源拔除)会留下未发布的半成品代际:
+      // meta 不会发布,启动视缓存为缺失,但内容记录会一直占用配额——
+      // 立即回收(保留读者钉住的与当前发布的代际)
+      try {
+        const publishedGeneration = await readPublishedGeneration(database);
+        const keepGenerations = await activeReaderGenerations();
+        if (publishedGeneration) keepGenerations.add(publishedGeneration);
+        await deleteContentGenerationsExcept(database, keepGenerations);
+      } catch {
+        /* 回收失败只能等下一次写入的清理 */
+      }
+      throw err;
     } finally {
       database.close();
     }
@@ -450,10 +472,12 @@ export async function loadImportedFiles(): Promise<ImportedFilesSnapshot> {
         return;
       }
 
-      // 校验通过后在同一协调锁内注册读者锁:
+      // 校验通过且快照非空时,在同一协调锁内注册读者锁:
       // 若等调用方稍后再拿锁,GC 锁已释放,删除可以插进校验与获取之间,
-      // 留下"已钉住但内容已删"的悬空快照。快照返回即已受保护
-      if (generation !== null) {
+      // 留下"已钉住但内容已删"的悬空快照。快照返回即已受保护。
+      // 空快照(meta 被其他标签页作废)不钉住——恢复会空手返回,
+      // 钉住只会让替换写入多保留一整份无人使用的数据
+      if (generation !== null && metas.length > 0) {
         await pinReaderGeneration(generation);
       }
       snapshot = { files: metas.map(makeCachedRef), generation };

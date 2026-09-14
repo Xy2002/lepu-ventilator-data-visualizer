@@ -20,6 +20,7 @@ const importCacheMock = vi.hoisted(() => ({
   holdReaderGeneration: vi.fn(),
   invalidateImportedFiles: vi.fn(),
   loadImportedFiles: vi.fn(),
+  readImportEpoch: vi.fn(),
   readImportGeneration: vi.fn(),
   reclaimUnreferencedContents: vi.fn(),
   releaseReaderGeneration: vi.fn(),
@@ -110,6 +111,7 @@ describe("App", () => {
       files: [],
       generation: null,
     });
+    importCacheMock.readImportEpoch.mockResolvedValue(1);
     importCacheMock.readImportGeneration.mockResolvedValue(null);
     importCacheMock.reclaimUnreferencedContents.mockResolvedValue(undefined);
     importCacheMock.saveImportedFiles.mockResolvedValue("test-generation");
@@ -204,13 +206,15 @@ describe("App", () => {
     // 新导入开始时立即作废旧缓存
     expect(importCacheMock.invalidateImportedFiles).toHaveBeenCalled();
     // 缓存写入在数据集展示后后台进行,用 waitFor 等待触发;
-    // 第二个参数是活跃写入被新导入取代时的中止检查
+    // 第二个参数是活跃写入被新导入取代时的中止检查,
+    // 第三个参数是作废后绑定的基线纪元
     await vi.waitFor(() =>
       expect(importCacheMock.saveImportedFiles).toHaveBeenCalledWith(
         expect.arrayContaining([
           expect.objectContaining({ name: "20260429_flow.edf" }),
         ]),
-        expect.any(Function)
+        expect.any(Function),
+        1
       )
     );
     // 缓存写入完成后会重新加载缓存引用以切换数据来源

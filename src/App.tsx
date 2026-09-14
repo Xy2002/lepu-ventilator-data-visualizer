@@ -19,6 +19,7 @@ import { downloadCsv, exportDaySummaryCsv } from "./data/csv";
 import {
   invalidateImportedFiles,
   loadImportedFiles,
+  readImportEpoch,
   readImportGeneration,
   reclaimUnreferencedContents,
   releaseReaderGeneration,
@@ -218,6 +219,10 @@ export function App() {
       ]).catch(() => {
         /* best effort */
       });
+      // 基线纪元在作废后立即绑定并穿本地队列传给后台保存:
+      // 保存回调可能延迟很久才执行,届时捕获会把中间其他标签页的
+      // 作废算进基线,让被取代的旧数据集"最后发布"
+      const baselineEpoch = await readImportEpoch().catch(() => null);
       // 数据集就绪立即展示;缓存写入(文件内容进 IndexedDB,可能上 GB)后台进行,
       // 不阻塞首屏交互。失败仅提示,不影响本次使用。
       setDataset(nextDataset);
@@ -234,7 +239,8 @@ export function App() {
           // 否则它会写完并重新发布旧数据集的 meta
           const generation = await saveImportedFiles(
             files,
-            () => cacheRun !== cacheRunRef.current
+            () => cacheRun !== cacheRunRef.current,
+            baselineEpoch !== null ? baselineEpoch : undefined
           );
           if (cacheRun !== cacheRunRef.current) return;
           if (generation === null) {
