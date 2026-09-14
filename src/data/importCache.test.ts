@@ -212,13 +212,18 @@ describe("importCache", () => {
     // 真实流程:导入安装源引用数据集时会释放旧代际的读者锁
     releaseReaderGeneration();
 
-    await saveImportedFiles(
-      [makeRef("b.edf", new Uint8Array([9]))],
-      () => true
-    );
+    const generation = await saveImportedFiles([
+      makeRef("b.edf", new Uint8Array([9])),
+    ]);
+    expect(generation).toEqual(expect.any(String));
     await expect(restoredA.files[0].read()).rejects.toThrow(
       "缓存中缺少文件内容"
     );
+
+    // 新代际发布且旧代际已回收
+    const restored = await loadImportedFiles();
+    expect(restored.files).toHaveLength(1);
+    expect(restored.files[0].name).toBe("b.edf");
   });
 
   it("does not pin a generation for an empty snapshot", async () => {
@@ -286,6 +291,32 @@ describe("importCache", () => {
       )
     ).resolves.toBeNull();
     await expect(loadImportedFiles()).resolves.toMatchObject({ files: [] });
+  });
+
+  it("does not run the destructive cleanup for a stale queued save", async () => {
+    // 旧基线的排队写入进锁后,若更新的导入已发布而其交接尚未钉住:
+    // 清理前必须先复查纪元并放弃,否则会删掉新发布代际的内容,
+    // 留下 meta 指向已删内容、显然成功的缓存无法恢复
+    await saveImportedFiles([makeRef("a.edf", new Uint8Array([1, 2, 3]))]);
+    const staleBaseline = await readImportEpoch();
+
+    await invalidateImportedFiles(); // 标签页 B 的新导入作废(纪元推进)
+    await saveImportedFiles([makeRef("b.edf", new Uint8Array([9]))]); // B 发布 G_B
+
+    // 标签页 A 的旧写入进锁:须在清理前放弃,B 的内容必须完好
+    await expect(
+      saveImportedFiles(
+        [makeRef("c.edf", new Uint8Array([8]))],
+        undefined,
+        staleBaseline
+      )
+    ).resolves.toBeNull();
+
+    const restored = await loadImportedFiles();
+    expect(restored.files).toHaveLength(1);
+    expect(new Uint8Array(await restored.files[0].read())).toEqual(
+      new Uint8Array([9])
+    );
   });
 
   it("invalidates without waiting for another tab's write lock", async () => {
@@ -562,16 +593,17 @@ describe("importCache", () => {
         held.has(`ventilator-import-cache-reader:${restored.generation}`)
       ).toBe(true);
 
-      // G2 发布、G3 写入被取代——被读者锁钉住的 G1 在两次写入中幸存
+      // G2 发布、G3 写入被取代(进锁后即中止,不执行任何清理)——
+      // 被读者锁钉住的 G1 与未引用的 G2 都完好
       await saveImportedFiles([makeRef("b.edf", new Uint8Array([9]))]);
       await saveImportedFiles(
         [makeRef("c.edf", new Uint8Array([8]))],
         () => true
       );
       expect(new Uint8Array(await restored.files[0].read())).toEqual(payload);
-      // G2 无读者钉住:G3 的清理预删了它的内容,meta 残留使其视同未缓存
-      // (单锁语义下这是预期;切换后的保护由交接时的新读者锁承担)
-      await expect(loadImportedFiles()).resolves.toMatchObject({ files: [] });
+      await expect(loadImportedFiles()).resolves.toMatchObject({
+        files: [expect.objectContaining({ name: "b.edf" })],
+      });
     } finally {
       delete (navigator as unknown as { locks?: unknown }).locks;
     }

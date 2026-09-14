@@ -305,6 +305,12 @@ export async function saveImportedFiles(
     const database = await openImportDatabase();
 
     try {
+      // 破坏性清理前复查纪元与中止状态:排队期间若已有更新的导入
+      // 作废并发布(其交接尚未钉住新代际),清理会删掉新发布代际的内容、
+      // 留下悬空 meta。此时直接放弃本次写入,清理交给持有新基线的一方
+      if (shouldAbort?.()) return null;
+      if ((await readEpoch(database)) !== startEpoch) return null;
+
       // 内容清理只保留活跃读者代际:无读者锁钉住的已发布代际一并删除,
       // 替换导入不再要求设备装得下两份完整数据集(见下方发布注释)。
       // 其他标签页持有的引用由读者锁保护,与发布代际无关。
