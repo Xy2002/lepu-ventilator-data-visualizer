@@ -1,5 +1,5 @@
 import "fake-indexeddb/auto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { ImportedFileRef } from "../types";
 import { importedFileRefFromFile } from "./importedFile";
 import {
@@ -8,7 +8,7 @@ import {
   invalidateImportedFiles,
   loadImportedFiles,
   reclaimUnreferencedContents,
-  resetReaderLockForTests,
+  releaseReaderGeneration,
   saveImportedFiles,
 } from "./importCache";
 import { openDatabase } from "./idb";
@@ -172,6 +172,32 @@ describe("importCache", () => {
     }
   });
 
+  it("aborts an in-flight writer superseded by a concurrent invalidation", async () => {
+    // 标签页 A 拷贝中、标签页 B 免锁作废:A 的发布事务必须因纪元推进而中止,
+    // 否则 A 会把被取代的旧数据集重新发布,B 刷新时恢复出错误数据
+    let resolveRead: (() => void) | undefined;
+    const payload = new Uint8Array(600);
+    for (let i = 0; i < payload.length; i += 1) payload[i] = i % 251;
+    const slowRef: ImportedFileRef = {
+      name: "a.edf",
+      path: "DATAFILE/20260429/a.edf",
+      size: payload.byteLength,
+      lastModified: 0,
+      read: () =>
+        new Promise<ArrayBuffer>((resolve) => {
+          resolveRead = () => resolve(payload.slice().buffer as ArrayBuffer);
+        }),
+    };
+
+    const saving = saveImportedFiles([slowRef]);
+    await vi.waitFor(() => expect(resolveRead).toBeDefined());
+    await invalidateImportedFiles();
+
+    resolveRead?.();
+    await expect(saving).resolves.toBeNull();
+    await expect(loadImportedFiles()).resolves.toMatchObject({ files: [] });
+  });
+
   it("keeps generations held by active reader locks", async () => {
     // 旧标签页通过读者锁声明自己仍在使用某代际:
     // 新导入的清理必须保留它,即使它已不是"当前发布代际"
@@ -285,7 +311,7 @@ describe("importCache", () => {
         new Uint8Array([9])
       );
     } finally {
-      resetReaderLockForTests();
+      releaseReaderGeneration();
       delete (navigator as unknown as { locks?: unknown }).locks;
     }
   });
@@ -340,7 +366,7 @@ describe("importCache", () => {
         new Uint8Array([9])
       );
     } finally {
-      resetReaderLockForTests();
+      releaseReaderGeneration();
       delete (navigator as unknown as { locks?: unknown }).locks;
     }
   });

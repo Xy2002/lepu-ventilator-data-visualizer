@@ -21,6 +21,7 @@ import {
   loadImportedFiles,
   readImportGeneration,
   reclaimUnreferencedContents,
+  releaseReaderGeneration,
   saveImportedFiles,
 } from "./data/importCache";
 import {
@@ -123,19 +124,23 @@ export function App() {
         if (cancelled) return;
 
         // 恢复期间的新导入(本地轮次变化,或发布代际已变)使恢复过时:
-        // 放弃恢复,避免旧数据集覆盖新导入的显示(新导入自行负责展示与缓存)
+        // 放弃恢复并释放读者锁——本标签页不再引用该代际,
+        // 不释放会把约整份数据集钉住到页面关闭
         const currentGeneration = await readImportGeneration();
         if (
           cancelled ||
           cacheRunRef.current !== restoreRun ||
           currentGeneration !== snapshot.generation
-        )
+        ) {
+          if (!cancelled) releaseReaderGeneration();
           return;
+        }
 
         setDataset(nextDataset);
         setSelectedDate(nextDataset.days[nextDataset.days.length - 1] ?? null);
         setCacheNotice("已恢复上次导入的文件。");
       } catch {
+        releaseReaderGeneration();
         if (!cancelled)
           setCacheNotice(
             "无法恢复上次导入的文件，请重新选择 DATAFILE 文件夹。"

@@ -121,6 +121,20 @@ async function readPublishedGeneration(
   return state?.generation ?? null;
 }
 
+interface EpochRecord {
+  id: "epoch";
+  value: number;
+}
+
+async function readEpoch(database: IDBDatabase): Promise<number> {
+  const transaction = database.transaction(STATE_STORE, "readonly");
+  const state = await requestResult<EpochRecord | undefined>(
+    transaction.objectStore(STATE_STORE).get("epoch")
+  );
+  await transactionDone(transaction);
+  return state?.value ?? 0;
+}
+
 // 读者锁:标签页对正在使用的代际持有共享锁,页面关闭/崩溃时自动释放;
 // 内容清理通过 locks.query() 收集所有活跃读者代际并保留它们。
 // 每个标签页同一时刻只持有一把:切换代际时先注册新锁、再释放旧锁
@@ -132,6 +146,12 @@ interface ActiveReaderLock {
   release: () => void;
 }
 let activeReaderLock: ActiveReaderLock | null = null;
+
+/** 释放本标签页当前的读者锁(如恢复被取代后不再引用该代际) */
+export function releaseReaderGeneration(): void {
+  activeReaderLock?.release();
+  activeReaderLock = null;
+}
 
 export function holdReaderGeneration(generation: string | null): void {
   if (
@@ -179,10 +199,9 @@ async function activeReaderGenerations(): Promise<Set<string>> {
   return generations;
 }
 
-/** 测试辅助:重置本标签页的读者锁状态 */
+/** 测试辅助:释放本标签页的读者锁(生产代码请用 releaseReaderGeneration) */
 export function resetReaderLockForTests(): void {
-  activeReaderLock?.release();
-  activeReaderLock = null;
+  releaseReaderGeneration();
 }
 
 // 清理内容记录:保留当前已发布代际与所有仍被活跃标签页引用的代际
@@ -232,6 +251,9 @@ export async function saveImportedFiles(
       if (publishedGeneration) keepGenerations.add(publishedGeneration);
       await deleteContentGenerationsExcept(database, keepGenerations);
 
+      // 捕获作废纪元:其他标签页的免锁作废会使纪元推进,
+      // 发布事务内复查不一致即中止(跨标签页版的 shouldAbort)
+      const startEpoch = await readEpoch(database);
       const generation = newCacheGeneration();
       const BATCH_SIZE = 20;
       // 内容先行写入,最后单事务写元数据发布:
@@ -268,19 +290,28 @@ export async function saveImportedFiles(
 
       if (shouldAbort?.()) return null;
 
-      // 发布:meta 与"已发布代际"同事务原子切换
+      // 发布:meta、"已发布代际"与纪元复查同事务原子完成。
+      // 事务与免锁作废由 IDB 串行化,任何顺序都一致:
+      // 作废先提交 → 纪元已变,发布中止(meta 保持清空,缓存视同未缓存);
+      // 发布先提交 → 缓存整体可见,随后的作废将其作废
       const metaTransaction = database.transaction(
         [META_STORE, STATE_STORE],
         "readwrite"
       );
       const metaStore = metaTransaction.objectStore(META_STORE);
+      const stateStore = metaTransaction.objectStore(STATE_STORE);
+      const publishEpoch = await new Promise<number>((resolve, reject) => {
+        const request = stateStore.get("epoch");
+        request.onsuccess = () =>
+          resolve((request.result as EpochRecord | undefined)?.value ?? 0);
+        request.onerror = () => reject(request.error);
+      });
+      if (publishEpoch !== startEpoch) return null;
       metaStore.clear();
       for (const meta of metaRecords) {
         metaStore.put(meta);
       }
-      metaTransaction
-        .objectStore(STATE_STORE)
-        .put({ id: "published", generation });
+      stateStore.put({ id: "published", generation });
       await transactionDone(metaTransaction);
       return generation;
     } finally {
@@ -289,8 +320,9 @@ export async function saveImportedFiles(
   });
 }
 
-// 作废当前缓存:单事务清空 meta,原子且与保存发布的任何交错都一致
-// (发布先提交则缓存整体可见后作废,作废先提交则发布后缓存即新数据集),
+// 作废当前缓存:单事务清空 meta 并推进作废纪元,原子且与保存发布的任何
+// 交错都一致——发布先提交则缓存整体可见后被作废;作废先提交则纪元已变,
+// 在途保存的发布事务会复查失败而中止,不会把被取代的旧数据集重新发布。
 // 因此不取全局写锁——另一标签页正在做长时间拷贝时,本地导入不必等它。
 // 已发布代际记录保留在 state store,供旧标签页的内容读取继续使用,
 // 内容由下一次保存的清理回收
@@ -299,8 +331,19 @@ export async function invalidateImportedFiles(): Promise<void> {
 
   const database = await openImportDatabase();
   try {
-    const transaction = database.transaction(META_STORE, "readwrite");
+    const transaction = database.transaction(
+      [META_STORE, STATE_STORE],
+      "readwrite"
+    );
+    const stateStore = transaction.objectStore(STATE_STORE);
     transaction.objectStore(META_STORE).clear();
+    const currentEpoch = await new Promise<number>((resolve, reject) => {
+      const request = stateStore.get("epoch");
+      request.onsuccess = () =>
+        resolve((request.result as EpochRecord | undefined)?.value ?? 0);
+      request.onerror = () => reject(request.error);
+    });
+    stateStore.put({ id: "epoch", value: currentEpoch + 1 });
     await transactionDone(transaction);
   } finally {
     database.close();

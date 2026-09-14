@@ -22,6 +22,7 @@ const importCacheMock = vi.hoisted(() => ({
   loadImportedFiles: vi.fn(),
   readImportGeneration: vi.fn(),
   reclaimUnreferencedContents: vi.fn(),
+  releaseReaderGeneration: vi.fn(),
   saveImportedFiles: vi.fn(),
 }));
 
@@ -104,6 +105,7 @@ describe("App", () => {
   beforeEach(() => {
     importCacheMock.holdReaderGeneration.mockReturnValue(undefined);
     importCacheMock.invalidateImportedFiles.mockResolvedValue(undefined);
+    importCacheMock.releaseReaderGeneration.mockReturnValue(undefined);
     importCacheMock.loadImportedFiles.mockResolvedValue({
       files: [],
       generation: null,
@@ -319,6 +321,8 @@ describe("App", () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByText(/2026-01-01/)).not.toBeInTheDocument();
     expect(screen.getAllByText("2026-04-29").length).toBeGreaterThan(0);
+    // 恢复放弃后必须释放读者锁,否则被放弃的代际被钉住到页面关闭
+    expect(importCacheMock.releaseReaderGeneration).toHaveBeenCalled();
   });
 
   it("abandons a restore superseded by a local import even when the generation is unchanged", async () => {
@@ -357,6 +361,8 @@ describe("App", () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByText(/2026-01-01/)).not.toBeInTheDocument();
     expect(screen.getAllByText("2026-04-29").length).toBeGreaterThan(0);
+    // 恢复放弃后必须释放读者锁,否则被放弃的代际被钉住到页面关闭
+    expect(importCacheMock.releaseReaderGeneration).toHaveBeenCalled();
   });
 
   it("shows an error notice when loading the selected day fails", async () => {
