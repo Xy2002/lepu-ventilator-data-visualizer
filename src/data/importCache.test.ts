@@ -1,5 +1,5 @@
 import "fake-indexeddb/auto";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ImportedFileRef } from "../types";
 import { importedFileRefFromFile } from "./importedFile";
 import {
@@ -73,6 +73,11 @@ function removeLockFake() {
 }
 
 describe("importCache", () => {
+  afterEach(() => {
+    // loadImportedFiles 会自动钉住快照代际,防止跨用例泄漏读者锁
+    releaseReaderGeneration();
+  });
+
   it("round-trips file metadata and content through IndexedDB", async () => {
     const payload = new Uint8Array(1024);
     for (let i = 0; i < payload.length; i += 1) payload[i] = i % 251;
@@ -178,9 +183,12 @@ describe("importCache", () => {
 
     try {
       await holdReaderGeneration(restored.generation);
+      expect(held.size).toBe(1);
 
       await invalidateImportedFiles();
+      // 作废后快照为空:自动钉住对已持有的同一代际幂等,不得释放重建
       await expect(loadImportedFiles()).resolves.toMatchObject({ files: [] });
+      expect(held.size).toBe(1);
 
       await saveImportedFiles(
         [makeRef("b.edf", new Uint8Array([9]))],
@@ -199,6 +207,9 @@ describe("importCache", () => {
     // 代价是拷贝期间刷新会看到"缓存缺失"(meta 有、内容无 → 视同未缓存)
     await saveImportedFiles([makeRef("a.edf", new Uint8Array([1, 2, 3]))]);
     const restoredA = await loadImportedFiles();
+
+    // 真实流程:导入安装源引用数据集时会释放旧代际的读者锁
+    releaseReaderGeneration();
 
     await saveImportedFiles(
       [makeRef("b.edf", new Uint8Array([9]))],
@@ -253,6 +264,78 @@ describe("importCache", () => {
       await invalidated;
     } finally {
       delete (navigator as unknown as { locks?: unknown }).locks;
+    }
+  });
+
+  it("aborts a queued writer superseded by an invalidation while it waited", async () => {
+    // 纪元必须在排队等写锁之前捕获:排在长拷贝后面的写入,
+    // 若等待期间发生免锁作废(更新的导入),进锁后的发布必须中止,
+    // 否则排队更久的新导入刷新时会恢复出旧数据集
+    await saveImportedFiles([makeRef("a.edf", new Uint8Array([1, 2, 3]))]);
+
+    let writeRunning = false;
+    const writeQueue: Array<() => void> = [];
+    const fakeLocks = {
+      request: (
+        name: string,
+        optionsOrTask: unknown,
+        maybeCallback?: () => Promise<unknown>
+      ) => {
+        const task =
+          typeof optionsOrTask === "function"
+            ? (optionsOrTask as () => Promise<unknown>)
+            : maybeCallback;
+        if (!task) return Promise.resolve();
+        if (name === "ventilator-import-cache-write") {
+          return new Promise((resolve, reject) => {
+            const run = () =>
+              Promise.resolve()
+                .then(task)
+                .then(resolve, reject)
+                .finally(() => {
+                  writeRunning = false;
+                  const next = writeQueue.shift();
+                  if (next) next();
+                });
+            if (writeRunning) {
+              writeQueue.push(run);
+            } else {
+              writeRunning = true;
+              run();
+            }
+          });
+        }
+        return task();
+      },
+      query: async () => ({ held: [], pending: [] }),
+    };
+    Object.defineProperty(navigator, "locks", {
+      configurable: true,
+      value: fakeLocks,
+    });
+
+    try {
+      // 占住写锁,模拟另一标签页的长拷贝(可控制释放)
+      let releaseOccupier: (() => void) | undefined;
+      const occupierDone = new Promise<void>((resolve) => {
+        releaseOccupier = resolve;
+      });
+      void navigator.locks!.request(
+        "ventilator-import-cache-write",
+        () => occupierDone
+      );
+
+      // A 的保存:进锁前捕获纪元,随后排队
+      const saving = saveImportedFiles([makeRef("b.edf", new Uint8Array([9]))]);
+      await new Promise((r) => setTimeout(r, 20));
+
+      await invalidateImportedFiles(); // B 的作废:纪元推进
+
+      releaseOccupier?.(); // 长拷贝结束,A 进锁
+      await expect(saving).resolves.toBeNull(); // 发布因纪元中止
+      await expect(loadImportedFiles()).resolves.toMatchObject({ files: [] });
+    } finally {
+      removeLockFake();
     }
   });
 

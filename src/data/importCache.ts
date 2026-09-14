@@ -160,17 +160,11 @@ export function releaseReaderGeneration(
   activeReaderLock = null;
 }
 
-export async function holdReaderGeneration(
-  generation: string | null
-): Promise<void> {
-  if (
-    !generation ||
-    typeof navigator === "undefined" ||
-    !navigator.locks?.request
-  )
-    return;
+async function pinReaderGeneration(generation: string): Promise<void> {
+  if (typeof navigator === "undefined" || !navigator.locks?.request) return;
+  // 幂等:重复钉住同一代际不得"先放旧锁再拿新锁"——
+  // 中间空窗会让并发清理删掉仍被本标签页使用的内容
   if (activeReaderLock?.generation === generation) return;
-
   let release: (() => void) | undefined;
   const released = new Promise<void>((resolve) => {
     release = resolve;
@@ -198,6 +192,20 @@ export async function holdReaderGeneration(
   activeReaderLock = { generation, release: release! };
   await acquired;
   previous?.release();
+}
+
+export async function holdReaderGeneration(
+  generation: string | null
+): Promise<void> {
+  if (
+    !generation ||
+    typeof navigator === "undefined" ||
+    !navigator.locks?.request
+  )
+    return;
+  if (activeReaderLock?.generation === generation) return;
+
+  await pinReaderGeneration(generation);
 }
 
 async function activeReaderGenerations(): Promise<Set<string>> {
@@ -266,19 +274,28 @@ async function withCacheGcLock<T>(task: () => Promise<T>): Promise<T> {
   return withLock(CACHE_GC_LOCK, task);
 }
 
+async function readEpochStandalone(): Promise<number> {
+  const database = await openImportDatabase();
+  try {
+    return await readEpoch(database);
+  } finally {
+    database.close();
+  }
+}
+
 export async function saveImportedFiles(
   files: ImportedFileRef[],
   shouldAbort?: () => boolean
 ): Promise<string | null> {
+  // 纪元在等待写锁之前捕获:本保存可能排在另一标签页的长拷贝后面,
+  // 排队期间发生的免锁作废(更新的导入)必须使本次发布中止——
+  // 进锁后才捕获会把作废后的纪元当基线,被取代的旧数据集会重新发布
+  const startEpoch = await readEpochStandalone();
+
   return withCacheWriteLock(async () => {
     const database = await openImportDatabase();
 
     try {
-      // 纪元必须在任何 await(清理/读者查询)之前捕获:
-      // 免锁作废可能正插在这些 await 之间提交,晚捕获会把已推进的纪元
-      // 当成基线,发布复查就会放过被取代的写入
-      const startEpoch = await readEpoch(database);
-
       // 内容清理只保留活跃读者代际:无读者锁钉住的已发布代际一并删除,
       // 替换导入不再要求设备装得下两份完整数据集(见下方发布注释)。
       // 其他标签页持有的引用由读者锁保护,与发布代际无关。
@@ -433,6 +450,12 @@ export async function loadImportedFiles(): Promise<ImportedFilesSnapshot> {
         return;
       }
 
+      // 校验通过后在同一协调锁内注册读者锁:
+      // 若等调用方稍后再拿锁,GC 锁已释放,删除可以插进校验与获取之间,
+      // 留下"已钉住但内容已删"的悬空快照。快照返回即已受保护
+      if (generation !== null) {
+        await pinReaderGeneration(generation);
+      }
       snapshot = { files: metas.map(makeCachedRef), generation };
     });
     return snapshot;

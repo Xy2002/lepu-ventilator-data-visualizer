@@ -17,7 +17,6 @@ import {
 } from "./data/dataset";
 import { downloadCsv, exportDaySummaryCsv } from "./data/csv";
 import {
-  holdReaderGeneration,
   invalidateImportedFiles,
   loadImportedFiles,
   readImportGeneration,
@@ -111,9 +110,8 @@ export function App() {
         if (cancelled || snapshot.files.length === 0) return;
         const cachedFiles = snapshot.files;
         snapshotGeneration = snapshot.generation;
-        // 声明本标签页仍在使用该代际:内容清理会保留它(页面关闭自动释放)。
-        // 等待锁真正获取后才继续,后续的解析/读取才有保护
-        await holdReaderGeneration(snapshot.generation);
+        // loadImportedFiles 已在 GC 协调锁内校验并注册快照代际的读者锁,
+        // 后续解析/读取受保护;放弃路径按快照代际条件释放
         if (cancelled) {
           releaseReaderGeneration(snapshot.generation);
           return;
@@ -225,6 +223,10 @@ export function App() {
       setDataset(nextDataset);
       datasetRef.current = nextDataset;
       setSelectedDate(nextDataset.days[nextDataset.days.length - 1] ?? null);
+      // 活载数据集已切换为源文件引用,本标签页不再使用旧代际的缓存内容:
+      // 立即释放读者锁,替换拷贝期间不为其保留整份旧数据
+      // (其他标签页的读者锁仍会保护它们自己引用的代际)
+      releaseReaderGeneration();
       setIsCaching(true);
       cacheWriteRef.current = cacheWriteRef.current.then(async () => {
         try {
@@ -256,9 +258,9 @@ export function App() {
 
           // 本标签页切换为缓存引用:数据源(如 SD 卡)拔除后,
           // 未访问过的日期仍可从缓存读取。
+          // loadImportedFiles 已在校验通过后注册快照代际的读者锁;
           // 仅当展示中的数据集仍是本次导入产出且轮次未变时才交接,
-          // 防止把引用铺到其他来源的数据集上、或为过时代际切换读者锁
-          // (过时锁会让新导入的清理多保留一整份旧数据)
+          // 否则释放刚注册的锁,不为过时代际留下读者
           try {
             const snapshot = await loadImportedFiles();
             if (
@@ -267,27 +269,19 @@ export function App() {
               cacheRun === cacheRunRef.current &&
               datasetRef.current === nextDataset
             ) {
-              await holdReaderGeneration(generation);
-              // 获取锁后再同步复查(期间无 await,JS 单线程保证原子):
-              // 被取代则立即释放,不为过时代际留下读者锁
-              if (
-                cacheRun !== cacheRunRef.current ||
-                datasetRef.current !== nextDataset
-              ) {
-                releaseReaderGeneration(generation);
-              } else {
-                const replaced = {
-                  ...nextDataset,
-                  filesByDay: groupImportedFilesByDay(snapshot.files),
-                };
-                // 新身份会丢掉按日 WeakMap 缓存,迁移以保留已解析的天
-                migrateDayDetailCache(nextDataset, replaced);
-                datasetRef.current = replaced;
-                setDataset(replaced);
-                // 本标签页已不再引用被取代的代际:立即回收
-                // (发布代际与其他标签页读者锁持有的代际仍会保留)
-                await reclaimUnreferencedContents();
-              }
+              const replaced = {
+                ...nextDataset,
+                filesByDay: groupImportedFilesByDay(snapshot.files),
+              };
+              // 新身份会丢掉按日 WeakMap 缓存,迁移以保留已解析的天
+              migrateDayDetailCache(nextDataset, replaced);
+              datasetRef.current = replaced;
+              setDataset(replaced);
+              // 本标签页已不再引用被取代的代际:立即回收
+              // (发布代际与其他标签页读者锁持有的代际仍会保留)
+              await reclaimUnreferencedContents();
+            } else {
+              releaseReaderGeneration(snapshot.generation);
             }
           } catch {
             /* best effort */
