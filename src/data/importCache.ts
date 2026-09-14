@@ -294,6 +294,14 @@ async function withCacheWriteLock<T>(task: () => Promise<T>): Promise<T> {
   return withLock(CACHE_WRITE_LOCK, task);
 }
 
+/** 供解析缓存等相邻写入使用的同一把跨标签页写锁:
+ *  解析缓存的「纪元校验+清空/写入」在其下串行化,互不覆盖 */
+export async function withImportCacheWriteLock<T>(
+  task: () => Promise<T>
+): Promise<T> {
+  return withCacheWriteLock(task);
+}
+
 async function withCacheGcLock<T>(task: () => Promise<T>): Promise<T> {
   return withLock(CACHE_GC_LOCK, task);
 }
@@ -416,12 +424,9 @@ export async function saveImportedFiles(
         return generation;
       } finally {
         if (!published) {
-          // 半成品代际回收:保留读者钉住的与当前发布的代际
+          // 半成品代际回收:保留读者钉住的与 meta 仍引用的发布代际
           try {
-            const publishedGeneration = await readPublishedGeneration(database);
-            const keepGenerations = await activeReaderGenerations();
-            if (publishedGeneration) keepGenerations.add(publishedGeneration);
-            await deleteContentGenerationsExcept(database, keepGenerations);
+            await reclaimUnreferencedContentGenerations(database);
           } catch {
             /* 回收失败只能等下一次写入的清理 */
           }
@@ -563,6 +568,26 @@ export async function readImportGeneration(): Promise<string | null> {
   }
 }
 
+// 回收孤儿代际(在协调锁内执行):保留读者钉住的代际,以及
+// meta 仍有效引用的发布代际——meta 为空(已被作废/写入失败)时,
+// 发布记录只是孤儿,照常回收,避免整份数据集无限期占用配额
+async function reclaimUnreferencedContentGenerations(database: IDBDatabase) {
+  await withCacheGcLock(async () => {
+    const publishedGeneration = await readPublishedGeneration(database);
+    const keepGenerations = await activeReaderGenerations();
+    if (publishedGeneration) {
+      const metaCount = await new Promise<number>((resolve, reject) => {
+        const tx = database.transaction(META_STORE, "readonly");
+        const req = tx.objectStore(META_STORE).count();
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+      if (metaCount > 0) keepGenerations.add(publishedGeneration);
+    }
+    await deleteContentGenerationsExcept(database, keepGenerations);
+  });
+}
+
 // 回收无人引用的内容代际:保留当前发布代际与活跃读者代际。
 // 供调用方在切换读者锁之后调用——发布即被取代的代际立即回收,
 // 而不是等下一次写入(否则稳态常驻两份完整数据集,配额小的设备放不下)
@@ -572,13 +597,7 @@ export async function reclaimUnreferencedContents(): Promise<void> {
   await withCacheWriteLock(async () => {
     const database = await openImportDatabase();
     try {
-      // 查询+删除与加载校验共用协调锁(见 CACHE_GC_LOCK 注释)
-      await withCacheGcLock(async () => {
-        const publishedGeneration = await readPublishedGeneration(database);
-        const keepGenerations = await activeReaderGenerations();
-        if (publishedGeneration) keepGenerations.add(publishedGeneration);
-        await deleteContentGenerationsExcept(database, keepGenerations);
-      });
+      await reclaimUnreferencedContentGenerations(database);
     } finally {
       database.close();
     }
