@@ -55,13 +55,20 @@ function openImportDatabase() {
 let contentsDatabasePromise: Promise<IDBDatabase> | null = null;
 
 function getContentsDatabase() {
-  contentsDatabasePromise ??= openImportDatabase().then((database) => {
-    database.onversionchange = () => {
+  contentsDatabasePromise ??= openImportDatabase()
+    .then((database) => {
+      database.onversionchange = () => {
+        contentsDatabasePromise = null;
+        database.close();
+      };
+      return database;
+    })
+    .catch((err) => {
+      // 打开失败(瞬时不可用等)不得把被拒绝的 promise 留在单例里:
+      // 否则本页后续所有惰性读取都会立即复用该失败,重试/重导入也无法恢复
       contentsDatabasePromise = null;
-      database.close();
-    };
-    return database;
-  });
+      throw err;
+    });
   return contentsDatabasePromise;
 }
 
@@ -188,6 +195,9 @@ async function pinReaderGeneration(generation: string): Promise<void> {
     .catch(() => {
       /* 持锁失败仅影响旧代际保留策略,不影响功能 */
       if (activeReaderLock?.generation === generation) activeReaderLock = null;
+      // 请求被拒绝时回调不会执行,acquired 永不解决会让调用方
+      // (可能正持 GC 协调锁)永久挂起——必须一并落地
+      markAcquired?.();
     });
   activeReaderLock = { generation, release: release! };
   await acquired;
@@ -322,77 +332,82 @@ export async function saveImportedFiles(
 
       const generation = newCacheGeneration();
       const BATCH_SIZE = 20;
-      // 内容先行写入,最后单事务写元数据发布:
-      // 写入中途被刷新/关页打断时,meta 与 contents 不会混入半新半旧状态;
-      // contentKey 的 generation 保证"同路径重导入"也不会张冠李戴。
-      // shouldAbort 在每批之间与 meta 发布前复查:被更新导入取代的活跃写入
-      // 必须让路,否则 UI 已显示新数据、刷新却会恢复旧数据集
-      const metaRecords: CachedFileMeta[] = [];
-      for (let i = 0; i < files.length; i += BATCH_SIZE) {
-        if (shouldAbort?.()) return null;
-        const batch = files.slice(i, i + BATCH_SIZE);
-        const contents: CachedFileContent[] = [];
-        for (const fileRef of batch) {
-          const path = fileRef.path || fileRef.name;
-          const data = await fileRef.read();
-          contents.push({ path: `${generation}/${path}`, data });
-          metaRecords.push({
-            path,
-            name: fileRef.name,
-            size: fileRef.size,
-            lastModified: fileRef.lastModified,
-            headerRaw: data.slice(0, HEADER_BYTES),
-            contentKey: `${generation}/${path}`,
-          });
-        }
-
-        const transaction = database.transaction(CONTENT_STORE, "readwrite");
-        const contentStore = transaction.objectStore(CONTENT_STORE);
-        for (const content of contents) {
-          contentStore.put(content);
-        }
-        await transactionDone(transaction);
-      }
-
-      if (shouldAbort?.()) return null;
-
-      // 发布:meta、"已发布代际"与纪元复查同事务原子完成。
-      // 事务与免锁作废由 IDB 串行化,任何顺序都一致:
-      // 作废先提交 → 纪元已变,发布中止(meta 保持清空,缓存视同未缓存);
-      // 发布先提交 → 缓存整体可见,随后的作废将其作废
-      const metaTransaction = database.transaction(
-        [META_STORE, STATE_STORE],
-        "readwrite"
-      );
-      const metaStore = metaTransaction.objectStore(META_STORE);
-      const stateStore = metaTransaction.objectStore(STATE_STORE);
-      const publishEpoch = await new Promise<number>((resolve, reject) => {
-        const request = stateStore.get("epoch");
-        request.onsuccess = () =>
-          resolve((request.result as EpochRecord | undefined)?.value ?? 0);
-        request.onerror = () => reject(request.error);
-      });
-      if (publishEpoch !== startEpoch) return null;
-      metaStore.clear();
-      for (const meta of metaRecords) {
-        metaStore.put(meta);
-      }
-      stateStore.put({ id: "published", generation });
-      await transactionDone(metaTransaction);
-      return generation;
-    } catch (err) {
-      // 拷贝中途失败(如数据源拔除)会留下未发布的半成品代际:
-      // meta 不会发布,启动视缓存为缺失,但内容记录会一直占用配额——
-      // 立即回收(保留读者钉住的与当前发布的代际)
+      // published 标志统一覆盖所有未发布出口(被取代中止/纪元失配/异常):
+      // 半成品代际的内容记录不回收会一直占用配额
+      let published = false;
       try {
-        const publishedGeneration = await readPublishedGeneration(database);
-        const keepGenerations = await activeReaderGenerations();
-        if (publishedGeneration) keepGenerations.add(publishedGeneration);
-        await deleteContentGenerationsExcept(database, keepGenerations);
-      } catch {
-        /* 回收失败只能等下一次写入的清理 */
+        // 内容先行写入,最后单事务写元数据发布:
+        // 写入中途被刷新/关页打断时,meta 与 contents 不会混入半新半旧状态;
+        // contentKey 的 generation 保证"同路径重导入"也不会张冠李戴。
+        // shouldAbort 在每批之间与 meta 发布前复查:被更新导入取代的活跃写入
+        // 必须让路,否则 UI 已显示新数据、刷新却会恢复旧数据集
+        const metaRecords: CachedFileMeta[] = [];
+        for (let i = 0; i < files.length; i += BATCH_SIZE) {
+          if (shouldAbort?.()) return null;
+          const batch = files.slice(i, i + BATCH_SIZE);
+          const contents: CachedFileContent[] = [];
+          for (const fileRef of batch) {
+            const path = fileRef.path || fileRef.name;
+            const data = await fileRef.read();
+            contents.push({ path: `${generation}/${path}`, data });
+            metaRecords.push({
+              path,
+              name: fileRef.name,
+              size: fileRef.size,
+              lastModified: fileRef.lastModified,
+              headerRaw: data.slice(0, HEADER_BYTES),
+              contentKey: `${generation}/${path}`,
+            });
+          }
+
+          const transaction = database.transaction(CONTENT_STORE, "readwrite");
+          const contentStore = transaction.objectStore(CONTENT_STORE);
+          for (const content of contents) {
+            contentStore.put(content);
+          }
+          await transactionDone(transaction);
+        }
+
+        if (shouldAbort?.()) return null;
+
+        // 发布:meta、"已发布代际"与纪元复查同事务原子完成。
+        // 事务与免锁作废由 IDB 串行化,任何顺序都一致:
+        // 作废先提交 → 纪元已变,发布中止(meta 保持清空,缓存视同未缓存);
+        // 发布先提交 → 缓存整体可见,随后的作废将其作废
+        const metaTransaction = database.transaction(
+          [META_STORE, STATE_STORE],
+          "readwrite"
+        );
+        const metaStore = metaTransaction.objectStore(META_STORE);
+        const stateStore = metaTransaction.objectStore(STATE_STORE);
+        const publishEpoch = await new Promise<number>((resolve, reject) => {
+          const request = stateStore.get("epoch");
+          request.onsuccess = () =>
+            resolve((request.result as EpochRecord | undefined)?.value ?? 0);
+          request.onerror = () => reject(request.error);
+        });
+        if (publishEpoch !== startEpoch) return null;
+        metaStore.clear();
+        for (const meta of metaRecords) {
+          metaStore.put(meta);
+        }
+        stateStore.put({ id: "published", generation });
+        await transactionDone(metaTransaction);
+        published = true;
+        return generation;
+      } finally {
+        if (!published) {
+          // 半成品代际回收:保留读者钉住的与当前发布的代际
+          try {
+            const publishedGeneration = await readPublishedGeneration(database);
+            const keepGenerations = await activeReaderGenerations();
+            if (publishedGeneration) keepGenerations.add(publishedGeneration);
+            await deleteContentGenerationsExcept(database, keepGenerations);
+          } catch {
+            /* 回收失败只能等下一次写入的清理 */
+          }
+        }
       }
-      throw err;
     } finally {
       database.close();
     }

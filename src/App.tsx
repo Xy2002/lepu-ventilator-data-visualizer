@@ -213,12 +213,13 @@ export function App() {
       // 解析缓存未更新"的窗口用旧摘要配新内容字节。
       // 作废失败(IDB 拒绝访问等)不阻断导入本身——此时旧缓存同样不可达
       const cacheRun = ++cacheRunRef.current;
-      await Promise.all([
+      // 两项作废必须各自等完(allSettled):任一失败立即放行的话,
+      // 基线纪元可能在另一项作废提交前捕获,保存会带着旧纪元中止,
+      // 令本可有效的导入被误报为未缓存
+      await Promise.allSettled([
         invalidateImportedFiles(),
         invalidateParsedDataset(),
-      ]).catch(() => {
-        /* best effort */
-      });
+      ]);
       // 基线纪元在作废后立即绑定并穿本地队列传给后台保存:
       // 保存回调可能延迟很久才执行,届时捕获会把中间其他标签页的
       // 作废算进基线,让被取代的旧数据集"最后发布"
@@ -288,6 +289,17 @@ export function App() {
               await reclaimUnreferencedContents();
             } else {
               releaseReaderGeneration(snapshot.generation);
+              // 本地更新的导入接管 UX 时保持静默;跨标签页变化导致的
+              // 交接失败则必须告知——展示中的数据集仍是源文件引用,
+              // 拔除数据源后未访问的日期不可用
+              if (cacheRun === cacheRunRef.current) {
+                // 不覆盖已存在的提示(如解析缓存保存失败)
+                setCacheNotice(
+                  (prev) =>
+                    prev ??
+                    "文件已缓存，但本页未能切换到缓存引用；请保持数据源连接，刷新后可从缓存恢复。"
+                );
+              }
             }
           } catch {
             /* best effort */

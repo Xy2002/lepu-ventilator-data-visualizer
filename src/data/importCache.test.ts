@@ -275,6 +275,74 @@ describe("importCache", () => {
     expect(count).toBe(0);
   });
 
+  it("reclaims partial contents when superseded after a committed batch", async () => {
+    // 被(可能随后关闭的)其他标签页取代而中止的写入,
+    // 已提交批次的内容记录同样要回收
+    let calls = 0;
+    const files = Array.from({ length: 21 }, (_, i) =>
+      makeRef(`f${i}.edf`, new Uint8Array([i]))
+    );
+
+    await saveImportedFiles(files, () => {
+      calls += 1;
+      return calls > 1; // 第 1 批提交后、第 2 批开始前被取代
+    });
+
+    const database = await openDatabase(
+      DB_NAME,
+      DB_VERSION,
+      "contents",
+      "path"
+    );
+    const count = await new Promise<number>((resolve, reject) => {
+      const tx = database.transaction("contents", "readonly");
+      const req = tx.objectStore("contents").count();
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    database.close();
+    expect(count).toBe(0);
+  });
+
+  it("settles pin acquisition when the lock request rejects", async () => {
+    // locks.request 被拒绝(文档失活等)时回调不会执行:
+    // acquired 必须落地,否则 loadImportedFiles 会永久挂起并卡住 GC 协调锁
+    const rejectingLocks = {
+      request: (
+        name: string,
+        optionsOrTask: unknown,
+        maybeCallback?: () => Promise<unknown>
+      ) => {
+        const task =
+          typeof optionsOrTask === "function"
+            ? (optionsOrTask as () => Promise<unknown>)
+            : maybeCallback;
+        if (name.startsWith("ventilator-import-cache-reader:")) {
+          return Promise.reject(new Error("document inactive"));
+        }
+        return task ? task() : Promise.resolve();
+      },
+      query: async () => ({ held: [], pending: [] }),
+    };
+    Object.defineProperty(navigator, "locks", {
+      configurable: true,
+      value: rejectingLocks,
+    });
+
+    try {
+      await saveImportedFiles([makeRef("a.edf", new Uint8Array([1, 2, 3]))]);
+
+      // 恢复路径(持 GC 协调锁中)钉住失败也必须正常返回
+      const restored = await loadImportedFiles();
+      expect(restored.files).toHaveLength(1);
+      await expect(
+        holdReaderGeneration(restored.generation)
+      ).resolves.toBeUndefined();
+    } finally {
+      removeLockFake();
+    }
+  });
+
   it("aborts a save whose baseline epoch predates an invalidation", async () => {
     // 基线纪元在作废时绑定:保存回调迟到执行时,
     // 中间发生的其他标签页作废必须使发布中止,而不是被算进基线
