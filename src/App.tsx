@@ -108,15 +108,15 @@ export function App() {
         // 快照携带恢复所处的导入代际,重建的解析缓存绑定同代际,
         // 避免与其他标签页的新导入交错后用旧摘要配新内容
         const snapshot = await loadImportedFiles();
-        if (cancelled || snapshot.files.length === 0) return;
-        const cachedFiles = snapshot.files;
+        // 先记录代际:loadImportedFiles 校验通过即已注册读者锁,
+        // 之后任何早退路径(含 effect 取消/StrictMode 重跑)都要释放它
         snapshotGeneration = snapshot.generation;
-        // loadImportedFiles 已在 GC 协调锁内校验并注册快照代际的读者锁,
-        // 后续解析/读取受保护;放弃路径按快照代际条件释放
         if (cancelled) {
           releaseReaderGeneration(snapshot.generation);
           return;
         }
+        if (snapshot.files.length === 0) return;
+        const cachedFiles = snapshot.files;
 
         let nextDataset = await loadParsedDataset(cachedFiles);
         const parsedFromCache = nextDataset !== null;
@@ -154,6 +154,19 @@ export function App() {
           } catch {
             /* best effort */
           }
+        }
+
+        // 安装前再次复查:saveParsedDataset 期间的作废/发布同样使恢复过时
+        const finalGeneration = await readImportGeneration();
+        const finalEpoch = await readImportEpoch();
+        if (
+          cancelled ||
+          cacheRunRef.current !== restoreRun ||
+          finalGeneration !== snapshot.generation ||
+          finalEpoch !== snapshot.epoch
+        ) {
+          if (!cancelled) releaseReaderGeneration(snapshot.generation);
+          return;
         }
 
         setDataset(nextDataset);
@@ -245,10 +258,12 @@ export function App() {
       releaseReaderGeneration();
       if (baselineEpoch === null) {
         // 本次作废失败(或 IndexedDB 不可用)→ 拿不到可绑定的基线纪元:
-        // 无基线的写入会被其他标签页的作废利用,宁可不入队,直接报告未缓存
+        // 无基线的写入会被其他标签页的作废利用,宁可不入队,直接报告未缓存。
+        // 须收起缓存提示:前一次导入的 isCaching 可能仍为 true
         setCacheNotice(
           "已导入，但浏览器无法缓存这些文件；刷新后需要重新选择。"
         );
+        setIsCaching(false);
         return;
       }
       setIsCaching(true);

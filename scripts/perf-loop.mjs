@@ -139,6 +139,7 @@ async function main() {
         ![...window.document.querySelectorAll(".notice-stack .notice")].some(
           (el) => el.textContent?.includes("正在缓存文件")
         ),
+      undefined,
       { timeout: 300_000, polling: 500 }
     );
     report.cacheWriteSettleMs = Date.now() - t1;
