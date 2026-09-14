@@ -272,10 +272,38 @@ describe("App", () => {
     expect(importCacheMock.saveImportedFiles).not.toHaveBeenCalled();
   });
 
+  it("skips the parsed-cache save when the epoch moved past the baseline", async () => {
+    // 写入前纪元门禁:其他标签页又作废/发布时不写旧索引,
+    // 避免被暂停后恢复的旧导入覆盖新代际的有效索引
+    importCacheMock.invalidateImportedFiles.mockResolvedValue(7);
+    // 解析缓存写入前的门禁读取返回已推进的纪元(与基线 7 失配)→ 跳过保存
+    importCacheMock.readImportEpoch.mockResolvedValue(8);
+
+    render(<App />);
+    await userEvent.upload(
+      screen.getByLabelText("选择 EDF 文件"),
+      edfFile("20260429_flow.edf", "flow", new Uint8Array([20, 19, 17]))
+    );
+    expect(await screen.findByText("日期导航")).toBeInTheDocument();
+
+    // 解析保存被跳过:既无解析失败提示,也无未缓存误报
+    await vi.waitFor(() => {
+      expect(
+        importCacheMock.readImportEpoch.mock.calls.length
+      ).toBeGreaterThanOrEqual(1);
+    });
+    expect(parsedCacheMock.saveParsedDataset).not.toHaveBeenCalled();
+    expect(screen.queryByText(/解析索引缓存保存失败/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/无法缓存这些文件/)).not.toBeInTheDocument();
+  });
+
   it("reports parsed-cache failures separately from file-cache failures", async () => {
     parsedCacheMock.saveParsedDataset.mockRejectedValueOnce(
       new Error("quota exceeded")
     );
+    // 写入前纪元门禁:基线 7 与门禁读取一致,解析保存才会执行
+    importCacheMock.invalidateImportedFiles.mockResolvedValue(7);
+    importCacheMock.readImportEpoch.mockResolvedValue(7);
 
     render(<App />);
     await userEvent.upload(

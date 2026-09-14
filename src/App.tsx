@@ -140,7 +140,7 @@ export function App() {
           currentGeneration !== snapshot.generation ||
           currentEpoch !== snapshot.epoch
         ) {
-          if (!cancelled) releaseReaderGeneration(snapshot.generation);
+          releaseReaderGeneration(snapshot.generation);
           return;
         }
 
@@ -165,7 +165,7 @@ export function App() {
           finalGeneration !== snapshot.generation ||
           finalEpoch !== snapshot.epoch
         ) {
-          if (!cancelled) releaseReaderGeneration(snapshot.generation);
+          releaseReaderGeneration(snapshot.generation);
           return;
         }
 
@@ -290,16 +290,21 @@ export function App() {
             return;
           }
 
-          try {
-            await saveParsedDataset(files, nextDataset, generation);
-          } catch {
-            // 文件内容已 durable:解析缓存缺失只影响下次恢复速度,
-            // 刷新后自动重建索引,不需要重新导入。
-            // 被新导入取代的写入不再提示(当前导入的写入负责 UX)
-            if (cacheRun === cacheRunRef.current) {
-              setCacheNotice(
-                "文件内容已缓存，但解析索引缓存保存失败；刷新后将自动重建。"
-              );
+          // 纪元已变(其他标签页又作废/发布)时不写解析缓存:
+          // 否则被暂停后恢复的旧导入会用旧索引覆盖新代际的有效索引
+          const currentEpoch = await readImportEpoch();
+          if (currentEpoch === baselineEpoch) {
+            try {
+              await saveParsedDataset(files, nextDataset, generation);
+            } catch {
+              // 文件内容已 durable:解析缓存缺失只影响下次恢复速度,
+              // 刷新后自动重建索引,不需要重新导入。
+              // 被新导入取代的写入不再提示(当前导入的写入负责 UX)
+              if (cacheRun === cacheRunRef.current) {
+                setCacheNotice(
+                  "文件内容已缓存，但解析索引缓存保存失败；刷新后将自动重建。"
+                );
+              }
             }
           }
 
