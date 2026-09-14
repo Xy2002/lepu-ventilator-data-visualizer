@@ -105,7 +105,7 @@ function concatPayloads(...payloads: Uint8Array[]) {
 describe("App", () => {
   beforeEach(() => {
     importCacheMock.holdReaderGeneration.mockReturnValue(undefined);
-    importCacheMock.invalidateImportedFiles.mockResolvedValue(undefined);
+    importCacheMock.invalidateImportedFiles.mockResolvedValue(7);
     importCacheMock.releaseReaderGeneration.mockReturnValue(undefined);
     importCacheMock.loadImportedFiles.mockResolvedValue({
       files: [],
@@ -207,14 +207,14 @@ describe("App", () => {
     expect(importCacheMock.invalidateImportedFiles).toHaveBeenCalled();
     // 缓存写入在数据集展示后后台进行,用 waitFor 等待触发;
     // 第二个参数是活跃写入被新导入取代时的中止检查,
-    // 第三个参数是作废后绑定的基线纪元
+    // 第三个参数是作废事务返回并绑定的基线纪元
     await vi.waitFor(() =>
       expect(importCacheMock.saveImportedFiles).toHaveBeenCalledWith(
         expect.arrayContaining([
           expect.objectContaining({ name: "20260429_flow.edf" }),
         ]),
         expect.any(Function),
-        1
+        7
       )
     );
     // 缓存写入完成后会重新加载缓存引用以切换数据来源

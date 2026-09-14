@@ -179,8 +179,13 @@ async function pinReaderGeneration(generation: string): Promise<void> {
   // 等待锁真正获取(回调被调用)后才算持有:
   // 免等即放旧锁会让清理在 query() 里看不到新代际而误删其内容
   let markAcquired: (() => void) | undefined;
+  let markFailed: (() => void) | undefined;
+  let acquireFailed = false;
   const acquired = new Promise<void>((resolve) => {
     markAcquired = resolve;
+  });
+  const failed = new Promise<void>((resolve) => {
+    markFailed = resolve;
   });
   const previous = activeReaderLock;
   navigator.locks
@@ -193,14 +198,19 @@ async function pinReaderGeneration(generation: string): Promise<void> {
       if (activeReaderLock?.generation === generation) activeReaderLock = null;
     })
     .catch(() => {
-      /* 持锁失败仅影响旧代际保留策略,不影响功能 */
+      // 请求被拒绝(文档失活等)时回调不会执行:
+      // 记录失败并落地等待,由下方传播给调用方
+      acquireFailed = true;
       if (activeReaderLock?.generation === generation) activeReaderLock = null;
-      // 请求被拒绝时回调不会执行,acquired 永不解决会让调用方
-      // (可能正持 GC 协调锁)永久挂起——必须一并落地
       markAcquired?.();
+      markFailed?.();
     });
   activeReaderLock = { generation, release: release! };
-  await acquired;
+  await Promise.race([acquired, failed]);
+  if (acquireFailed) {
+    // 不释放 previous:保留对旧代际的钉住,失败由调用方决定回退方式
+    throw new Error("读者锁不可用");
+  }
   previous?.release();
 }
 
@@ -418,10 +428,11 @@ export async function saveImportedFiles(
 // 交错都一致——发布先提交则缓存整体可见后被作废;作废先提交则纪元已变,
 // 在途保存的发布事务会复查失败而中止,不会把被取代的旧数据集重新发布。
 // 因此不取全局写锁——另一标签页正在做长时间拷贝时,本地导入不必等它。
-// 已发布代际记录保留在 state store,供旧标签页的内容读取继续使用,
-// 内容由下一次保存的清理回收
-export async function invalidateImportedFiles(): Promise<void> {
-  if (typeof indexedDB === "undefined") return;
+// 返回本事务设置的新纪元:导入以它绑定保存基线(必须用事务返回值,
+// 事后再读一次会吸收排队期间其他标签页的作废)。已发布代际记录保留在
+// state store,供旧标签页的内容读取继续使用,内容由下一次保存的清理回收
+export async function invalidateImportedFiles(): Promise<number | null> {
+  if (typeof indexedDB === "undefined") return null;
 
   const database = await openImportDatabase();
   try {
@@ -431,14 +442,18 @@ export async function invalidateImportedFiles(): Promise<void> {
     );
     const stateStore = transaction.objectStore(STATE_STORE);
     transaction.objectStore(META_STORE).clear();
-    const currentEpoch = await new Promise<number>((resolve, reject) => {
+    const newEpoch = await new Promise<number>((resolve, reject) => {
       const request = stateStore.get("epoch");
-      request.onsuccess = () =>
-        resolve((request.result as EpochRecord | undefined)?.value ?? 0);
+      request.onsuccess = () => {
+        const next =
+          ((request.result as EpochRecord | undefined)?.value ?? 0) + 1;
+        stateStore.put({ id: "epoch", value: next });
+        resolve(next);
+      };
       request.onerror = () => reject(request.error);
     });
-    stateStore.put({ id: "epoch", value: currentEpoch + 1 });
     await transactionDone(transaction);
+    return newEpoch;
   } finally {
     database.close();
   }
@@ -497,9 +512,15 @@ export async function loadImportedFiles(): Promise<ImportedFilesSnapshot> {
       // 若等调用方稍后再拿锁,GC 锁已释放,删除可以插进校验与获取之间,
       // 留下"已钉住但内容已删"的悬空快照。快照返回即已受保护。
       // 空快照(meta 被其他标签页作废)不钉住——恢复会空手返回,
-      // 钉住只会让替换写入多保留一整份无人使用的数据
+      // 钉住只会让替换写入多保留一整份无人使用的数据。
+      // 钉住失败时不暴露无保护的惰性引用:视同缓存缺失,恢复会放弃
       if (generation !== null && metas.length > 0) {
-        await pinReaderGeneration(generation);
+        try {
+          await pinReaderGeneration(generation);
+        } catch {
+          snapshot = { files: [], generation };
+          return;
+        }
       }
       snapshot = { files: metas.map(makeCachedRef), generation };
     });

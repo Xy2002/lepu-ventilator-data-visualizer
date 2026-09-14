@@ -332,12 +332,12 @@ describe("importCache", () => {
     try {
       await saveImportedFiles([makeRef("a.edf", new Uint8Array([1, 2, 3]))]);
 
-      // 恢复路径(持 GC 协调锁中)钉住失败也必须正常返回
+      // 钉住失败不得暴露无保护的惰性引用:视同缓存缺失,恢复会放弃
       const restored = await loadImportedFiles();
-      expect(restored.files).toHaveLength(1);
-      await expect(
-        holdReaderGeneration(restored.generation)
-      ).resolves.toBeUndefined();
+      expect(restored.files).toHaveLength(0);
+      await expect(holdReaderGeneration(restored.generation)).rejects.toThrow(
+        "读者锁不可用"
+      );
     } finally {
       removeLockFake();
     }
@@ -349,7 +349,9 @@ describe("importCache", () => {
     await saveImportedFiles([makeRef("a.edf", new Uint8Array([1, 2, 3]))]);
     const baseline = await readImportEpoch();
 
-    await invalidateImportedFiles(); // 另一标签页的作废推进纪元
+    // 作废事务返回它设置的新纪元(基线必须用该返回值,不能事后再读)
+    const newEpoch = await invalidateImportedFiles();
+    expect(newEpoch).toBe(baseline + 1);
 
     await expect(
       saveImportedFiles(

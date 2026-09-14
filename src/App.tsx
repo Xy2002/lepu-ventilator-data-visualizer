@@ -19,7 +19,6 @@ import { downloadCsv, exportDaySummaryCsv } from "./data/csv";
 import {
   invalidateImportedFiles,
   loadImportedFiles,
-  readImportEpoch,
   readImportGeneration,
   reclaimUnreferencedContents,
   releaseReaderGeneration,
@@ -216,14 +215,15 @@ export function App() {
       // 两项作废必须各自等完(allSettled):任一失败立即放行的话,
       // 基线纪元可能在另一项作废提交前捕获,保存会带着旧纪元中止,
       // 令本可有效的导入被误报为未缓存
-      await Promise.allSettled([
+      const settled = await Promise.allSettled([
         invalidateImportedFiles(),
         invalidateParsedDataset(),
       ]);
-      // 基线纪元在作废后立即绑定并穿本地队列传给后台保存:
-      // 保存回调可能延迟很久才执行,届时捕获会把中间其他标签页的
-      // 作废算进基线,让被取代的旧数据集"最后发布"
-      const baselineEpoch = await readImportEpoch().catch(() => null);
+      // 基线纪元绑定到作废事务返回值(而非事后再读一次):
+      // 保存回调可能延迟很久才执行,再读一次会吸收排队期间
+      // 其他标签页的作废,让被取代的旧数据集"最后发布"
+      const baselineEpoch =
+        settled[0].status === "fulfilled" ? settled[0].value : null;
       // 数据集就绪立即展示;缓存写入(文件内容进 IndexedDB,可能上 GB)后台进行,
       // 不阻塞首屏交互。失败仅提示,不影响本次使用。
       setDataset(nextDataset);
