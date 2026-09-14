@@ -36,6 +36,12 @@ export function openDatabase(
         }
       }
     };
+    request.onblocked = () =>
+      reject(
+        new Error(
+          `数据库 ${dbName} 的升级被其他标签页阻塞，请关闭其他标签页后重试`
+        )
+      );
     request.onerror = () =>
       reject(request.error ?? new Error(`Failed to open ${dbName}`));
     request.onsuccess = () => resolve(request.result);

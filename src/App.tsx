@@ -285,9 +285,16 @@ export function App() {
           }
 
           // 纪元已变(其他标签页又作废/发布)时不写解析缓存:
-          // 否则被暂停后恢复的旧导入会用旧索引覆盖新代际的有效索引
-          const currentEpoch = await readImportEpoch();
-          if (currentEpoch === baselineEpoch) {
+          // 否则被暂停后恢复的旧导入会用旧索引覆盖新代际的有效索引。
+          // 纪元读取失败时无法核实→跳过解析保存,但交接继续
+          // (raw 缓存已 durable,读取失败不该否定它)
+          let currentEpoch: number | null = null;
+          try {
+            currentEpoch = await readImportEpoch();
+          } catch {
+            /* best effort */
+          }
+          if (currentEpoch !== null && currentEpoch === baselineEpoch) {
             try {
               await saveParsedDataset(files, nextDataset, generation);
             } catch {

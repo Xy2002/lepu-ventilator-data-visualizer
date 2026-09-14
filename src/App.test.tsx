@@ -245,6 +245,11 @@ describe("App", () => {
     importCacheMock.loadImportedFiles
       .mockResolvedValueOnce({ files: [], generation: null }) // 启动恢复:无缓存
       .mockRejectedValueOnce(new Error("gc lock failed")); // 交接重取失败
+    // 纪元读取失败也不得阻断交接(raw 缓存已 durable):
+    // 第一次读取=解析保存前的门禁,第二次=交接前的复核
+    importCacheMock.readImportEpoch
+      .mockResolvedValueOnce(7)
+      .mockRejectedValueOnce(new Error("epoch read failed"));
 
     render(<App />);
     await userEvent.upload(
@@ -254,6 +259,8 @@ describe("App", () => {
     expect(await screen.findByText("日期导航")).toBeInTheDocument();
 
     expect(await screen.findByText(/未能切换到缓存引用/)).toBeInTheDocument();
+    // 纪元读取失败跳过了解析保存,但不得误报未缓存
+    expect(screen.queryByText(/无法缓存这些文件/)).not.toBeInTheDocument();
   });
 
   it("skips the cache write when the invalidation returns no epoch", async () => {

@@ -357,10 +357,12 @@ export async function saveImportedFiles(
         // 写入中途被刷新/关页打断时,meta 与 contents 不会混入半新半旧状态;
         // contentKey 的 generation 保证"同路径重导入"也不会张冠李戴。
         // shouldAbort 在每批之间与 meta 发布前复查:被更新导入取代的活跃写入
-        // 必须让路,否则 UI 已显示新数据、刷新却会恢复旧数据集
+        // 必须让路,否则 UI 已显示新数据、刷新却会恢复旧数据集。
+        // 跨标签页作废的批间纪元复查:及时停掉过时拷贝,缩短写锁占用
         const metaRecords: CachedFileMeta[] = [];
         for (let i = 0; i < files.length; i += BATCH_SIZE) {
           if (shouldAbort?.()) return null;
+          if ((await readEpoch(database)) !== startEpoch) return null;
           const batch = files.slice(i, i + BATCH_SIZE);
           const contents: CachedFileContent[] = [];
           for (const fileRef of batch) {
