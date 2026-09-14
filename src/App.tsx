@@ -243,7 +243,9 @@ export function App() {
       // 保存回调可能延迟很久才执行,再读一次会吸收排队期间
       // 其他标签页的作废,让被取代的旧数据集"最后发布"
       const baselineEpoch = await invalidateImportedFiles().catch(() => null);
-      // 解析缓存的作废绑定同一纪元:已被更新的导入取代时跳过清空
+      // 解析缓存的作废绑定同一纪元:已被更新的导入取代时跳过清空。
+      // raw 作废失败(baselineEpoch 为 null)时同样跳过——
+      // 旧缓存原封未动,它的解析索引也应保留给刷新后的快速恢复
       await invalidateParsedDataset(baselineEpoch).catch(() => {});
       // 数据集就绪立即展示;缓存写入(文件内容进 IndexedDB,可能上 GB)后台进行,
       // 不阻塞首屏交互。失败仅提示,不影响本次使用。

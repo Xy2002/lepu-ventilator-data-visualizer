@@ -277,6 +277,8 @@ describe("App", () => {
 
     expect(await screen.findByText(/无法缓存这些文件/)).toBeInTheDocument();
     expect(importCacheMock.saveImportedFiles).not.toHaveBeenCalled();
+    // raw 作废失败时不得清空解析缓存(它属于仍有效的旧数据集)
+    expect(parsedCacheMock.invalidateParsedDataset).toHaveBeenCalledWith(null);
   });
 
   it("skips the parsed-cache save when the epoch moved past the baseline", async () => {

@@ -213,8 +213,15 @@ export async function loadParsedDataset(
   if (files.length === 0) return null;
 
   // 先读当前发布代际(跨库):不能在 parsed-cache 事务内 await 另一个库的
-  // 读取,否则事务失活。顺序有竞态时只会误判为不匹配 → 回退重建,方向安全
-  const currentGeneration = await readImportGeneration();
+  // 读取,否则事务失活。顺序有竞态时只会误判为不匹配 → 回退重建,方向安全。
+  // 代际读取本身失败时同样按未命中处理(回退重建),
+  // 让调用方的恢复流程继续使用可用的 raw 引用,而不是整体放弃
+  let currentGeneration: string | null = null;
+  try {
+    currentGeneration = await readImportGeneration();
+  } catch {
+    return null;
+  }
 
   const db = await openDatabase(DB_NAME, DB_VERSION, STORE, "id");
 
