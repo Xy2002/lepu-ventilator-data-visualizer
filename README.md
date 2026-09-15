@@ -98,7 +98,7 @@ src/
 ├── parser/          # 二进制解析（EDF header、BA525 配置）
 ├── data/            # 数据集索引、IndexedDB 缓存、CSV 导出
 ├── charts/          # ECharts 波形渲染、降采样
-├── components/      # React 组件（DateNavigator、DayCharts、EventTable 等）
+├── components/      # React 组件（DateNavigator、DayCharts 等）
 ├── App.tsx          # 主应用，状态管理
 └── types.ts         # 类型定义
 ```
