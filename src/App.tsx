@@ -179,7 +179,9 @@ export function App() {
         // 误放交接刚安装的新代际读者锁
         if (snapshotGeneration !== null)
           releaseReaderGeneration(snapshotGeneration);
-        if (!cancelled)
+        // 被本地导入取代的恢复:其失败不得覆盖新导入的 UX
+        // (导入的写入回收了恢复正在读取的内容时,恢复会走到这里)
+        if (!cancelled && cacheRunRef.current === restoreRun)
           setCacheNotice(
             "无法恢复上次导入的文件，请重新选择 DATAFILE 文件夹。"
           );
@@ -262,6 +264,8 @@ export function App() {
       setDataset(nextDataset);
       datasetRef.current = nextDataset;
       setSelectedDate(nextDataset.days[nextDataset.days.length - 1] ?? null);
+      // 清掉被取代恢复可能留下的过时错误提示
+      setCacheNotice(null);
       // 活载数据集已切换为源文件引用,本标签页不再使用旧代际的缓存内容:
       // 立即释放读者锁,替换拷贝期间不为其保留整份旧数据
       // (其他标签页的读者锁仍会保护它们自己引用的代际)

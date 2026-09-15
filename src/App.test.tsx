@@ -464,6 +464,54 @@ describe("App", () => {
     expect(importCacheMock.releaseReaderGeneration).toHaveBeenCalled();
   });
 
+  it("suppresses the restore error after a newer import completes", async () => {
+    // 恢复仍在读取/重建时导入完成(其写回收了恢复正在读取的内容):
+    // 迟到的恢复失败不得在成功的新导入上安装"无法恢复"的过时警告
+    let resolveRestoreLoad:
+      | ((value: {
+          files: ImportedFileRef[];
+          epoch: number;
+          generation: string | null;
+        }) => void)
+      | undefined;
+    importCacheMock.loadImportedFiles.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRestoreLoad = resolve;
+        })
+    );
+
+    render(<App />);
+    await userEvent.upload(
+      screen.getByLabelText("选择 EDF 文件"),
+      edfFile("20260429_flow.edf", "flow", new Uint8Array([20, 19, 17]))
+    );
+    expect(await screen.findByText("日期导航")).toBeInTheDocument();
+
+    // 迟到的恢复:其内容读取直接失败 → 恢复 catch 触发
+    const brokenRef: ImportedFileRef = {
+      name: "20260101_flow.edf",
+      path: "20260101_flow.edf",
+      size: 3,
+      lastModified: 0,
+      read: () => Promise.reject(new Error("content reclaimed")),
+    };
+    resolveRestoreLoad?.({
+      files: [brokenRef],
+      generation: "old-generation",
+      epoch: 1,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(
+      screen.queryByText("已恢复上次导入的文件。")
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/无法恢复上次导入的文件/)
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByText("2026-04-29").length).toBeGreaterThan(0);
+  });
+
   it("shows an error notice when loading the selected day fails", async () => {
     const brokenRef: ImportedFileRef = {
       name: "20260429_flow.edf",
