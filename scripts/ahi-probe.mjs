@@ -44,12 +44,16 @@ for (const day of days) {
   const dir = path.join(base, day);
 
   // 文件存在但短于 512 字节头 = 无效文件(应用判为 invalid、不产生
-  // 事件计数),这里同样视为缺失而不是 0 事件的完整夜晚
+  // 事件计数),这里同样视为缺失而不是 0 事件的完整夜晚。
+  // 通道语义以头部 label 为准(应用从 header.label 推断类型),
+  // 文件名与头部不符时按缺失处理
   const read = (suffix) => {
     const p = path.join(dir, `${day}_${suffix}.edf`);
     if (!fs.existsSync(p)) return null;
     const raw = fs.readFileSync(p);
-    return raw.length >= 512 ? raw.subarray(512) : null;
+    if (raw.length < 512) return null;
+    const label = raw.toString("latin1", 256, 272).trim();
+    return label === suffix ? raw.subarray(512) : null;
   };
 
   const ai = read("ai");

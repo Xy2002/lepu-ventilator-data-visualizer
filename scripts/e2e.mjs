@@ -26,10 +26,10 @@
  *     提示消失再继续,避免在旧日期数据上跑后续检查。
  *
  * 用法:先起 dev server(npm run dev),再 npm run e2e。
- * 需要在 .env 配置 MIDSCENE_MODEL_*(见 .env 内注释)。
+ * 需要在 .env 配置 MIDSCENE_MODEL_*(必填项见仓库根目录的 .env.example)。
  */
 import "dotenv/config";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { chromium } from "playwright";
 import { PlaywrightAgent } from "@midscene/web/playwright";
@@ -47,6 +47,11 @@ const FIXTURE_DAYS = (process.env.E2E_FIXTURE_DAYS ?? "20240724,20240725")
 function resolveFixtureFiles() {
   const problems = [];
   const files = [];
+  // 压力叠加图与事件标记审计依赖这些通道;通道语义以 EDF 头部
+  // label 为准(与应用的推断一致,文件名可能不同),缺失会在运行
+  // 中段产生误导性的失败,所以在预检阶段就拦下
+  const requiredChannels = ["pressure", "real_pres", "usetime"];
+  const headerLabel = (raw) => raw.toString("latin1", 256, 272).trim();
   for (const day of FIXTURE_DAYS) {
     const dir = resolve(FIXTURE_ROOT, day);
     if (!existsSync(dir)) {
@@ -57,6 +62,18 @@ function resolveFixtureFiles() {
     if (edfs.length === 0) {
       problems.push(`${dir} 中没有 .edf 文件`);
       continue;
+    }
+    const labels = new Set();
+    for (const name of edfs) {
+      const raw = readFileSync(resolve(dir, name));
+      if (raw.length >= 512) labels.add(headerLabel(raw));
+    }
+    for (const channel of requiredChannels) {
+      if (!labels.has(channel)) {
+        problems.push(
+          `${dir} 缺少头部 label 为 ${channel} 的通道文件(压力叠加与事件标记审计需要)`
+        );
+      }
     }
     files.push(...edfs.map((f) => resolve(dir, f)));
   }
@@ -250,7 +267,15 @@ try {
       record("导出当日摘要 CSV", false, err.message.split("\n")[0]);
     }
 
-    // 图形/图例颜色一致性审计(确定性,读 ECharts option)
+    // 图形/图例颜色一致性审计(确定性,读 ECharts option)。
+    // 先等懒加载的专业图表(DayCharts)及其 canvas 挂载完成,
+    // 否则审计可能只看到趋势图、漏掉叠加图导致覆盖检查失败
+    await page
+      .waitForFunction(() => document.querySelectorAll("canvas").length >= 3, {
+        timeout: 30_000,
+      })
+      .catch(() => {});
+    await page.waitForTimeout(500);
     const audit = await page.evaluate(async () => {
       // hex / rgb() / rgba() 统一成 "r,g,b" 便于比较
       const norm = (c) => {
@@ -418,10 +443,10 @@ try {
       );
       // 审计必须真的覆盖到叠加图(同图多序列),否则"零不一致"是空转:
       // 图例或叠加序列消失时这里会失败,而不是报成功
-      // 叠加图按序列名定位(压力叠加图才有"实际压力"序列),
-      // 长期摘要图同样是双序列,不能只看序列数量
+      // 叠加图按期望序列名定位:必须同时审计到"压力"与"实际压力"
+      // (长期摘要图也是双序列,只看序列数量会被它顶替)
       const overlayInspected = audit.inspected.find(
-        (c) => c.series.length >= 2 && c.series.some((s) => s.includes("压力"))
+        (c) => c.series.includes("压力") && c.series.includes("实际压力")
       );
       record(
         "颜色审计覆盖压力叠加图(压力 + 实际压力)",
