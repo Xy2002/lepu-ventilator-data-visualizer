@@ -43,9 +43,13 @@ const rows = [];
 for (const day of days) {
   const dir = path.join(base, day);
 
+  // 文件存在但短于 512 字节头 = 无效文件(应用判为 invalid、不产生
+  // 事件计数),这里同样视为缺失而不是 0 事件的完整夜晚
   const read = (suffix) => {
     const p = path.join(dir, `${day}_${suffix}.edf`);
-    return fs.existsSync(p) ? fs.readFileSync(p).subarray(512) : null;
+    if (!fs.existsSync(p)) return null;
+    const raw = fs.readFileSync(p);
+    return raw.length >= 512 ? raw.subarray(512) : null;
   };
 
   const ai = read("ai");
@@ -92,7 +96,8 @@ for (const r of rows.slice(0, 15)) {
 
 const totals = rows
   .map((r) => r.total)
-  .filter((x) => x !== null && x > 0)
+  // 只排除不完整(无效/缺失)的夜晚:完整但 0 事件的夜晚是合法样本
+  .filter((x) => x !== null)
   .sort((a, b) => a - b);
 const median = (list) => {
   if (list.length === 0) return "-";
