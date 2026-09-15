@@ -194,22 +194,48 @@ try {
     // 而这里要验证的是应用的日期切换行为本身
     const heading = page.locator(".selected-day-header h2");
     const before = ((await heading.textContent()) ?? "").trim();
-    await page.locator(".heatmap .heat-cell").first().click();
-    // 等"正在解析当前日期"提示消失:解析慢时固定延时会让后续检查
-    // 在旧日期的数据上跑
-    await page
-      .getByText("正在解析当前日期")
-      .waitFor({ state: "hidden", timeout: 60_000 })
-      .catch(() => {});
-    const after = ((await heading.textContent()) ?? "").trim();
-    // 目录名是 20240724,页面日期标题是 2024-07-24,比较前先对齐格式
-    const expectedDate = FIXTURE_DAYS[0].replace(
-      /^(\d{4})(\d{2})(\d{2})$/,
-      "$1-$2-$3"
+    // 期望日期从被点击的格子取(热力图首格即最早日期),不依赖
+    // 环境变量里日期的书写顺序
+    const firstCell = page.locator(".heatmap .heat-cell").first();
+    const cellTitle = (await firstCell.getAttribute("title")) ?? "";
+    const expectedDate = (cellTitle.match(/\d{4}-\d{2}-\d{2}/) ?? [])[0] ?? "";
+    await firstCell.click();
+    // 等"正在解析当前日期"提示消失。App 在解析失败时会保留旧详情、
+    // 只更新标题,所以等待超时是硬性失败,不能吞掉
+    try {
+      await page
+        .getByText("正在解析当前日期")
+        .waitFor({ state: "hidden", timeout: 60_000 });
+      record("日期详情:当日解析完成", true);
+    } catch {
+      record("日期详情:当日解析完成", false, "解析提示 60s 内未消失");
+    }
+    // 详情必须真的属于所选日期:原始文件列表应出现该日期的文件名,
+    // 防止后续图表/文件/颜色检查在旧日期数据上跑
+    const dayStem = expectedDate ? expectedDate.replaceAll("-", "") : "";
+    let detailMatches = false;
+    if (dayStem) {
+      try {
+        await page
+          .getByText(new RegExp(`${dayStem}_[^\\s]*\\.edf`))
+          .first()
+          .waitFor({ state: "attached", timeout: 60_000 });
+        detailMatches = true;
+      } catch {
+        detailMatches = false;
+      }
+    }
+    record(
+      "日期详情:渲染的是所选日期",
+      detailMatches,
+      detailMatches
+        ? `原始文件含 ${expectedDate} 的 .edf`
+        : `未找到 ${expectedDate} 的原始文件条目`
     );
+    const after = ((await heading.textContent()) ?? "").trim();
     record(
       "日期切换:标题随选择更新",
-      before !== after && after === expectedDate,
+      Boolean(expectedDate) && before !== after && after === expectedDate,
       `${before} -> ${after}(期望 ${expectedDate})`
     );
 
@@ -402,8 +428,12 @@ try {
       );
       record(
         "事件标记图例与标线颜色一致",
-        audit.eventLegendMismatches.length === 0,
-        `已核对 ${audit.eventLegendChecked} 个 HTML 图例项 / ${audit.markLineCount} 个事件标线`
+        audit.eventLegendMismatches.length === 0 &&
+          audit.eventLegendChecked > 0,
+        `已核对 ${audit.eventLegendChecked} 个 HTML 图例项 / ${audit.markLineCount} 个事件标线` +
+          (audit.eventLegendChecked > 0
+            ? ""
+            : "(没有可核对的事件图例项,无法确认一致性)")
       );
     }
 
@@ -470,7 +500,13 @@ try {
       const legendLooksConsistent = await agent.aiBoolean(
         "In the charts currently visible in this viewport, does every legend marker color match the color of its corresponding line or bar?"
       );
-      record("AI 视觉复核:图例与图形颜色一致", legendLooksConsistent === true);
+      if (legendLooksConsistent === true) {
+        record("AI 视觉复核:图例与图形颜色一致", true);
+      } else {
+        // 软性检查的否定结论同样只警告,不进退出码:
+        // 主观视觉判断的误报由确定性审计兜底
+        warn("AI 视觉复核判断图例不一致(软性;硬性结论以确定性审计为准)");
+      }
     } catch (err) {
       warn(
         "AI 视觉复核未通过(软性检查;硬性结论以确定性审计为准)",
