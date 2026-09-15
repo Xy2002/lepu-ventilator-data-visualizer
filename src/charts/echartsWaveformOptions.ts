@@ -85,6 +85,11 @@ function eventStyleFor(sourceLabel: string) {
   );
 }
 
+// 图例标记颜色取自 series.itemStyle/调色板,不会回退到 lineStyle.color;
+// 两个 series 都必须显式声明 itemStyle,否则图例与线条颜色不一致
+const MAIN_WAVEFORM_COLOR = "#0a72ef";
+const OVERLAY_WAVEFORM_COLOR = "#9333ea";
+
 function buildTimestampMarkLineData(
   eventMarkers: EventMarkerInfo[],
   chartStartMs: number,
@@ -348,8 +353,9 @@ export function buildEChartsWaveformOption({
     progressiveThreshold: 20000,
     lineStyle: {
       width: 1.2,
-      color: "#0a72ef",
+      color: MAIN_WAVEFORM_COLOR,
     },
+    itemStyle: { color: MAIN_WAVEFORM_COLOR },
     emphasis: {
       disabled: true,
     },
@@ -394,9 +400,10 @@ export function buildEChartsWaveformOption({
       progressiveThreshold: 20000,
       lineStyle: {
         width: 1.2,
-        color: "#9333ea",
+        color: OVERLAY_WAVEFORM_COLOR,
         opacity: 0.85,
       },
+      itemStyle: { color: OVERLAY_WAVEFORM_COLOR },
       emphasis: { disabled: true },
     });
     legendData = [displayChannelName(label), displayChannelName(overlay.label)];
