@@ -373,7 +373,9 @@ try {
           .querySelector(".chart-legend-text")
           ?.textContent?.trim();
         const swatch = item.querySelector(".chart-legend-line");
-        const color = swatch ? getComputedStyle(swatch).backgroundColor : null;
+        // 色块可见线条是 border-top(.chart-legend-line 高度为 0,
+        // backgroundColor 不可见),必须读 borderTopColor
+        const color = swatch ? getComputedStyle(swatch).borderTopColor : null;
         if (!text || !color) continue;
         const related = markLineColors.filter(
           (m) => m.name === text && m.color
@@ -416,15 +418,17 @@ try {
       );
       // 审计必须真的覆盖到叠加图(同图多序列),否则"零不一致"是空转:
       // 图例或叠加序列消失时这里会失败,而不是报成功
+      // 叠加图按序列名定位(压力叠加图才有"实际压力"序列),
+      // 长期摘要图同样是双序列,不能只看序列数量
       const overlayInspected = audit.inspected.find(
-        (c) => c.series.length >= 2
+        (c) => c.series.length >= 2 && c.series.some((s) => s.includes("压力"))
       );
       record(
-        "颜色审计覆盖叠加图(同图多序列)",
+        "颜色审计覆盖压力叠加图(压力 + 实际压力)",
         Boolean(overlayInspected),
         overlayInspected
           ? `[${overlayInspected.chart}] ${overlayInspected.series.join(" + ")}`
-          : "没有任何图表审计到两个及以上的图例序列"
+          : "压力叠加图的两个序列未被审计到"
       );
       record(
         "事件标记图例与标线颜色一致",

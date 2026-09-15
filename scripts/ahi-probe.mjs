@@ -1,5 +1,5 @@
 // 一次性探针:统计 DATA/DATAFILE 每晚 AI/HI 事件数、使用时长与折算每小时事件数。
-// 解析规则与 src/parser 对齐:事件记录 16 字节、value1 为 u16;
+// 解析规则与 src/parser 对齐:事件记录 16 字节、value1 为 u32;
 // usetime 仅在 value1 > 0 且 8 字节时间戳通过校验时计入使用时长
 // (同 dataset.ts 的 buildUseSession);AI/HI 任一文件缺失的夜晚不算
 // 总数与 events/h——应用对不完整的事件对同样抑制 AHI。
@@ -56,7 +56,9 @@ for (const day of days) {
   let useSec = 0;
   if (ut) {
     for (let o = 0; o + 16 <= ut.length; o += 16) {
-      const value1 = ut.readUInt16LE(o);
+      // value1 为 u32(同 src/parser/edfParser.ts 的 getUint32):
+      // u16 会把超过 65535 秒的时长截断取模
+      const value1 = ut.readUInt32LE(o);
       const timestamp = parseBinaryTimestamp(ut.subarray(o + 8, o + 16));
       if (value1 > 0 && timestamp !== null) useSec += value1;
     }
@@ -74,7 +76,8 @@ for (const day of days) {
     hi: hiCount,
     total,
     hours: +hours.toFixed(2),
-    perHour: complete && hours > 0.5 ? +(total / hours).toFixed(1) : null,
+    // 与应用的 MIN_AHI_USE_HOURS 语义一致:满 30 分钟(含)即折算
+    perHour: complete && hours >= 0.5 ? +(total / hours).toFixed(1) : null,
   });
 }
 
@@ -91,7 +94,15 @@ const totals = rows
   .map((r) => r.total)
   .filter((x) => x !== null && x > 0)
   .sort((a, b) => a - b);
+const median = (list) => {
+  if (list.length === 0) return "-";
+  const mid = Math.floor(list.length / 2);
+  // 偶数个样本取中间两值的平均,奇数取正中
+  return list.length % 2 === 1
+    ? list[mid]
+    : +((list[mid - 1] + list[mid]) / 2).toFixed(1);
+};
 console.log("---");
 console.log(
-  `complete days with data: ${totals.length}; median total: ${totals[Math.floor(totals.length / 2)] ?? "-"}; max total: ${totals.at(-1) ?? "-"}`
+  `complete days with data: ${totals.length}; median total: ${median(totals)}; max total: ${totals.at(-1) ?? "-"}`
 );
