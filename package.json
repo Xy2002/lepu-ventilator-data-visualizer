@@ -10,6 +10,7 @@
     "typecheck": "tsc -b",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
+    "e2e": "node scripts/e2e.mjs",
     "prepare": "husky"
   },
   "engines": {
@@ -29,12 +30,16 @@
     "tailwindcss": "^4.2.4"
   },
   "devDependencies": {
+    "@midscene/core": "^1.12.7",
+    "@midscene/web": "^1.12.7",
+    "@playwright/test": "^1.63.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.2",
+    "dotenv": "^17.4.2",
     "fake-indexeddb": "^6.2.5",
     "husky": "^9.1.7",
     "jsdom": "^27.3.0",
