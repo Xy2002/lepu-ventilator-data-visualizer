@@ -204,7 +204,11 @@ export function WaveformChart({
               <span key={type} className="chart-legend-item">
                 <span
                   className="chart-legend-line"
-                  style={{ backgroundColor: style?.color ?? "#d92d20" }}
+                  style={{
+                    // 线条由 CSS 的 border-top: dashed currentColor 绘制,
+                    // 必须设 color(而非 backgroundColor)才能显示事件色
+                    color: style?.color ?? "#d92d20",
+                  }}
                 />
                 <span className="chart-legend-text">
                   {style?.label ?? type.toUpperCase()}
