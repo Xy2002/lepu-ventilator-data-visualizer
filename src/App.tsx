@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { CardDescription } from "@heroui/react";
 import "./App.css";
 import { AiAnalysisPanel } from "./components/AiAnalysisPanel";
-import { DateNavigator } from "./components/DateNavigator";
+import { DateNavigator } from "./components/date-navigator/DateNavigator";
 import { ImportPanel } from "./components/ImportPanel";
 import { RawFileBrowser } from "./components/RawFileBrowser";
 import { SummaryTrendChart } from "./components/SummaryTrendChart";
