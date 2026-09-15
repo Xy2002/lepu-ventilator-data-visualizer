@@ -4,7 +4,12 @@ import type {
   ImportedFileRef,
   ParsedVentilatorFile,
 } from "../types";
-import { inferDateFromPath } from "./dataset";
+import { groupImportedFilesByDay } from "./dataset";
+import {
+  readImportEpoch,
+  readImportGeneration,
+  withImportCacheWriteLock,
+} from "./importCache";
 
 const DB_NAME = "ventilator-parsed-cache";
 const DB_VERSION = 1;
@@ -17,6 +22,8 @@ export const PARSER_VERSION = 2;
 interface CacheManifest {
   id: "manifest";
   parserVersion: number;
+  /** 摘要/头部所属的导入代际:与当前发布代际不符即作废,防止旧摘要配新内容 */
+  importGeneration: string | null;
   files: Array<{ path: string; lastModified: number; size: number }>;
 }
 
@@ -123,8 +130,8 @@ export function buildManifest(
   return files
     .map((f) => ({
       path: f.path || f.name,
-      lastModified: f.file.lastModified,
-      size: f.file.size,
+      lastModified: f.lastModified,
+      size: f.size,
     }))
     .sort((a, b) => a.path.localeCompare(b.path));
 }
@@ -145,37 +152,68 @@ export function manifestMatches(
 
 export async function saveParsedDataset(
   files: ImportedFileRef[],
-  index: DatasetIndex
+  index: DatasetIndex,
+  importGeneration: string | null = null
 ): Promise<void> {
   const db = await openDatabase(DB_NAME, DB_VERSION, STORE, "id");
 
-  try {
-    const tx = db.transaction(STORE, "readwrite");
-    const store = tx.objectStore(STORE);
-    store.clear();
+  // 与作废/其他解析写入共用跨标签页写锁,避免交错覆盖
+  await withImportCacheWriteLock(async () => {
+    try {
+      const tx = db.transaction(STORE, "readwrite");
+      const store = tx.objectStore(STORE);
+      store.clear();
 
-    store.put({
-      id: "manifest",
-      parserVersion: PARSER_VERSION,
-      files: buildManifest(files),
-    });
-    store.put({
-      id: "meta",
-      days: index.days,
-      dateRange: index.dateRange,
-      summariesByDay: index.summariesByDay,
-      warnings: index.warnings,
-    });
+      store.put({
+        id: "manifest",
+        parserVersion: PARSER_VERSION,
+        importGeneration,
+        files: buildManifest(files),
+      });
+      store.put({
+        id: "meta",
+        days: index.days,
+        dateRange: index.dateRange,
+        summariesByDay: index.summariesByDay,
+        warnings: index.warnings,
+      });
 
-    for (const day of index.days) {
-      const serialized = index.parsedFilesByDay[day].map(serializeFile);
-      store.put({ id: `parsed:${day}`, files: serialized });
+      for (const day of index.days) {
+        const serialized = index.parsedFilesByDay[day].map(serializeFile);
+        store.put({ id: `parsed:${day}`, files: serialized });
+      }
+
+      await transactionDone(tx);
+    } finally {
+      db.close();
     }
+  });
+}
 
-    await transactionDone(tx);
-  } finally {
-    db.close();
-  }
+// 新导入开始时作废旧解析结果:防止关闭发生在"导入缓存已发布、
+// 解析缓存未更新"之间时,旧摘要/头部配上按需读取的新内容字节。
+// baselineEpoch 绑定本次导入的作废纪元:已被更新的导入取代
+// (纪元已推进)时跳过清空,保留他们的有效解析索引。
+// 校验+清空在跨标签页写锁下原子进行,不会被并发的解析写入穿插
+export async function invalidateParsedDataset(
+  baselineEpoch?: number | null
+): Promise<void> {
+  if (typeof indexedDB === "undefined") return;
+
+  await withImportCacheWriteLock(async () => {
+    // 纪元读取必须在打开事务之前(跨库 await 会使事务失活)
+    const currentEpoch = baselineEpoch != null ? await readImportEpoch() : null;
+    if (baselineEpoch != null && currentEpoch !== baselineEpoch) return;
+
+    const db = await openDatabase(DB_NAME, DB_VERSION, STORE, "id");
+    try {
+      const tx = db.transaction(STORE, "readwrite");
+      tx.objectStore(STORE).clear();
+      await transactionDone(tx);
+    } finally {
+      db.close();
+    }
+  });
 }
 
 export async function loadParsedDataset(
@@ -183,6 +221,17 @@ export async function loadParsedDataset(
 ): Promise<DatasetIndex | null> {
   if (typeof indexedDB === "undefined") return null;
   if (files.length === 0) return null;
+
+  // 先读当前发布代际(跨库):不能在 parsed-cache 事务内 await 另一个库的
+  // 读取,否则事务失活。顺序有竞态时只会误判为不匹配 → 回退重建,方向安全。
+  // 代际读取本身失败时同样按未命中处理(回退重建),
+  // 让调用方的恢复流程继续使用可用的 raw 引用,而不是整体放弃
+  let currentGeneration: string | null = null;
+  try {
+    currentGeneration = await readImportGeneration();
+  } catch {
+    return null;
+  }
 
   const db = await openDatabase(DB_NAME, DB_VERSION, STORE, "id");
 
@@ -200,6 +249,10 @@ export async function loadParsedDataset(
     )
       return null;
 
+    // 摘要/头部必须属于当前已发布的导入代际:恢复路径的重建也可能与
+    // 其他标签页的新导入交错,代际不符时宁可回退重建
+    if ((manifest.importGeneration ?? null) !== currentGeneration) return null;
+
     const meta = await requestResult<CacheMeta | undefined>(store.get("meta"));
     if (!meta) return null;
 
@@ -214,13 +267,7 @@ export async function loadParsedDataset(
 
     await transactionDone(tx);
 
-    const filesByDay: Record<string, ImportedFileRef[]> = {};
-    for (const fileRef of files) {
-      const date = inferDateFromPath(fileRef.path || fileRef.name);
-      if (!date) continue;
-      filesByDay[date] ??= [];
-      filesByDay[date].push(fileRef);
-    }
+    const filesByDay = groupImportedFilesByDay(files);
 
     return {
       days: meta.days,

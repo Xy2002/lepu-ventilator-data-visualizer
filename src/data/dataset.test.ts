@@ -5,12 +5,14 @@ import {
   makeEventPayloadAt,
 } from "../parser/fixtures";
 import type { ImportedFileRef } from "../types";
+import { importedFileRefFromFile } from "./importedFile";
 import {
   buildDatasetIndex,
   computePressureRange,
   filterDays,
   inspectDayDetailCache,
   loadDayDetail,
+  migrateDayDetailCache,
   type IndexProgress,
 } from "./dataset";
 
@@ -36,11 +38,7 @@ function imported(
     });
   }
 
-  return {
-    name,
-    path,
-    file,
-  };
+  return importedFileRefFromFile(file, path);
 }
 
 function makeImportedFiles() {
@@ -217,27 +215,46 @@ describe("dataset indexing", () => {
     expect(inspectDayDetailCache(index).keys).not.toContain("2026-04-21");
   });
 
+  it("migrateDayDetailCache transfers hydrated days to the replacement index", async () => {
+    const files = ["20260421", "20260422"].map((day) =>
+      imported(`${day}_flow.edf`, "flow", new Uint8Array([7, 8, 9]))
+    );
+    const index = await buildDatasetIndex(files);
+    await loadDayDetail(index, "2026-04-21");
+    expect(inspectDayDetailCache(index).keys).toContain("2026-04-21");
+
+    // 引用交接生成的替换身份:缓存迁移后,已解析的天不丢
+    const replaced = { ...index, filesByDay: index.filesByDay };
+    migrateDayDetailCache(index, replaced);
+
+    expect(inspectDayDetailCache(replaced).keys).toContain("2026-04-21");
+    // 同一对象调用是空操作
+    migrateDayDetailCache(replaced, replaced);
+    expect(inspectDayDetailCache(replaced).keys).toContain("2026-04-21");
+  });
+
   it("fires onProgress as each day completes, not after all days", async () => {
     const events: Array<IndexProgress & { slowSettled: boolean }> = [];
     let settled = false;
     let resolveSlow: () => void = () => {};
     const slowBytes = makeEdfLikeFile("flow", new Uint8Array([1, 2, 3]));
-    const slowFile = {
-      size: slowBytes.byteLength,
-      slice: (start: number, end: number) => ({
-        arrayBuffer: () =>
-          new Promise<ArrayBuffer>((resolve) => {
-            resolveSlow = () => {
-              settled = true;
-              resolve(slowBytes.slice(start, end).buffer as ArrayBuffer);
-            };
-          }),
-      }),
-    } as unknown as File;
     const slow: ImportedFileRef = {
       name: "20260429_flow.edf",
       path: "20260429_flow.edf",
-      file: slowFile,
+      size: slowBytes.byteLength,
+      lastModified: 0,
+      read: (start = 0, end?: number) =>
+        new Promise<ArrayBuffer>((resolve) => {
+          resolveSlow = () => {
+            settled = true;
+            resolve(
+              (end === undefined
+                ? slowBytes.slice(start)
+                : slowBytes.slice(start, end)
+              ).buffer as ArrayBuffer
+            );
+          };
+        }),
     };
     const fast = imported("20260428_flow.edf", "flow", new Uint8Array([1]));
 
@@ -265,30 +282,32 @@ describe("dataset indexing", () => {
     let resolveSlow: () => void = () => {};
     const slowBytes = makeEdfLikeFile("flow", new Uint8Array([1]));
     const slowFile = {
+      name: "20260428_flow.edf",
+      path: "20260428_flow.edf",
       size: slowBytes.byteLength,
-      slice: (start: number, end: number) => ({
-        arrayBuffer: () =>
-          new Promise<ArrayBuffer>((resolve) => {
-            resolveSlow = () =>
-              resolve(slowBytes.slice(start, end).buffer as ArrayBuffer);
-          }),
-      }),
-    } as unknown as File;
-    const badFile = {
-      size: 514,
-      slice: () => ({
-        arrayBuffer: () => Promise.reject(new Error("boom")),
-      }),
-    } as unknown as File;
+      lastModified: 0,
+      read: (start = 0, end?: number) =>
+        new Promise<ArrayBuffer>((resolve) => {
+          resolveSlow = () =>
+            resolve(
+              (end === undefined
+                ? slowBytes.slice(start)
+                : slowBytes.slice(start, end)
+              ).buffer as ArrayBuffer
+            );
+        }),
+    } as unknown as ImportedFileRef;
 
     const building = buildDatasetIndex(
       [
+        slowFile,
         {
-          name: "20260428_flow.edf",
-          path: "20260428_flow.edf",
-          file: slowFile,
+          name: "20260429_flow.edf",
+          path: "20260429_flow.edf",
+          size: 514,
+          lastModified: 0,
+          read: () => Promise.reject(new Error("boom")),
         },
-        { name: "20260429_flow.edf", path: "20260429_flow.edf", file: badFile },
       ],
       (progress) => events.push(progress.completed)
     );

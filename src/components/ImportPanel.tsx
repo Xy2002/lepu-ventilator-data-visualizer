@@ -1,6 +1,7 @@
-import { useRef } from 'react';
-import { ButtonRoot } from '@heroui/react';
-import type { ImportedFileRef } from '../types';
+import { useRef } from "react";
+import { ButtonRoot } from "@heroui/react";
+import { importedFileRefFromFile } from "../data/importedFile";
+import type { ImportedFileRef } from "../types";
 
 interface ImportPanelProps {
   disabled: boolean;
@@ -8,11 +9,7 @@ interface ImportPanelProps {
 }
 
 function toImportedFile(file: File): ImportedFileRef {
-  return {
-    name: file.name,
-    path: file.webkitRelativePath || file.name,
-    file,
-  };
+  return importedFileRefFromFile(file, file.webkitRelativePath || file.name);
 }
 
 export function ImportPanel({ disabled, onImport }: ImportPanelProps) {
@@ -21,7 +18,7 @@ export function ImportPanel({ disabled, onImport }: ImportPanelProps) {
 
   function handleChange(event: React.ChangeEvent<HTMLInputElement>) {
     onImport(Array.from(event.currentTarget.files ?? []).map(toImportedFile));
-    event.currentTarget.value = '';
+    event.currentTarget.value = "";
   }
 
   return (
@@ -41,7 +38,10 @@ export function ImportPanel({ disabled, onImport }: ImportPanelProps) {
         disabled={disabled}
         onChange={handleChange}
         className="sr-only"
-        {...({ webkitdirectory: 'true', directory: 'true' } as Record<string, string>)}
+        {...({ webkitdirectory: "true", directory: "true" } as Record<
+          string,
+          string
+        >)}
       />
       <ButtonRoot
         variant="outline"

@@ -1,18 +1,17 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { DatasetStatusBar } from "./DatasetStatusBar";
+import { importedFileRefFromFile } from "../data/importedFile";
 import type { DatasetIndex } from "../types";
 
 const dataset: DatasetIndex = {
   days: ["2026-04-28", "2026-04-29"],
   dateRange: { start: "2026-04-28", end: "2026-04-29" },
   filesByDay: {
-    "2026-04-28": [
-      { name: "a.edf", path: "a.edf", file: new File([], "a.edf") },
-    ],
+    "2026-04-28": [importedFileRefFromFile(new File([], "a.edf"), "a.edf")],
     "2026-04-29": [
-      { name: "b.edf", path: "b.edf", file: new File([], "b.edf") },
-      { name: "c.edf", path: "c.edf", file: new File([], "c.edf") },
+      importedFileRefFromFile(new File([], "b.edf"), "b.edf"),
+      importedFileRefFromFile(new File([], "c.edf"), "c.edf"),
     ],
   },
   summariesByDay: {

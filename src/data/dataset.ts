@@ -66,32 +66,19 @@ export function secondsBetween(start: string | null, end: string | null) {
 }
 
 async function parseImportedFile(fileRef: ImportedFileRef) {
-  const buffer = await fileRef.file.arrayBuffer();
+  const buffer = await fileRef.read();
   return parseVentilatorFile(fileRef.name, new Uint8Array(buffer));
 }
 
 // 索引阶段需要完整内容的类型：事件/配置直接参与摘要，invalid 文件本身很小
 const INDEX_FULL_PARSE_KINDS = new Set(["events16", "raw_config", "invalid"]);
 
-async function readBlobPart(blob: Blob): Promise<ArrayBuffer> {
-  if (typeof blob.arrayBuffer === "function") return blob.arrayBuffer();
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as ArrayBuffer);
-    reader.onerror = () =>
-      reject(reader.error ?? new Error("Failed to read blob"));
-    reader.readAsArrayBuffer(blob);
-  });
-}
-
 async function parseImportedFileForIndex(fileRef: ImportedFileRef) {
-  const headerRaw = new Uint8Array(
-    await readBlobPart(fileRef.file.slice(0, HEADER_BYTES))
-  );
+  const headerRaw = new Uint8Array(await fileRef.read(0, HEADER_BYTES));
   const headerOnly = parseVentilatorFileHeader(
     fileRef.name,
     headerRaw,
-    fileRef.file.size
+    fileRef.size
   );
   if (INDEX_FULL_PARSE_KINDS.has(headerOnly.kind)) {
     return parseImportedFile(fileRef);
@@ -251,6 +238,20 @@ async function summarizeDay(
 }
 
 export type IndexProgress = { completed: number; total: number };
+
+// 按路径推断日期并分组(供数据集索引与缓存引用切换共用)
+export function groupImportedFilesByDay(
+  files: ImportedFileRef[]
+): Record<string, ImportedFileRef[]> {
+  const filesByDay: Record<string, ImportedFileRef[]> = {};
+  for (const fileRef of files) {
+    const date = inferDateFromPath(fileRef.path || fileRef.name);
+    if (!date) continue;
+    filesByDay[date] ??= [];
+    filesByDay[date].push(fileRef);
+  }
+  return filesByDay;
+}
 
 export async function buildDatasetIndex(
   importedFiles: ImportedFileRef[],
@@ -414,6 +415,20 @@ export function inspectDayDetailCache(index: DatasetIndex) {
     keys: perIndex ? [...perIndex.keys()] : [],
     size: perIndex ? perIndex.size : 0,
   };
+}
+
+/**
+ * 把 source 的按日解析缓存迁移到 target(引用交接场景):
+ * 交接会生成新的 DatasetIndex 身份,不迁移的话 WeakMap 缓存全部失效,
+ * 已打开过的日期都要从 IndexedDB 重新读取解析
+ */
+export function migrateDayDetailCache(
+  source: DatasetIndex,
+  target: DatasetIndex
+) {
+  if (source === target) return;
+  const perIndex = dayDetailCache.get(source);
+  if (perIndex) dayDetailCache.set(target, new Map(perIndex));
 }
 
 async function resolveDayFiles(
