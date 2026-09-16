@@ -619,18 +619,27 @@ label:focus-within {
   -webkit-appearance: none;
 }
 
-.filter-chip input[type="checkbox"]:checked {
+.filter-panel .filter-chip input[type="checkbox"]:checked {
   border-color: var(--blue);
   background: var(--blue);
 }
 
-.filter-chip input[type="checkbox"]:checked::after {
+.filter-panel .filter-chip input[type="checkbox"]:checked::after {
   display: block;
   width: 100%;
   height: 100%;
   background: url("data:image/svg+xml,%3Csvg viewBox='0 0 16 16' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6.5 11.5L3.5 8.5l.7-.7 2.3 2.3 5.3-5.3.7.7-6 6z' fill='white'/%3E%3C/svg%3E")
     center/9px no-repeat;
   content: "";
+}
+
+/* 强制配色(如 Windows 高对比度)会替换自绘勾选的背景色,
+   导致选中态与未选中无法区分,恢复原生勾选框保证可见性 */
+@media (forced-colors: active) {
+  .filter-panel .filter-chip input[type="checkbox"] {
+    appearance: auto;
+    -webkit-appearance: auto;
+  }
 }
 
 .date-navigator .checkbox-row {

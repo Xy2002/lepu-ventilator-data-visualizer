@@ -1,5 +1,5 @@
 import type { DatasetIndex } from "../../types";
-import { dateInputBounds } from "./navigatorUtils";
+import { buildDateFilter, dateInputBounds } from "./navigatorUtils";
 import type { FilterState, RangeMode } from "./navigatorUtils";
 
 interface FilterPanelProps {
@@ -14,19 +14,22 @@ const EVENT_OPTIONS: Array<{ key: "ai" | "hi" | "ascp"; label: string }> = [
   { key: "ascp", label: "ASCP 有记录" },
 ];
 
-/** 已启用的筛选条件数量,显示为标题旁的徽标。 */
-function activeFilterCount(state: FilterState): number {
-  let count = state.requiredEvents.length;
-  if (state.rangeMode !== "all") count += 1;
-  if (state.missingOnly) count += 1;
-  if (state.minHours.trim() !== "") count += 1;
+/** 统计 buildDateFilter 实际生成的约束数,保证徽标只报真正生效的条件。 */
+function activeFilterCount(dataset: DatasetIndex, state: FilterState): number {
+  const filter = buildDateFilter(dataset, state);
+  let count = 0;
+  if (filter.startDate) count += 1;
+  if (filter.endDate) count += 1;
+  count += filter.requireEvents?.length ?? 0;
+  if (filter.missingFilesOnly) count += 1;
+  if (filter.minUseDurationSeconds) count += 1;
   return count;
 }
 
 /** 筛选面板。用 details 折叠,收起后不遮挡主要导航操作;生效条件数用徽标提示。 */
 export function FilterPanel({ dataset, state, onChange }: FilterPanelProps) {
   const { dateRange } = dataset;
-  const activeCount = activeFilterCount(state);
+  const activeCount = activeFilterCount(dataset, state);
 
   function toggleEvent(key: "ai" | "hi" | "ascp") {
     const requiredEvents = state.requiredEvents.includes(key)
