@@ -2,15 +2,15 @@
 
 ## 组件总览
 
-| 组件              | 文件                                 | 职责                                     |
-| ----------------- | ------------------------------------ | ---------------------------------------- |
-| `App`             | `src/App.tsx`                        | 应用壳，管理全局状态和数据流             |
-| `ImportPanel`     | `src/components/ImportPanel.tsx`     | 文件/文件夹导入入口                      |
-| `DateNavigator`   | `src/components/DateNavigator.tsx`   | 日期选择与热力图导航                     |
-| `SummaryCards`    | `src/components/SummaryCards.tsx`    | 当日数据摘要卡片                         |
-| `DayCharts`       | `src/components/DayCharts.tsx`       | 波形图表与内嵌事件列表                   |
-| `RawFileBrowser`  | `src/components/RawFileBrowser.tsx`  | 原始文件浏览器与 CSV 导出                |
-| `AiAnalysisPanel` | `src/components/AiAnalysisPanel.tsx` | AI 分析面板（OpenAI/Anthropic 流式生成） |
+| 组件              | 文件                                              | 职责                                     |
+| ----------------- | ------------------------------------------------- | ---------------------------------------- |
+| `App`             | `src/App.tsx`                                     | 应用壳，管理全局状态和数据流             |
+| `ImportPanel`     | `src/components/ImportPanel.tsx`                  | 文件/文件夹导入入口                      |
+| `DateNavigator`   | `src/components/date-navigator/DateNavigator.tsx` | 日期选择与热力图导航                     |
+| `SummaryCards`    | `src/components/SummaryCards.tsx`                 | 当日数据摘要卡片                         |
+| `DayCharts`       | `src/components/DayCharts.tsx`                    | 波形图表与内嵌事件列表                   |
+| `RawFileBrowser`  | `src/components/RawFileBrowser.tsx`               | 原始文件浏览器与 CSV 导出                |
+| `AiAnalysisPanel` | `src/components/AiAnalysisPanel.tsx`              | AI 分析面板（OpenAI/Anthropic 流式生成） |
 
 ## 组件层级与数据流
 
@@ -52,7 +52,15 @@ Props：
 
 ### DateNavigator
 
-侧栏日期导航，接收完整 `dataset` 和当前 `selectedDate`。
+侧栏日期导航，接收完整 `dataset` 和当前 `selectedDate`。位于 `src/components/date-navigator/`，由多个子组件组成：
+
+| 子组件              | 职责                                                    |
+| ------------------- | ------------------------------------------------------- |
+| `NavigatorControls` | 跳转输入、上一天/下一天、位置指示、无效日期提示         |
+| `FilterPanel`       | 可折叠的筛选面板（时间范围/事件类型/缺失文件/最短时长） |
+| `DayHeatmap`        | 全量日期热力图（限高滚动）与图例                        |
+| `FilteredDayList`   | 筛选结果列表与摘要 CSV 导出                             |
+| `navigatorUtils.ts` | 纯函数：筛选条件构建、热力强度、范围内相邻日期计算等    |
 
 Props：
 
@@ -62,11 +70,12 @@ Props：
 
 功能：
 
-- **跳转日期** — 日期输入框 + 跳转按钮
-- **上一天 / 下一天** — 在有序日期列表中前后移动
-- **只看缺失文件日期** — 复选框过滤，通过 `filterDays()` 筛选
-- **热力图** — 近 90 天的色块网格，按数据完整性着色（完整 = 绿色，缺失 = 黄色，选中 = 高亮）
-- **筛选日期列表** — 显示最近 20 天及每天的低通气（HI）事件数
+- **跳转日期** — 输入框始终跟随当前选中日期；输入有效日期后立即跳转，无需单独的跳转按钮
+- **无效日期提示** — 输入没有数据的日期时提示最近的有数据日期，可一键跳转（不再静默失败）
+- **上一天 / 下一天** — 在「导航范围」内前后移动；未启用筛选时范围为全部日期，启用筛选后只在筛选结果内切换，并显示「第 x / n 天」位置指示；支持侧栏内 ← / → 键盘切换
+- **筛选** — 时间范围、事件类型、只看缺失文件日期、最短使用时长，通过 `filterDays()` 计算，同时约束前后切换、热力图下的列表与 CSV 导出
+- **热力图** — 全量日期的色块网格（容器限高滚动，选中格自动滚入视野），按数据完整性着色（完整 = 绿色，缺失 = 黄色，选中 = 高亮）
+- **筛选日期列表** — 显示最近 20 天及每天的低通气（HI）事件数，当前选中日期高亮
 
 ### SummaryCards
 

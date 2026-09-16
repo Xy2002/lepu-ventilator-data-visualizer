@@ -120,14 +120,14 @@ sequenceDiagram
 
 ### components/ — UI 组件
 
-| 组件              | 职责                                                              |
-| ----------------- | ----------------------------------------------------------------- |
-| `ImportPanel`     | 文件选择入口，支持文件夹和单文件两种模式                          |
-| `DateNavigator`   | 日期导航侧栏：跳转、前后翻页、热力图、缺失文件筛选                |
-| `SummaryCards`    | 当日摘要卡片：使用时长、AI/HI 计数、压力范围、缺失文件数          |
-| `DayCharts`       | 波形图表主面板：Tab 切换信号、事件标记、内嵌事件列表联动          |
-| `RawFileBrowser`  | 原始文件浏览器：文件详情折叠面板、BA525 配置解析、CSV 导出        |
-| `AiAnalysisPanel` | AI 分析面板：支持 OpenAI/Anthropic 流式生成，缓存报告到 IndexedDB |
+| 组件              | 职责                                                                         |
+| ----------------- | ---------------------------------------------------------------------------- |
+| `ImportPanel`     | 文件选择入口，支持文件夹和单文件两种模式                                     |
+| `DateNavigator`   | `date-navigator/` 日期导航侧栏：跳转、范围内前后翻页、热力图、筛选与结果列表 |
+| `SummaryCards`    | 当日摘要卡片：使用时长、AI/HI 计数、压力范围、缺失文件数                     |
+| `DayCharts`       | 波形图表主面板：Tab 切换信号、事件标记、内嵌事件列表联动                     |
+| `RawFileBrowser`  | 原始文件浏览器：文件详情折叠面板、BA525 配置解析、CSV 导出                   |
+| `AiAnalysisPanel` | AI 分析面板：支持 OpenAI/Anthropic 流式生成，缓存报告到 IndexedDB            |
 
 ### ai/ — AI 分析
 
@@ -178,18 +178,18 @@ sequenceDiagram
 
 采用 **React useState + prop drilling** 模式，无 context 或外部状态库。
 
-| 状态                                                | 位置            | 类型       |
-| --------------------------------------------------- | --------------- | ---------- |
-| `dataset` (DatasetIndex)                            | App             | `useState` |
-| `selectedDate`                                      | App             | `useState` |
-| `dayDetail` (DayDetail)                             | App             | `useState` |
-| `isIndexing` / `isLoadingDay` / `isRestoringImport` | App             | `useState` |
-| `error` / `cacheNotice` / `indexProgress`           | App             | `useState` |
-| `aiPanelOpen`                                       | App             | `useState` |
-| `selectedFileName` / `renderedFileName`             | DayCharts       | `useState` |
-| `focusedIndex`                                      | DayCharts       | `useState` |
-| `missingOnly` / `jumpDate`                          | DateNavigator   | `useState` |
-| `settings` / `status` / `report`                    | AiAnalysisPanel | `useState` |
+| 状态                                                | 位置                                                        | 类型       |
+| --------------------------------------------------- | ----------------------------------------------------------- | ---------- |
+| `dataset` (DatasetIndex)                            | App                                                         | `useState` |
+| `selectedDate`                                      | App                                                         | `useState` |
+| `dayDetail` (DayDetail)                             | App                                                         | `useState` |
+| `isIndexing` / `isLoadingDay` / `isRestoringImport` | App                                                         | `useState` |
+| `error` / `cacheNotice` / `indexProgress`           | App                                                         | `useState` |
+| `aiPanelOpen`                                       | App                                                         | `useState` |
+| `selectedFileName` / `renderedFileName`             | DayCharts                                                   | `useState` |
+| `focusedIndex`                                      | DayCharts                                                   | `useState` |
+| `filterState` / `draft` / `exportError`             | DateNavigator（容器 / NavigatorControls / FilteredDayList） | `useState` |
+| `settings` / `status` / `report`                    | AiAnalysisPanel                                             | `useState` |
 
 **数据流向**：App 持有全局状态，通过 props 向下传递。子组件管理各自的 UI 局部状态。`useEffect` 处理副作用（文件恢复、日期切换加载详情、AI 报告缓存加载）。
 
