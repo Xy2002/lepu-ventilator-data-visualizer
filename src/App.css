@@ -392,7 +392,8 @@ label:focus-within {
   line-height: 1.6;
 }
 
-.nav-hint button {
+.nav-hint button,
+.nav-position button {
   min-height: 24px;
   margin-left: 6px;
   padding: 0 8px;
@@ -406,20 +407,19 @@ label:focus-within {
   cursor: pointer;
 }
 
-.nav-hint button:hover {
+.nav-hint button:hover,
+.nav-position button:hover {
   background: var(--surface-subtle);
 }
 
 .navigator-tip {
   margin: 12px 0 0;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .filter-panel {
   margin-top: 16px;
-  border: 0;
-  padding: 0;
 }
 
 .filter-panel summary {

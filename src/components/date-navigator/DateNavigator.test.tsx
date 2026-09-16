@@ -1,46 +1,13 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { DatasetIndex, DaySummary } from "../../types";
+import type { DatasetIndex } from "../../types";
+import { makeDatasetIndex } from "../../test/fixtures";
 import { DateNavigator } from "./DateNavigator";
 
-function makeDay(
-  date: string,
-  hi = 0,
-  missingFiles: string[] = []
-): DaySummary {
-  return {
-    date,
-    startTime: null,
-    endTime: null,
-    useDurationSeconds: null,
-    useSessions: [],
-    eventCounts: { hi },
-    signalPresence: {},
-    sampleCounts: {},
-    pressureRange: null,
-    missingFiles,
-    warnings: [],
-  };
-}
-
-function makeIndex(days: string[]): DatasetIndex {
-  return {
-    days,
-    dateRange: { start: days[0], end: days[days.length - 1] },
-    filesByDay: {},
-    parsedFilesByDay: {},
-    warnings: [],
-    summariesByDay: Object.fromEntries(
-      days.map((date) => [
-        date,
-        makeDay(date, 0, date === "2026-04-27" ? ["flow"] : []),
-      ])
-    ),
-  };
-}
-
-const index = makeIndex(["2026-04-27", "2026-04-28", "2026-04-29"]);
+const index = makeDatasetIndex(["2026-04-27", "2026-04-28", "2026-04-29"], {
+  "2026-04-27": { missingFiles: ["flow"] },
+});
 
 function renderNavigator(
   selectedDate = "2026-04-28",
@@ -87,7 +54,7 @@ describe("DateNavigator", () => {
   });
 
   it("suggests the nearest available date instead of failing silently", async () => {
-    const gapped = makeIndex(["2026-04-27", "2026-05-02"]);
+    const gapped = makeDatasetIndex(["2026-04-27", "2026-05-02"]);
     const { onSelectDate } = renderNavigator("2026-05-02", gapped);
 
     await userEvent.clear(screen.getByLabelText("跳转日期"));
@@ -120,6 +87,11 @@ describe("DateNavigator", () => {
     expect(screen.getByText(/不在筛选范围内/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "下一天 →" })).toBeDisabled();
 
+    await userEvent.click(
+      screen.getByRole("button", { name: "跳到范围内最近日期" })
+    );
+    expect(onSelectDate).toHaveBeenLastCalledWith("2026-04-27");
+
     await userEvent.click(screen.getByRole("button", { name: "← 上一天" }));
     expect(onSelectDate).toHaveBeenLastCalledWith("2026-04-27");
   });
@@ -136,6 +108,17 @@ describe("DateNavigator", () => {
 
     fireEvent.keyDown(screen.getByLabelText("跳转日期"), { key: "ArrowRight" });
     expect(onSelectDate).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not hijack arrow keys combined with browser modifiers", () => {
+    const { onSelectDate } = renderNavigator();
+    const cell = screen.getByTitle("2026-04-28 — 数据完整 · AI+HI 0 次");
+
+    fireEvent.keyDown(cell, { key: "ArrowLeft", altKey: true });
+    fireEvent.keyDown(cell, { key: "ArrowRight", metaKey: true });
+    fireEvent.keyDown(cell, { key: "ArrowLeft", ctrlKey: true });
+
+    expect(onSelectDate).not.toHaveBeenCalled();
   });
 
   it("labels heat cells for accessibility and marks the selected one", () => {

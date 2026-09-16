@@ -178,18 +178,18 @@ sequenceDiagram
 
 采用 **React useState + prop drilling** 模式，无 context 或外部状态库。
 
-| 状态                                                | 位置            | 类型       |
-| --------------------------------------------------- | --------------- | ---------- |
-| `dataset` (DatasetIndex)                            | App             | `useState` |
-| `selectedDate`                                      | App             | `useState` |
-| `dayDetail` (DayDetail)                             | App             | `useState` |
-| `isIndexing` / `isLoadingDay` / `isRestoringImport` | App             | `useState` |
-| `error` / `cacheNotice` / `indexProgress`           | App             | `useState` |
-| `aiPanelOpen`                                       | App             | `useState` |
-| `selectedFileName` / `renderedFileName`             | DayCharts       | `useState` |
-| `focusedIndex`                                      | DayCharts       | `useState` |
-| `filterState` / `draft` / `exportError`             | DateNavigator   | `useState` |
-| `settings` / `status` / `report`                    | AiAnalysisPanel | `useState` |
+| 状态                                                | 位置                                                        | 类型       |
+| --------------------------------------------------- | ----------------------------------------------------------- | ---------- |
+| `dataset` (DatasetIndex)                            | App                                                         | `useState` |
+| `selectedDate`                                      | App                                                         | `useState` |
+| `dayDetail` (DayDetail)                             | App                                                         | `useState` |
+| `isIndexing` / `isLoadingDay` / `isRestoringImport` | App                                                         | `useState` |
+| `error` / `cacheNotice` / `indexProgress`           | App                                                         | `useState` |
+| `aiPanelOpen`                                       | App                                                         | `useState` |
+| `selectedFileName` / `renderedFileName`             | DayCharts                                                   | `useState` |
+| `focusedIndex`                                      | DayCharts                                                   | `useState` |
+| `filterState` / `draft` / `exportError`             | DateNavigator（容器 / NavigatorControls / FilteredDayList） | `useState` |
+| `settings` / `status` / `report`                    | AiAnalysisPanel                                             | `useState` |
 
 **数据流向**：App 持有全局状态，通过 props 向下传递。子组件管理各自的 UI 局部状态。`useEffect` 处理副作用（文件恢复、日期切换加载详情、AI 报告缓存加载）。
 

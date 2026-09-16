@@ -1,4 +1,5 @@
 import type { DatasetIndex } from "../../types";
+import { dateInputBounds } from "./navigatorUtils";
 import type { FilterState, RangeMode } from "./navigatorUtils";
 
 interface FilterPanelProps {
@@ -48,8 +49,7 @@ export function FilterPanel({ dataset, state, onChange }: FilterPanelProps) {
             type="date"
             aria-label="起始日期"
             value={state.customStart}
-            min={dateRange.start ?? undefined}
-            max={dateRange.end ?? undefined}
+            {...dateInputBounds(dateRange)}
             onChange={(event) => onChange({ customStart: event.target.value })}
           />
           <span>~</span>
@@ -57,8 +57,7 @@ export function FilterPanel({ dataset, state, onChange }: FilterPanelProps) {
             type="date"
             aria-label="结束日期"
             value={state.customEnd}
-            min={dateRange.start ?? undefined}
-            max={dateRange.end ?? undefined}
+            {...dateInputBounds(dateRange)}
             onChange={(event) => onChange({ customEnd: event.target.value })}
           />
         </div>

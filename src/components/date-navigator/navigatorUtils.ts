@@ -49,6 +49,14 @@ export function buildDateFilter(
   return result;
 }
 
+/** 日期输入框的 min/max 边界,收敛 dateRange 到 input 属性的重复换算。 */
+export function dateInputBounds(dateRange: {
+  start: string | null;
+  end: string | null;
+}) {
+  return { min: dateRange.start ?? undefined, max: dateRange.end ?? undefined };
+}
+
 export function intensityByDay(dataset: DatasetIndex) {
   const counts = dataset.days.map((day) => {
     const summary = dataset.summariesByDay[day];

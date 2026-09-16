@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { nearestAvailableDate, scopeNeighbor } from "./navigatorUtils";
+import {
+  dateInputBounds,
+  nearestAvailableDate,
+  scopeNeighbor,
+} from "./navigatorUtils";
 
 interface NavigatorControlsProps {
   days: string[];
@@ -48,8 +52,7 @@ export function NavigatorControls({
         跳转日期
         <input
           type="date"
-          min={dateRange.start ?? undefined}
-          max={dateRange.end ?? undefined}
+          {...dateInputBounds(dateRange)}
           value={draft}
           onChange={(event) => handleDraftChange(event.target.value)}
         />
@@ -72,11 +75,24 @@ export function NavigatorControls({
           下一天 →
         </button>
       </div>
-      <p className="nav-position" aria-live="polite">
-        {scopeIndex >= 0
-          ? `第 ${scopeIndex + 1} / ${scope.length} 天`
-          : `当前日期不在筛选范围内(范围内共 ${scope.length} 天)`}
-      </p>
+      {scopeIndex >= 0 ? (
+        <p className="nav-position" aria-live="polite">
+          第 {scopeIndex + 1} / {scope.length} 天
+        </p>
+      ) : (
+        <p className="nav-position" aria-live="polite">
+          当前日期不在筛选范围内(范围内共 {scope.length} 天)
+          <button
+            type="button"
+            onClick={() => {
+              const target = nearestAvailableDate(scope, selectedDate);
+              if (target) onSelectDate(target);
+            }}
+          >
+            跳到范围内最近日期
+          </button>
+        </p>
+      )}
       {suggestion ? (
         <p className="nav-hint" role="status">
           {draft} 没有数据,最近的有数据日期:

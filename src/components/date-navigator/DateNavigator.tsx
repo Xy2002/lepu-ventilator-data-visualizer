@@ -45,6 +45,8 @@ export function DateNavigator({
   function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
     const target = event.target as HTMLElement;
     if (target.closest("input, select, textarea")) return;
+    // 不劫持浏览器/系统级组合键(如 Alt+← 后退)
+    if (event.altKey || event.metaKey || event.ctrlKey) return;
     if (event.key === "ArrowLeft") {
       event.preventDefault();
       step(-1);
