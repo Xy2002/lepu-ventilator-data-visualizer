@@ -135,6 +135,33 @@ describe("DateNavigator", () => {
     ).toBeDisabled();
   });
 
+  it("badge only reports conditions that actually constrain the scope", async () => {
+    renderNavigator();
+
+    // 数据集只有 3 天,近 7 天与未填起止的自定义区间都不产生实际约束
+    await userEvent.selectOptions(screen.getByLabelText("时间范围"), "recent7");
+    expect(screen.queryByText(/项生效/)).toBeNull();
+
+    await userEvent.selectOptions(screen.getByLabelText("时间范围"), "custom");
+    expect(screen.queryByText(/项生效/)).toBeNull();
+
+    // 时长 0 被 buildDateFilter 忽略,不应计入
+    await userEvent.type(
+      screen.getByRole("spinbutton", { name: "最短使用时长（小时）" }),
+      "0"
+    );
+    expect(screen.queryByText(/项生效/)).toBeNull();
+
+    await userEvent.clear(
+      screen.getByRole("spinbutton", { name: "最短使用时长（小时）" })
+    );
+    await userEvent.type(
+      screen.getByRole("spinbutton", { name: "最短使用时长（小时）" }),
+      "0.5"
+    );
+    expect(screen.getByText("1 项生效")).toBeInTheDocument();
+  });
+
   it("labels heat cells for accessibility and marks the selected one", () => {
     renderNavigator();
 

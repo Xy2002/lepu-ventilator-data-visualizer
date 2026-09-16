@@ -424,15 +424,222 @@ label:focus-within {
 }
 
 .filter-panel summary {
-  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 6px;
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: var(--line-light);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   user-select: none;
+  list-style: none;
+  transition: background 140ms ease;
 }
 
-.filter-panel[open] summary {
-  margin-bottom: 4px;
+.filter-panel summary::-webkit-details-marker {
+  display: none;
+}
+
+.filter-panel summary:hover {
+  background: var(--surface-subtle);
+}
+
+.filter-chevron {
+  flex: none;
+  color: var(--faint);
+  transition: transform 140ms ease;
+}
+
+.filter-panel[open] .filter-chevron {
+  transform: rotate(90deg);
+}
+
+.filter-badge {
+  margin-left: auto;
+  padding: 1px 8px;
+  border-radius: 9999px;
+  color: #0068d6;
+  background: #ebf5ff;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* 条件收进浅色分组盒,与白色卡片形成层次 */
+.filter-body {
+  display: grid;
+  gap: 12px;
+  margin-top: 8px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--surface-subtle);
+  box-shadow: var(--line-light);
+}
+
+.filter-hint {
+  margin: 0;
+  color: var(--faint);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.filter-panel .filter-row {
+  display: grid;
+  gap: 6px;
+  margin-top: 0;
+}
+
+/* 行内控件自带 focus-visible 描边,避免整行 label 再套一层蓝框 */
+.filter-panel .filter-row:focus-within {
+  outline: none;
+}
+
+.filter-label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.filter-panel select {
+  min-height: 34px;
+  padding: 0 30px 0 10px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text);
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4' fill='none' stroke='%23666666' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+      right 10px center / 14px no-repeat,
+    var(--surface);
+  box-shadow: var(--line-light);
+  font-size: 13px;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.filter-panel select:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* 隐藏 number 输入的原生步进箭头,键盘上下键仍可调值 */
+.filter-panel input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.filter-panel input[type="number"]::-webkit-outer-spin-button,
+.filter-panel input[type="number"]::-webkit-inner-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+
+.filter-custom-range {
+  display: grid;
+  gap: 6px;
+}
+
+.filter-panel .filter-bound {
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  gap: 6px;
+  align-items: center;
+  margin-top: 0;
+}
+
+.filter-bound > span {
+  color: var(--faint);
+  font-size: 12px;
+  text-align: center;
+}
+
+/* 条件 chip:保留真实 checkbox 语义,外观按徽标 pill 处理。
+   选择器带 .filter-panel 前缀,压过 .date-navigator label 的网格布局 */
+.filter-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.filter-panel .filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  min-height: 26px;
+  margin-top: 0;
+  padding: 0 10px;
+  border-radius: 9999px;
+  color: var(--muted);
+  background: var(--surface);
+  box-shadow: var(--line-light);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background 140ms ease,
+    box-shadow 140ms ease,
+    color 140ms ease;
+}
+
+.filter-panel .filter-chip:hover {
+  background: var(--surface-subtle);
+}
+
+.filter-panel .filter-chip.checked {
+  color: #0068d6;
+  background: #ebf5ff;
+  box-shadow: rgba(10, 114, 239, 0.35) 0 0 0 1px;
+}
+
+.filter-panel .filter-chip.checked:hover {
+  box-shadow: rgba(10, 114, 239, 0.6) 0 0 0 1px;
+}
+
+.filter-panel .filter-chip input[type="checkbox"] {
+  width: 13px;
+  height: 13px;
+  min-height: auto;
+  flex: none;
+  padding: 0;
+  border: 1.5px solid var(--faint);
+  border-radius: 4px;
+  background: var(--surface);
+  box-shadow: none;
+  accent-color: var(--blue);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.filter-panel .filter-chip input[type="checkbox"]:checked {
+  border-color: var(--blue);
+  background: var(--blue);
+}
+
+.filter-panel .filter-chip input[type="checkbox"]:checked::after {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 16 16' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6.5 11.5L3.5 8.5l.7-.7 2.3 2.3 5.3-5.3.7.7-6 6z' fill='white'/%3E%3C/svg%3E")
+    center/9px no-repeat;
+  content: "";
+}
+
+/* 强制配色(如 Windows 高对比度)会替换自绘勾选的背景色,
+   导致选中态与未选中无法区分,恢复原生勾选框保证可见性 */
+@media (forced-colors: active) {
+  .filter-panel .filter-chip input[type="checkbox"] {
+    appearance: auto;
+    -webkit-appearance: auto;
+  }
 }
 
 .date-navigator .checkbox-row {
@@ -1901,25 +2108,4 @@ th {
   margin: 6px 0 0;
   padding-left: 18px;
   font-size: 12px;
-}
-
-/* 筛选面板复选框使用紧凑内联布局,覆盖通用 label 网格样式 */
-.filter-panel .filter-checks {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 12px;
-}
-
-.date-navigator .filter-checks label {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-height: auto;
-  line-height: 1.2;
-}
-
-.date-navigator .filter-checks input[type="checkbox"] {
-  width: auto;
-  min-height: auto;
-  margin: 0;
 }
