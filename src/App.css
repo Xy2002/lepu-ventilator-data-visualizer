@@ -497,31 +497,52 @@ label:focus-within {
   background: #ebebeb;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.04);
   cursor: pointer;
+  transition: filter 140ms ease;
 }
 
-.heat-cell:hover {
-  background: #d9d9d9;
-}
-
+/* 事件强度:完整日绿色、缺失日橙色各分 4 档,颜色越深事件越多 */
 .heat-cell.complete {
-  background: #c8e6c9;
+  background: #dcedd8;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
 }
 
-.heat-cell.complete:hover {
-  background: #a5d6a7;
+.heat-cell.complete.intensity-2 {
+  background: #bcdcba;
+}
+
+.heat-cell.complete.intensity-3 {
+  background: #93c79a;
+}
+
+.heat-cell.complete.intensity-4 {
+  background: #6ab27b;
 }
 
 .heat-cell.partial {
-  background: #ffe0b2;
+  background: #ffe3bd;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
 }
 
-.heat-cell.partial:hover {
-  background: #ffcc80;
+.heat-cell.partial.intensity-2 {
+  background: #ffd194;
 }
 
-.heat-cell.active {
+.heat-cell.partial.intensity-3 {
+  background: #ffbd6e;
+}
+
+.heat-cell.partial.intensity-4 {
+  background: #ffa94e;
+}
+
+.heat-cell:not(.active):hover {
+  filter: brightness(0.92);
+}
+
+/* active 规则放在强度规则之后,保证选中高亮盖过深浅色阶 */
+.heat-cell.active,
+.heat-cell.active.complete,
+.heat-cell.active.partial {
   background: var(--blue);
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
 }
@@ -547,12 +568,31 @@ label:focus-within {
   margin-right: 2px;
 }
 
-.legend-complete {
-  background: #c8e6c9;
+.legend-scale {
+  display: inline-flex;
+  gap: 2px;
+  margin-right: 2px;
+  vertical-align: middle;
+}
+
+.legend-intensity-1 {
+  background: #dcedd8;
+}
+
+.legend-intensity-2 {
+  background: #bcdcba;
+}
+
+.legend-intensity-3 {
+  background: #93c79a;
+}
+
+.legend-intensity-4 {
+  background: #6ab27b;
 }
 
 .legend-partial {
-  background: #ffe0b2;
+  background: #ffe3bd;
 }
 
 .legend-active {
