@@ -11,8 +11,6 @@ interface FilteredDayListProps {
   onSelectDate: (date: string) => void;
 }
 
-const MAX_VISIBLE_DAYS = 20;
-
 /** 筛选结果列表 + 摘要 CSV 导出。 */
 export function FilteredDayList({
   dataset,
@@ -60,7 +58,12 @@ export function FilteredDayList({
 
   return (
     <section className="bounded-results" aria-label="筛选日期列表">
-      <h3>筛选日期{missingOnly ? "（仅缺失）" : ""}</h3>
+      <div className="results-header">
+        <h3>筛选日期{missingOnly ? "（仅缺失）" : ""}</h3>
+        {filteredDays.length > 0 ? (
+          <span className="results-count">共 {filteredDays.length} 天</span>
+        ) : null}
+      </div>
       <button
         type="button"
         className="export-filtered-btn"
@@ -70,26 +73,29 @@ export function FilteredDayList({
         导出筛选日期摘要
       </button>
       {exportError ? <p className="export-error">{exportError}</p> : null}
-      <p className="results-hint">
-        共 {filteredDays.length} 天，显示最近 {MAX_VISIBLE_DAYS} 天（新→旧）
-      </p>
-      {filteredDays
-        .slice(-MAX_VISIBLE_DAYS)
-        .reverse()
-        .map((date) => (
-          <button
-            type="button"
-            key={date}
-            className={`result-row${date === selectedDate ? " result-row-active" : ""}`}
-            aria-pressed={date === selectedDate}
-            onClick={() => onSelectDate(date)}
-          >
-            <strong>{date}</strong>
-            <span>
-              低通气 {dataset.summariesByDay[date]?.eventCounts.hi ?? 0}
-            </span>
-          </button>
-        ))}
+      {filteredDays.length === 0 ? (
+        <p className="results-empty">
+          {missingOnly ? "没有缺失数据的日期" : "没有符合筛选条件的日期"}
+        </p>
+      ) : (
+        <ul className="result-list">
+          {[...filteredDays].reverse().map((date) => (
+            <li key={date}>
+              <button
+                type="button"
+                className={`result-row${date === selectedDate ? " result-row-active" : ""}`}
+                aria-pressed={date === selectedDate}
+                onClick={() => onSelectDate(date)}
+              >
+                <strong>{date}</strong>
+                <span>
+                  低通气 {dataset.summariesByDay[date]?.eventCounts.hi ?? 0}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

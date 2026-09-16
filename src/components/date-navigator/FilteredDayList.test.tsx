@@ -37,6 +37,32 @@ describe("FilteredDayList", () => {
     vi.clearAllMocks();
   });
 
+  it("shows the filtered day count in the header", () => {
+    renderList();
+
+    expect(screen.getByText("共 1 天")).toBeInTheDocument();
+    expect(screen.queryByText(/显示最近/)).toBeNull();
+  });
+
+  it("shows an empty state when no days match the filter", () => {
+    const dataset = makeDatasetIndex(["2026-04-27"]);
+    render(
+      <FilteredDayList
+        dataset={dataset}
+        filteredDays={[]}
+        missingOnly={false}
+        selectedDate="2026-04-27"
+        onSelectDate={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("没有符合筛选条件的日期")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "导出筛选日期摘要" })
+    ).toBeDisabled();
+    expect(screen.queryByText(/共 .* 天/)).toBeNull();
+  });
+
   it("aborts the export when a day's pressure data cannot be read", async () => {
     renderList();
     mockedCompute.mockRejectedValueOnce(new Error("read failed"));
