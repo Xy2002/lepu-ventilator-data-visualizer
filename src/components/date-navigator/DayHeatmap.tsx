@@ -67,7 +67,13 @@ export function DayHeatmap({
         })}
       </div>
       <div className="heatmap-legend">
-        <span className="legend-dot legend-complete" /> 完整
+        <span className="legend-scale" aria-hidden="true">
+          <i className="legend-dot legend-intensity-1" />
+          <i className="legend-dot legend-intensity-2" />
+          <i className="legend-dot legend-intensity-3" />
+          <i className="legend-dot legend-intensity-4" />
+        </span>
+        事件少→多
         <span className="legend-dot legend-partial" /> 缺失
         <span className="legend-dot legend-active" /> 选中
       </div>
