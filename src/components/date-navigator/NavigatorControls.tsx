@@ -81,7 +81,7 @@ export function NavigatorControls({
         </p>
       ) : (
         <p className="nav-position" aria-live="polite">
-          当前日期不在筛选范围内(范围内共 {scope.length} 天)
+          当前日期不在筛选范围内（范围内共 {scope.length} 天）
           <button
             type="button"
             disabled={scope.length === 0}
@@ -96,7 +96,7 @@ export function NavigatorControls({
       )}
       {suggestion ? (
         <p className="nav-hint" role="status">
-          {draft} 没有数据,最近的有数据日期:
+          {draft} 没有数据，最近的有数据日期：
           <button type="button" onClick={() => handleDraftChange(suggestion)}>
             {suggestion}
           </button>

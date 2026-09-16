@@ -39,7 +39,7 @@ export function DayHeatmap({
   return (
     <section aria-label="日期热力图">
       <span className="heatmap-label">
-        数据概览(全部 {dataset.days.length} 天,颜色越深事件越多)
+        数据概览（全部 {dataset.days.length} 天，颜色越深事件越多）
       </span>
       <div className="heatmap" ref={containerRef}>
         {dataset.days.map((date) => {

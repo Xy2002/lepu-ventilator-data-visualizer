@@ -125,7 +125,7 @@ describe("DateNavigator", () => {
     renderNavigator();
 
     await userEvent.type(
-      screen.getByRole("spinbutton", { name: "最短使用时长(小时)" }),
+      screen.getByRole("spinbutton", { name: "最短使用时长（小时）" }),
       "999"
     );
 

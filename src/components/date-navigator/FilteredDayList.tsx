@@ -44,7 +44,7 @@ export function FilteredDayList({
     // 读取失败时中止导出,避免空白压力列被误当作「无压力数据」
     if (failedDates.length > 0) {
       setExportError(
-        `以下日期的压力数据读取失败,已取消导出:${failedDates.join("、")}`
+        `以下日期的压力数据读取失败，已取消导出：${failedDates.join("、")}`
       );
       return;
     }
@@ -60,7 +60,7 @@ export function FilteredDayList({
 
   return (
     <section className="bounded-results" aria-label="筛选日期列表">
-      <h3>筛选日期{missingOnly ? "(仅缺失)" : ""}</h3>
+      <h3>筛选日期{missingOnly ? "（仅缺失）" : ""}</h3>
       <button
         type="button"
         className="export-filtered-btn"
@@ -71,7 +71,7 @@ export function FilteredDayList({
       </button>
       {exportError ? <p className="export-error">{exportError}</p> : null}
       <p className="results-hint">
-        共 {filteredDays.length} 天,显示最近 {MAX_VISIBLE_DAYS} 天(新→旧)
+        共 {filteredDays.length} 天，显示最近 {MAX_VISIBLE_DAYS} 天（新→旧）
       </p>
       {filteredDays
         .slice(-MAX_VISIBLE_DAYS)

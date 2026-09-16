@@ -27,7 +27,7 @@ export function FilterPanel({ dataset, state, onChange }: FilterPanelProps) {
 
   return (
     <details className="filter-panel" open>
-      <summary>筛选(约束前后切换与下方列表)</summary>
+      <summary>筛选（约束前后切换与下方列表）</summary>
       <label className="filter-row">
         时间范围
         <select
@@ -85,7 +85,7 @@ export function FilterPanel({ dataset, state, onChange }: FilterPanelProps) {
         </label>
       </div>
       <label className="filter-row">
-        最短使用时长(小时)
+        最短使用时长（小时）
         <input
           type="number"
           min="0"

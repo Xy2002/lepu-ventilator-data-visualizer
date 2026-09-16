@@ -83,7 +83,7 @@ export function DateNavigator({
         selectedDate={selectedDate}
         onSelectDate={onSelectDate}
       />
-      <p className="navigator-tip">提示:按 ← / → 键快速切换上一天/下一天</p>
+      <p className="navigator-tip">提示：按 ← / → 键快速切换上一天/下一天</p>
     </aside>
   );
 }
