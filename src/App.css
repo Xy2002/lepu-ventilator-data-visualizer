@@ -392,6 +392,7 @@ label:focus-within {
   line-height: 1.6;
 }
 
+/* DESIGN.md Button 为 14px;此处是行内紧凑 chip,按说明文字同级取 13px */
 .nav-hint button,
 .nav-position button {
   min-height: 24px;
@@ -403,7 +404,7 @@ label:focus-within {
   background: var(--surface);
   box-shadow: var(--line-light);
   font-family: inherit;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
 }
 

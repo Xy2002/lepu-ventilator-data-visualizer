@@ -84,6 +84,7 @@ export function NavigatorControls({
           当前日期不在筛选范围内(范围内共 {scope.length} 天)
           <button
             type="button"
+            disabled={scope.length === 0}
             onClick={() => {
               const target = nearestAvailableDate(scope, selectedDate);
               if (target) onSelectDate(target);

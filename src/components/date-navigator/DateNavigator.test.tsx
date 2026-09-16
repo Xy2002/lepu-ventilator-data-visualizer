@@ -121,6 +121,20 @@ describe("DateNavigator", () => {
     expect(onSelectDate).not.toHaveBeenCalled();
   });
 
+  it("disables the in-scope jump when the filter matches nothing", async () => {
+    renderNavigator();
+
+    await userEvent.type(
+      screen.getByRole("spinbutton", { name: "最短使用时长(小时)" }),
+      "999"
+    );
+
+    expect(screen.getByText(/不在筛选范围内/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "跳到范围内最近日期" })
+    ).toBeDisabled();
+  });
+
   it("labels heat cells for accessibility and marks the selected one", () => {
     renderNavigator();
 

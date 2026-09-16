@@ -47,15 +47,15 @@ export function DayHeatmap({
           const summary = dataset.summariesByDay[date];
           const completenessClass =
             !summary || summary.missingFiles.length === 0
-              ? " complete"
-              : " partial";
+              ? "complete"
+              : "partial";
           const label = heatCellTitle(date, dataset);
           return (
             <button
               type="button"
               key={date}
               ref={isActive ? activeCellRef : undefined}
-              className={`heat-cell${completenessClass} intensity-${
+              className={`heat-cell ${completenessClass} intensity-${
                 intensity[date] ?? 1
               }${isActive ? " active" : ""}`}
               title={label}
